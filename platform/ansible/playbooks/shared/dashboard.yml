@@ -1,0 +1,24 @@
+---
+# Compute runs the Netdata parent the observer reads over loopback. Storage
+# and the builder run their own loopback-only agents and stream to it across
+# wg-storage and wg0; run storage-wireguard.yml and wireguard.yml first.
+- name: Install the compute Netdata parent
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: host_base
+    - role: netdata_dashboard
+      vars:
+        netdata_dashboard_node: compute
+
+- name: Stream child host metrics to compute
+  hosts: storage_hosts:control_builder_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: netdata_dashboard
+      vars:
+        netdata_dashboard_node: "{{ 'storage' if 'storage_hosts' in group_names else 'builder' }}"
+
+- import_playbook: dashboard-verify-streams.yml

@@ -1,0 +1,39 @@
+---
+- name: Validate private storage tunnel
+  ansible.builtin.assert:
+    that:
+      - storage_wireguard_address in ['10.78.0.1', '10.78.0.2']
+      - storage_wireguard_peer_address in ['10.78.0.1', '10.78.0.2']
+      - storage_wireguard_address != storage_wireguard_peer_address
+      - storage_wireguard_private_key is match('^[A-Za-z0-9+/]{43}=$')
+      - storage_wireguard_peer_public_key is match('^[A-Za-z0-9+/]{43}=$')
+      - storage_wireguard_listen_port | int == 51821
+      - >-
+        (storage_wireguard_address == '10.78.0.2' and storage_wireguard_endpoint == '')
+        or (storage_wireguard_address == '10.78.0.1' and
+            storage_wireguard_endpoint is match('^[0-9.]+:51821$'))
+    fail_msg: storage requires the fixed two-peer WireGuard link and Vault keys
+  no_log: true
+
+- name: Install WireGuard
+  ansible.builtin.apt:
+    name: wireguard
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install private storage peer configuration
+  ansible.builtin.template:
+    src: wg-storage.conf.j2
+    dest: /etc/wireguard/wg-storage.conf
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Apply storage WireGuard configuration
+
+- name: Enable and start private storage tunnel
+  ansible.builtin.systemd_service:
+    name: wg-quick@wg-storage.service
+    enabled: true
+    state: started

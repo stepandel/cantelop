@@ -1,0 +1,597 @@
+---
+- name: Validate JuiceFS metadata restore inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_restore_metadata_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_restore_metadata_juicefs == '/usr/local/bin/juicefs'
+      - >-
+        storage_backup_restore_metadata_juicefs_checksum
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_restore_metadata_redis_server == '/usr/bin/redis-server'
+      - >-
+        storage_backup_restore_metadata_redis_server_target
+        == '/usr/bin/redis-check-rdb'
+      - storage_backup_restore_metadata_redis_cli == '/usr/bin/redis-cli'
+      - storage_backup_restore_metadata_user == 'redis'
+      - storage_backup_restore_metadata_group == 'redis'
+      - storage_backup_restore_metadata_port | type_debug == 'int'
+      - storage_backup_restore_metadata_port >= 1024
+      - storage_backup_restore_metadata_port <= 65535
+      - storage_backup_restore_metadata_port not in [6379, 16379]
+      - storage_backup_restore_metadata_database == 1
+      - >-
+        storage_backup_restore_metadata_maxmemory
+        is match('^[1-9][0-9]*(mb|gb)$')
+      - >-
+        storage_backup_restore_metadata_production_redis_service
+        == 'fire-fuse-redis.service'
+      - >-
+        storage_backup_restore_metadata_production_minio_service
+        == 'fire-fuse-minio.service'
+    fail_msg: metadata restore requires fixed isolated paths, pins, and ports
+
+- name: Record JuiceFS metadata restore paths
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_workspace: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_metadata_rehearsal_id }}
+    storage_backup_restore_metadata_service_root: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_metadata_rehearsal_id
+      }}/services/metadata-redis
+    storage_backup_restore_metadata_data_directory: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_metadata_rehearsal_id
+      }}/services/metadata-redis/data
+    storage_backup_restore_metadata_config_file: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_metadata_rehearsal_id
+      }}/services/metadata-redis/redis.conf
+    storage_backup_restore_metadata_dump: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_metadata_rehearsal_id }}/metadata.dump
+    storage_backup_restore_metadata_runtime_record: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_metadata_rehearsal_id
+      }}/metadata-runtime.json
+    storage_backup_restore_metadata_service: >-
+      fire-fuse-restore-metadata-redis-{{
+      storage_backup_restore_metadata_rehearsal_id }}.service
+    storage_backup_restore_metadata_runtime_directory: >-
+      fire-fuse-restore-metadata-redis-{{
+      storage_backup_restore_metadata_rehearsal_id }}
+
+- name: Record metadata Redis unit path
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_unit_file: >-
+      /etc/systemd/system/{{ storage_backup_restore_metadata_service }}
+
+- name: Read bound restore prerequisite records
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ storage_backup_restore_metadata_workspace }}/manifest.json"
+    - "{{ storage_backup_restore_metadata_workspace }}/materialization.json"
+    - "{{ storage_backup_restore_metadata_workspace }}/minio-runtime.json"
+    - "{{ storage_backup_restore_metadata_workspace }}/minio-recovery-bucket.json"
+    - >-
+      {{ storage_backup_restore_metadata_workspace
+      }}/services/minio/minio.env
+  register: storage_backup_restore_metadata_records
+  no_log: true
+
+- name: Decode restore prerequisite records
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_manifest: >-
+      {{ storage_backup_restore_metadata_records.results[0].content
+      | b64decode | from_json }}
+    storage_backup_restore_metadata_materialization: >-
+      {{ storage_backup_restore_metadata_records.results[1].content
+      | b64decode | from_json }}
+    storage_backup_restore_metadata_minio_runtime: >-
+      {{ storage_backup_restore_metadata_records.results[2].content
+      | b64decode | from_json }}
+    storage_backup_restore_metadata_recovery_bucket: >-
+      {{ storage_backup_restore_metadata_records.results[3].content
+      | b64decode | from_json }}
+    storage_backup_restore_metadata_minio_environment: >-
+      {{ storage_backup_restore_metadata_records.results[4].content
+      | b64decode }}
+  no_log: true
+
+- name: Extract rehearsal MinIO credentials
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_minio_access_key: >-
+      {{
+        storage_backup_restore_metadata_minio_environment
+        | regex_search('(?m)^MINIO_ROOT_USER=([^\r\n]+)$', '\1')
+        | first
+      }}
+    storage_backup_restore_metadata_minio_secret_key: >-
+      {{
+        storage_backup_restore_metadata_minio_environment
+        | regex_search(
+            '(?m)^MINIO_ROOT_PASSWORD=([0-9a-f]{64})$',
+            '\1'
+          )
+        | first
+      }}
+  no_log: true
+
+- name: Require bound qualified restore prerequisites
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_restore_metadata_materialization.status
+        == 'materialized-and-verified'
+      - >-
+        storage_backup_restore_metadata_materialization.rehearsal_id
+        == storage_backup_restore_metadata_rehearsal_id
+      - >-
+        storage_backup_restore_metadata_minio_runtime.status
+        == 'isolated-minio-qualified'
+      - >-
+        storage_backup_restore_metadata_minio_runtime.service
+        ==
+        (
+          'fire-fuse-restore-minio-'
+          ~ storage_backup_restore_metadata_rehearsal_id
+          ~ '.service'
+        )
+      - >-
+        storage_backup_restore_metadata_recovery_bucket.status
+        == 'minio-recovery-bucket-qualified'
+      - >-
+        storage_backup_restore_metadata_recovery_bucket.rehearsal_id
+        == storage_backup_restore_metadata_rehearsal_id
+      - >-
+        storage_backup_restore_metadata_recovery_bucket.set_id
+        == storage_backup_restore_metadata_manifest.set_id
+      - >-
+        storage_backup_restore_metadata_recovery_bucket.endpoint_url
+        == storage_backup_restore_metadata_minio_runtime.endpoint_url
+      - storage_backup_restore_metadata_minio_access_key == 'restoreadmin'
+      - >-
+        storage_backup_restore_metadata_minio_secret_key
+        is match('^[0-9a-f]{64}$')
+    fail_msg: metadata restore prerequisites are incomplete or inconsistent
+  no_log: true
+
+- name: Inspect metadata restore inputs and new outputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: "{{ storage_backup_restore_metadata_juicefs }}"
+      expected: file
+      mode: "0755"
+      checksum: "{{ storage_backup_restore_metadata_juicefs_checksum }}"
+    - path: "{{ storage_backup_restore_metadata_redis_server }}"
+      expected: redis_server
+      mode: "0777"
+      checksum: ""
+    - path: "{{ storage_backup_restore_metadata_redis_server_target }}"
+      expected: file
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_restore_metadata_redis_cli }}"
+      expected: file
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_restore_metadata_dump }}"
+      expected: file
+      mode: "0600"
+      checksum: >-
+        {{
+          (
+            storage_backup_restore_metadata_manifest.artifacts
+            | selectattr('component', 'equalto', 'juicefs_metadata')
+            | first
+          ).sha256
+        }}
+    - path: "{{ storage_backup_restore_metadata_service_root }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+    - path: "{{ storage_backup_restore_metadata_runtime_record }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+    - path: "{{ storage_backup_restore_metadata_unit_file }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+  register: storage_backup_restore_metadata_paths
+
+- name: Require trusted metadata inputs and unused outputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.expected == 'absent'
+          and not (item.stat.exists | default(false))
+        )
+        or
+        (
+          item.item.expected == 'redis_server'
+          and item.stat.exists | default(false)
+          and item.stat.islnk | default(false)
+          and item.stat.lnk_source
+            == storage_backup_restore_metadata_redis_server_target
+          and item.stat.pw_name == 'root'
+          and item.stat.gr_name == 'root'
+          and item.stat.mode == item.item.mode
+        )
+        or
+        (
+          item.item.expected == 'file'
+          and item.stat is trusted_file(owner='root', group='root', mode=item.item.mode)
+          and
+          (
+            item.item.checksum == ''
+            or item.stat.checksum == item.item.checksum
+          )
+        )
+    fail_msg: metadata restore path {{ item.item.path }} failed trust checks
+  loop: "{{ storage_backup_restore_metadata_paths.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Read pinned JuiceFS client version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_restore_metadata_juicefs }}"
+      - version
+  register: storage_backup_restore_metadata_juicefs_version_command
+  changed_when: false
+
+- name: Require captured JuiceFS client version
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          storage_backup_restore_metadata_juicefs_version_command.stdout
+          ~ storage_backup_restore_metadata_juicefs_version_command.stderr
+        ) | trim
+        == storage_backup_restore_metadata_manifest.source.juicefs_version
+    fail_msg: pinned JuiceFS client does not match the captured version
+
+- name: Read installed Redis server version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_restore_metadata_redis_server }}"
+      - --version
+  register: storage_backup_restore_metadata_redis_version_command
+  changed_when: false
+
+- name: Extract installed Redis server version
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_redis_version: >-
+      {{
+        storage_backup_restore_metadata_redis_version_command.stdout
+        | regex_search('v=([0-9]+\.[0-9]+\.[0-9]+[^ ]*)', '\1')
+        | first
+      }}
+
+- name: Require captured Redis server version
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_restore_metadata_redis_version
+        == storage_backup_restore_metadata_manifest.source.redis_version
+    fail_msg: installed Redis server does not match the captured version
+
+- name: Read protected production service states
+  ansible.builtin.service_facts:
+
+- name: Record protected service states before metadata restore
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_protected_states_before:
+      production_redis: >-
+        {{ ansible_facts.services.get(
+        storage_backup_restore_metadata_production_redis_service, {}
+        ).get('state', 'not-found') }}
+      production_minio: >-
+        {{ ansible_facts.services.get(
+        storage_backup_restore_metadata_production_minio_service, {}
+        ).get('state', 'not-found') }}
+      snapshot_redis: >-
+        {{ ansible_facts.services.get(
+        'fire-fuse-restore-redis-'
+        ~ storage_backup_restore_metadata_rehearsal_id
+        ~ '.service', {}
+        ).get('state', 'not-found') }}
+      restore_minio: >-
+        {{ ansible_facts.services.get(
+        storage_backup_restore_metadata_minio_runtime.service, {}
+        ).get('state', 'not-found') }}
+
+- name: Require qualified isolated MinIO still running
+  ansible.builtin.assert:
+    that:
+      - storage_backup_restore_metadata_protected_states_before.restore_minio == 'running'
+    fail_msg: isolated MinIO must remain running for metadata restoration
+
+- name: Create empty metadata Redis directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ storage_backup_restore_metadata_user }}"
+    group: "{{ storage_backup_restore_metadata_group }}"
+    mode: "0700"
+  loop:
+    - "{{ storage_backup_restore_metadata_service_root }}"
+    - "{{ storage_backup_restore_metadata_data_directory }}"
+
+- name: Generate ephemeral metadata Redis password
+  ansible.builtin.command:
+    argv: [/usr/bin/openssl, rand, -hex, "32"]
+  register: storage_backup_restore_metadata_password_command
+  changed_when: true
+  no_log: true
+
+- name: Record ephemeral metadata Redis password and URL
+  ansible.builtin.set_fact:
+    storage_backup_restore_metadata_password: >-
+      {{ storage_backup_restore_metadata_password_command.stdout }}
+    storage_backup_restore_metadata_url: >-
+      redis://127.0.0.1:{{ storage_backup_restore_metadata_port
+      }}/{{ storage_backup_restore_metadata_database }}
+  no_log: true
+
+- name: Write isolated metadata Redis configuration
+  ansible.builtin.template:
+    src: metadata-redis.conf.j2
+    dest: "{{ storage_backup_restore_metadata_config_file }}"
+    owner: "{{ storage_backup_restore_metadata_user }}"
+    group: "{{ storage_backup_restore_metadata_group }}"
+    mode: "0600"
+  diff: false
+  no_log: true
+
+- name: Install isolated metadata Redis unit
+  ansible.builtin.template:
+    src: fire-fuse-restore-metadata-redis.service.j2
+    dest: "{{ storage_backup_restore_metadata_unit_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load and qualify JuiceFS metadata
+  block:
+    - name: Start empty isolated metadata Redis
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_restore_metadata_service }}"
+        daemon_reload: true
+        enabled: false
+        state: started
+
+    - name: Wait for metadata Redis readiness
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_metadata_redis_cli }}"
+          - --no-auth-warning
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ storage_backup_restore_metadata_port | string }}"
+          - PING
+      environment:
+        REDISCLI_AUTH: "{{ storage_backup_restore_metadata_password }}"
+      register: storage_backup_restore_metadata_ping
+      changed_when: false
+      retries: 30
+      delay: 1
+      until: storage_backup_restore_metadata_ping.stdout == 'PONG'
+      no_log: true
+
+    - name: Prove metadata database is empty
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_metadata_redis_cli }}"
+          - --no-auth-warning
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ storage_backup_restore_metadata_port | string }}"
+          - -n
+          - "{{ storage_backup_restore_metadata_database | string }}"
+          - DBSIZE
+      environment:
+        REDISCLI_AUTH: "{{ storage_backup_restore_metadata_password }}"
+      register: storage_backup_restore_metadata_empty_size
+      changed_when: false
+      no_log: true
+
+    - name: Require empty metadata database
+      ansible.builtin.assert:
+        that:
+          - storage_backup_restore_metadata_empty_size.stdout == '0'
+        fail_msg: JuiceFS metadata load target is not empty
+
+    - name: Load binary JuiceFS metadata dump
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_metadata_juicefs }}"
+          - load
+          - "{{ storage_backup_restore_metadata_url }}"
+          - "{{ storage_backup_restore_metadata_dump }}"
+          - --binary
+      environment:
+        META_PASSWORD: "{{ storage_backup_restore_metadata_password }}"
+      changed_when: true
+      no_log: true
+
+    - name: Configure recovery object storage
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_metadata_juicefs }}"
+          - config
+          - --bucket
+          - >-
+            {{ storage_backup_restore_metadata_recovery_bucket.endpoint_url
+            }}/{{ storage_backup_restore_metadata_recovery_bucket.recovery_bucket }}
+          - --access-key-env
+          - --secret-key-env
+          - "{{ storage_backup_restore_metadata_url }}"
+      environment:
+        META_PASSWORD: "{{ storage_backup_restore_metadata_password }}"
+        ACCESS_KEY: "{{ storage_backup_restore_metadata_minio_access_key }}"
+        SECRET_KEY: "{{ storage_backup_restore_metadata_minio_secret_key }}"
+      changed_when: true
+      no_log: true
+
+    - name: Read restored JuiceFS status
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_metadata_juicefs }}"
+          - status
+          - "{{ storage_backup_restore_metadata_url }}"
+      environment:
+        META_PASSWORD: "{{ storage_backup_restore_metadata_password }}"
+      register: storage_backup_restore_metadata_status_command
+      changed_when: false
+      no_log: true
+
+    - name: Decode restored JuiceFS status
+      ansible.builtin.set_fact:
+        storage_backup_restore_metadata_status: >-
+          {{ storage_backup_restore_metadata_status_command.stdout | from_json }}
+      no_log: true
+
+    - name: Require restored identity and recovery bucket
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_restore_metadata_status.Setting.Name
+            == storage_backup_restore_metadata_manifest.source.volume_name
+          - >-
+            storage_backup_restore_metadata_status.Setting.UUID
+            == storage_backup_restore_metadata_manifest.source.volume_uuid
+          - storage_backup_restore_metadata_status.Setting.Storage == 's3'
+          - >-
+            storage_backup_restore_metadata_status.Setting.Bucket
+            ==
+            (
+              storage_backup_restore_metadata_recovery_bucket.endpoint_url
+              ~ '/'
+              ~ storage_backup_restore_metadata_recovery_bucket.recovery_bucket
+            )
+          - storage_backup_restore_metadata_status.Sessions | length == 0
+        fail_msg: restored JuiceFS identity or recovery bucket does not match
+
+    - name: Count loaded JuiceFS metadata keys
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_metadata_redis_cli }}"
+          - --no-auth-warning
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ storage_backup_restore_metadata_port | string }}"
+          - -n
+          - "{{ storage_backup_restore_metadata_database | string }}"
+          - DBSIZE
+      environment:
+        REDISCLI_AUTH: "{{ storage_backup_restore_metadata_password }}"
+      register: storage_backup_restore_metadata_loaded_size
+      changed_when: false
+      no_log: true
+
+    - name: Require loaded JuiceFS metadata keys
+      ansible.builtin.assert:
+        that:
+          - storage_backup_restore_metadata_loaded_size.stdout is match('^[0-9]+$')
+          - storage_backup_restore_metadata_loaded_size.stdout | int > 0
+        fail_msg: JuiceFS metadata load produced an empty database
+  rescue:
+    - name: Stop metadata Redis after restore failure
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_restore_metadata_service }}"
+        state: stopped
+      failed_when: false
+
+    - name: Fail JuiceFS metadata restore
+      ansible.builtin.fail:
+        msg: metadata restore failed; isolated Redis was stopped
+
+- name: Read protected service states after metadata restore
+  ansible.builtin.service_facts:
+
+- name: Require unchanged protected service states
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get(
+          storage_backup_restore_metadata_production_redis_service, {}
+        ).get('state', 'not-found')
+        == storage_backup_restore_metadata_protected_states_before.production_redis
+      - >-
+        ansible_facts.services.get(
+          storage_backup_restore_metadata_production_minio_service, {}
+        ).get('state', 'not-found')
+        == storage_backup_restore_metadata_protected_states_before.production_minio
+      - >-
+        ansible_facts.services.get(
+          'fire-fuse-restore-redis-'
+          ~ storage_backup_restore_metadata_rehearsal_id
+          ~ '.service', {}
+        ).get('state', 'not-found')
+        == storage_backup_restore_metadata_protected_states_before.snapshot_redis
+      - >-
+        ansible_facts.services.get(
+          storage_backup_restore_metadata_minio_runtime.service, {}
+        ).get('state', 'not-found')
+        == storage_backup_restore_metadata_protected_states_before.restore_minio
+    fail_msg: a protected production or snapshot service state changed
+
+- name: Publish restored metadata runtime evidence
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schema_version': 1,
+          'status': 'juicefs-metadata-restored',
+          'rehearsal_id': storage_backup_restore_metadata_rehearsal_id,
+          'set_id': storage_backup_restore_metadata_manifest.set_id,
+          'service': storage_backup_restore_metadata_service,
+          'endpoint': storage_backup_restore_metadata_url,
+          'database': storage_backup_restore_metadata_database,
+          'volume_name': storage_backup_restore_metadata_status.Setting.Name,
+          'volume_uuid': storage_backup_restore_metadata_status.Setting.UUID,
+          'storage': storage_backup_restore_metadata_status.Setting.Storage,
+          'bucket': storage_backup_restore_metadata_status.Setting.Bucket,
+          'metadata_dump_sha256': (
+            storage_backup_restore_metadata_paths.results
+            | selectattr(
+                'item.path',
+                'equalto',
+                storage_backup_restore_metadata_dump
+              )
+            | first
+          ).stat.checksum,
+          'sessions': 0,
+          'key_count': (
+            storage_backup_restore_metadata_loaded_size.stdout | int
+          )
+        }
+        | to_nice_json
+      }}
+    dest: "{{ storage_backup_restore_metadata_runtime_record }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Report redacted restored metadata evidence
+  ansible.builtin.debug:
+    msg:
+      status: juicefs-metadata-restored
+      rehearsal_id: "{{ storage_backup_restore_metadata_rehearsal_id }}"
+      set_id: "{{ storage_backup_restore_metadata_manifest.set_id }}"
+      volume_name: "{{ storage_backup_restore_metadata_status.Setting.Name }}"
+      volume_uuid: "{{ storage_backup_restore_metadata_status.Setting.UUID }}"
+      bucket: "{{ storage_backup_restore_metadata_status.Setting.Bucket }}"

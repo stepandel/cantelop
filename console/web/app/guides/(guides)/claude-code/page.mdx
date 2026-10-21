@@ -1,0 +1,125 @@
+import { CantelopClaudeCodeDiagram } from "../../../blog/(posts)/hosting-claude-code-bring-your-own-subscription/diagrams";
+
+# Host Claude Code for your users
+
+Give each user Claude Code, running as Anthropic ships it and signed in with their own Claude subscription. The Cantelop SDK supplies native login, the Claude runner, a durable message queue, conversation recovery, and streaming. Your App only declares its runtime and defaults.
+
+[View the website demo App definition](https://github.com/stepandel/cantelop/blob/main/console/examples/claude-demo/cantelop.ts). For why it is built this way, read [Hosting Claude Code with bring-your-own-subscription](/blog/hosting-claude-code-bring-your-own-subscription).
+
+## What you will build
+
+**Cantelop** runs each active Session in its own Sandbox. **Claude Code** runs inside it, unmodified. Users sign in through the CLI's native login process and use their own subscriptions. There is no Anthropic API key to configure.
+
+<CantelopClaudeCodeDiagram />
+
+Your backend derives a Workspace from each verified user. Claude Code keeps its sign-in state in that Workspace at `/workspace/.claude`. Every Session for that user mounts the same Workspace, so later Sessions reuse the saved sign-in. Sessions keep separate Claude conversations while sharing files.
+
+> This is a technical guide, not legal advice. Review Anthropic's [conditions for offering Claude Code in a product](https://code.claude.com/docs/en/legal-and-compliance#can-customers-offer-claude-code-in-their-products) for your deployment.
+
+## Define and deploy the App
+
+This example uses stable SDK **1.0.0**, the only supported SDK, and CLI **0.15.2 or newer**. Install Node.js 22+, Docker with Linux amd64 support, and the [Cantelop CLI](/docs/quick-start), then create a project:
+
+```sh
+mkdir claude-demo
+cd claude-demo
+npm init -y
+npm install @cantelop/sdk
+```
+
+Save this as `cantelop.ts`. Use a unique App name for your deployment:
+
+```ts
+import { CantelopClient } from '@cantelop/sdk';
+import { claudeAuth, claudeDockerfile, createClaudeRuntime } from '@cantelop/sdk/harnesses/claude';
+import type { ClaudeSessionCommand, ClaudeSessionEvent, ClaudeSessionReply } from '@cantelop/sdk/harnesses/claude/protocol';
+
+export const app = new CantelopClient().app<ClaudeSessionCommand, ClaudeSessionEvent, ClaudeSessionReply>({
+  name: 'my-claude-demo',
+  runtime: createClaudeRuntime({
+    permissionMode: 'dontAsk', settingSources: [], maxTurns: 8,
+    tools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'],
+    allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'], mcps: {},
+  }),
+  auth: claudeAuth,
+  dockerfile: claudeDockerfile,
+});
+```
+
+Save the project configuration as `cantelop.json`:
+
+```json
+{ "schema_version": 3, "definition": "cantelop.ts" }
+```
+
+Build and deploy:
+
+```sh
+cantelop build
+cantelop login
+cantelop deploy --create-app
+```
+
+The SDK generates the App Edge API, Sandbox runtime, and backend client. No separate Claude API package, custom routes, or copied login implementation is needed. The deployment uses the SDK's packaged Dockerfile and stock Claude binary.
+
+Rebuild and redeploy your backend with the App; see
+[deploy your backend with the App](/docs/deploy#deploy-your-backend-with-the-app).
+
+## Sign in from your backend
+
+Import the generated client. Authenticate the caller in your own backend and derive their Workspace selector there:
+
+```js
+import { app } from './.cantelop/client/client.mjs';
+
+const workspace = app.workspace({ slug: workspaceSlugForVerifiedUser });
+const auth = workspace.auth();
+const login = await auth.login({ signal });
+```
+
+This single call returns `{ authenticated: true }` for an existing sign-in, or `{ authenticated: false, attemptId, url, expiresAt }`. Return the link and attempt ID to that user's browser, where they sign in on Anthropic's site and paste the code from Claude.
+
+Validate the attempt ID (`lgn_` followed by 32 hexadecimal characters) and printable code in your backend, then submit it without logging or persisting it:
+
+```js
+const authenticated = await auth.submitCode({ attemptId: login.attemptId, code, signal });
+await auth.cancelLogin({ attemptId: login.attemptId, signal }); // when the user cancels
+```
+
+Keep the code form open when the SDK throws `RemoteAppError` with code `code_rejected`. An expired attempt returns `login_not_active`. The SDK owns native prompt parsing, attempts, expiry, retries, and process cleanup. Hosted Cantelop does not yet relay native auth terminals to browsers; use this
+link-and-code flow, which drives the native CLI process. Claude's saved credentials remain in the Workspace.
+
+Use `auth.status()` to check sign-in and `auth.logout()` to sign out. `auth.login({ force: true })` confirms logout before starting a fresh login.
+
+## Start a conversation and stream work
+
+Derive both Workspace and Session identity on your server. Never accept another user's Workspace or Session from the browser. Open the Session before subscribing, since subscriptions do not create Sessions:
+
+```js
+const session = workspace.session({ id: `${userID}:${crypto.randomUUID()}`, keepAliveSeconds: 300 });
+await session.request({ type: 'snapshot' });
+// Start consuming the stream before dispatching work.
+const stream = session.stream({ signal });
+const subscription = (async () => {
+  for await (const delivery of stream) {
+    // Forward delivery.data to this user's browser through your backend.
+  }
+})();
+await session.dispatch({
+  type: 'queue', id: crypto.randomUUID(), text: 'Create hello.md',
+  settings: { model: 'claude-sonnet-5' },
+});
+await subscription;
+```
+
+Task settings can override the App defaults. Validate any browser-selected model against your allowlist; keep tools, MCPs, permissions, and turn limits controlled by your backend. The website demo uses file tools only, an eight-turn limit, and separate conversations when the user switches models.
+
+The same-origin website backend authorizes each request using a signed visitor cookie and applies request budgets. App integration credentials stay in its secret `CANTELOP_APP_CONFIG` environment. The browser never receives the App token. Regenerate and deploy the backend client and App together: the client embeds the matching runtime ID.
+
+## Controls and recovery
+
+Use `queue` for ordinary messages, `steer` to interrupt and prioritize a new message, and `{ type: 'cancel', id }` to cancel a queued or running application message. Tool effects already performed are not undone. `session.request({ type: 'snapshot' })` returns the latest 50 message states; `session.stop()` releases the Sandbox while retaining the Workspace.
+
+Read application events from `delivery.data`. The SDK exports `ClaudeSessionOutput` from `@cantelop/sdk/harnesses/claude/protocol` to decode a message's native events, including large fragmented events. Resume subscriptions with `session.stream({ after: delivery.cursor, signal })`. Aborting a subscription closes that stream without cancelling work. Fetch a snapshot if bounded replay cannot continue.
+
+Interrupted turns are never replayed automatically; queued work resumes. Sessions sharing a Workspace can edit the same files, so coordinate conflicting work. See [durable Workspaces](/docs/workspaces) and [response streaming](/docs/response-streaming).

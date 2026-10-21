@@ -1,0 +1,13 @@
+---
+juicefs_volume_release: "1.4.0"
+juicefs_volume_client_artifact: ""
+juicefs_volume_client_checksum: ""
+juicefs_volume_binary: /usr/local/bin/juicefs
+
+juicefs_volume_name: fire-fuse-workspaces
+juicefs_volume_metadata_url: >-
+  redis://{{ redis_metadata_bind_address }}:{{ redis_metadata_port }}/{{
+  redis_metadata_database }}
+juicefs_volume_bucket_url: >-
+  http://{{ minio_object_bind_address }}:{{ minio_object_api_port }}/{{
+  minio_object_bucket }}

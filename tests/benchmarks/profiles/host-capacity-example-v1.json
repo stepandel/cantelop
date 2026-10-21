@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "target_vms": 100,
+  "startup_concurrency": 2,
+  "cpu_active_vms": 5,
+  "cpu_workers_per_vm": 1,
+  "cpu_seconds": 10,
+  "memory_active_vms": 100,
+  "memory_mib_per_vm": 128,
+  "memory_hold_seconds": 8,
+  "workspace_active_vms": 10,
+  "workspace_bytes_per_vm": 4194304,
+  "minimum_available_mib": 8192,
+  "maximum_swap_used_mib": 4096
+}

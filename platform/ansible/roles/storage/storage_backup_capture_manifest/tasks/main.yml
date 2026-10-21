@@ -1,0 +1,422 @@
+---
+- name: Recheck stopped compute before storage capture stage
+  ansible.builtin.include_role:
+    name: storage_backup_assert_compute_stopped
+
+- name: Validate backup manifest inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - storage_backup_capture_manifest_filename == 'manifest.json'
+      - >-
+        storage_backup_capture_manifest_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+      - >-
+        storage_backup_capture_manifest_fire_fuse_service
+        == 'fire-fuse.service'
+      - >-
+        storage_backup_capture_manifest_redis_service
+        == 'fire-fuse-redis.service'
+      - >-
+        storage_backup_capture_manifest_minio_service
+        == 'fire-fuse-minio.service'
+      - >-
+        (storage_backup_capture_set_directory | default(''))
+        ==
+        (
+          storage_backup_staging_root ~ '/'
+          ~ (storage_backup_capture_set_id | default(''))
+        )
+      - >-
+        (storage_backup_capture_set_id | default(''))
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_capture_maintenance | default({}) is mapping
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'schema_version', 0
+        ) | int == 1
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'fire_fuse_state', ''
+        ) == 'stopped'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'volume_name', ''
+        ) == 'fire-fuse-workspaces'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'volume_uuid', ''
+        )
+        is match(
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-'
+          ~ '[0-9a-f]{4}-[0-9a-f]{12}$'
+        )
+      - >-
+        (storage_backup_capture_juicefs_version | default(''))
+        is match('^[ -~]{1,128}$')
+      - >-
+        (storage_backup_capture_redis_version | default(''))
+        is match('^[0-9]+\.[0-9]+\.[0-9]+[ -~]{0,96}$')
+      - >-
+        (storage_backup_capture_minio_version | default(''))
+        is match('^RELEASE\.[0-9]{4}-[0-9]{2}-[0-9]{2}T[ -~]{1,96}Z$')
+      - >-
+        (storage_backup_capture_object_snapshot_id | default(''))
+        is match('^sha256:[0-9a-f]{64}$')
+      - >-
+        (redis_metadata_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (minio_object_root_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (minio_object_juicefs_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (storage_backup_capture_metadata_url | default(''))
+        is match('^redis://:[0-9a-f]{64}@10\.78\.0\.2:6379/1$')
+    fail_msg: >-
+      manifest capture requires all successful capture facts, fixed trusted
+      services and paths, safe component identities, and active credentials
+  no_log: true
+
+- name: Read service state before manifest capture
+  ansible.builtin.service_facts:
+
+- name: Require the manifest maintenance boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_compute_stopped | default(false)
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_manifest_redis_service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_manifest_minio_service, {}
+        ).get('state', 'not-found') == 'running'
+    fail_msg: >-
+      manifest capture requires fire-fuse stopped with Redis and MinIO running
+
+- name: Build the ordered backup artifact list
+  ansible.builtin.set_fact:
+    storage_backup_capture_manifest_artifacts:
+      - "{{ storage_backup_capture_metadata_artifact | default({}) }}"
+      - "{{ storage_backup_capture_minio_artifact | default({}) }}"
+      - "{{ storage_backup_capture_redis_artifact | default({}) }}"
+      - >-
+        {{
+          storage_backup_capture_restore_configuration_artifact
+          | default({})
+        }}
+
+- name: Validate complete backup artifact facts
+  ansible.builtin.assert:
+    that:
+      - item.fact is mapping
+      - item.fact.get('component', '') == item.component
+      - item.fact.get('path', '') == item.path
+      - >-
+        item.fact.get('source_path', '')
+        == storage_backup_capture_set_directory ~ '/' ~ item.path
+      - item.fact.get('size_bytes', 0) | int > 0
+      - item.fact.get('sha256', '') is match('^[0-9a-f]{64}$')
+    fail_msg: backup artifact {{ item.component }} has an invalid fact
+  loop:
+    - component: juicefs_metadata
+      path: metadata.dump
+      fact: "{{ storage_backup_capture_metadata_artifact | default({}) }}"
+    - component: minio_objects
+      path: minio-objects.tar
+      fact: "{{ storage_backup_capture_minio_artifact | default({}) }}"
+    - component: redis_persistence
+      path: redis-persistence.tar.gz
+      fact: "{{ storage_backup_capture_redis_artifact | default({}) }}"
+    - component: encrypted_restore_configuration
+      path: restore-secrets.vault
+      fact: >-
+        {{
+          storage_backup_capture_restore_configuration_artifact
+          | default({})
+        }}
+  loop_control:
+    label: "{{ item.component }}"
+
+- name: Revalidate complete backup artifacts
+  ansible.builtin.stat:
+    path: "{{ item.source_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop: "{{ storage_backup_capture_manifest_artifacts }}"
+  register: storage_backup_capture_manifest_artifact_stats
+  loop_control:
+    label: "{{ item.component }}"
+
+- name: Require unchanged complete backup artifacts
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0600')
+      - item.stat.size | int == item.item.size_bytes | int
+      - item.stat.checksum == item.item.sha256
+    fail_msg: backup artifact {{ item.item.component }} changed
+  loop: "{{ storage_backup_capture_manifest_artifact_stats.results }}"
+  loop_control:
+    label: "{{ item.item.component }}"
+
+- name: Inspect the manifest verifier on the controller
+  ansible.builtin.stat:
+    path: "{{ storage_backup_script_source }}/verify-storage-backup.py"
+    checksum_algorithm: sha256
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: storage_backup_capture_manifest_verifier_source
+
+- name: Require the trusted manifest verifier source
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_manifest_verifier_source.stat is trusted_file
+      - >-
+        storage_backup_capture_manifest_verifier_source.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: backup manifest verifier source failed trust checks
+
+- name: Install the strict backup manifest verifier
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - verify-storage-backup.py
+
+- name: Inspect the installed backup manifest verifier
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_manifest_verifier }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_manifest_verifier_installed
+
+- name: Require the exact installed backup manifest verifier
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_manifest_verifier_installed.stat
+        is trusted_file(owner='root', group='root', mode='0755')
+      - >-
+        storage_backup_capture_manifest_verifier_installed.stat.checksum
+        == storage_backup_capture_manifest_verifier_source.stat.checksum
+    fail_msg: installed backup manifest verifier failed integrity checks
+
+- name: Record manifest creation time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%SZ
+  register: storage_backup_capture_manifest_creation_time
+  changed_when: false
+
+- name: Build the strict backup manifest
+  ansible.builtin.set_fact:
+    storage_backup_capture_manifest_document: >-
+      {{
+        {
+          'schema_version': 1,
+          'set_id': storage_backup_capture_set_id,
+          'created_at':
+            storage_backup_capture_manifest_creation_time.stdout,
+          'source': {
+            'volume_name':
+              storage_backup_capture_maintenance.volume_name,
+            'volume_uuid':
+              storage_backup_capture_maintenance.volume_uuid,
+            'juicefs_version':
+              storage_backup_capture_juicefs_version,
+            'redis_version':
+              storage_backup_capture_redis_version,
+            'minio_version':
+              storage_backup_capture_minio_version,
+            'object_snapshot_id':
+              storage_backup_capture_object_snapshot_id
+          },
+          'artifacts': [
+            {
+              'component':
+                storage_backup_capture_metadata_artifact.component,
+              'path':
+                storage_backup_capture_metadata_artifact.path,
+              'size_bytes':
+                storage_backup_capture_metadata_artifact.size_bytes
+                | int,
+              'sha256':
+                storage_backup_capture_metadata_artifact.sha256
+            },
+            {
+              'component':
+                storage_backup_capture_minio_artifact.component,
+              'path':
+                storage_backup_capture_minio_artifact.path,
+              'size_bytes':
+                storage_backup_capture_minio_artifact.size_bytes
+                | int,
+              'sha256':
+                storage_backup_capture_minio_artifact.sha256
+            },
+            {
+              'component':
+                storage_backup_capture_redis_artifact.component,
+              'path':
+                storage_backup_capture_redis_artifact.path,
+              'size_bytes':
+                storage_backup_capture_redis_artifact.size_bytes
+                | int,
+              'sha256':
+                storage_backup_capture_redis_artifact.sha256
+            },
+            {
+              'component':
+                storage_backup_capture_restore_configuration_artifact.component,
+              'path':
+                storage_backup_capture_restore_configuration_artifact.path,
+              'size_bytes':
+                storage_backup_capture_restore_configuration_artifact.size_bytes
+                | int,
+              'sha256':
+                storage_backup_capture_restore_configuration_artifact.sha256
+            }
+          ]
+        }
+      }}
+
+- name: Record backup manifest paths
+  ansible.builtin.set_fact:
+    storage_backup_capture_manifest_partial_path: >-
+      {{ storage_backup_capture_set_directory }}/.manifest.json.partial
+    storage_backup_capture_manifest_path: >-
+      {{ storage_backup_capture_set_directory }}/{{
+      storage_backup_capture_manifest_filename }}
+
+- name: Inspect the proposed backup manifest paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ storage_backup_capture_manifest_partial_path }}"
+    - "{{ storage_backup_capture_manifest_path }}"
+  register: storage_backup_capture_manifest_existing
+
+- name: Require new backup manifest paths
+  ansible.builtin.assert:
+    that:
+      - not item.stat.exists
+    fail_msg: >-
+      backup manifest path {{ item.item }} already exists; refusing to
+      overwrite or ambiguously resume
+  loop: "{{ storage_backup_capture_manifest_existing.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Write the partial backup manifest
+  ansible.builtin.copy:
+    content: "{{ storage_backup_capture_manifest_document | to_nice_json }}\n"
+    dest: "{{ storage_backup_capture_manifest_partial_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+  diff: false
+
+- name: Search the manifest for forbidden plaintext credentials
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/grep
+      - --fixed-strings
+      - --quiet
+      - --file
+      - "-"
+      - "{{ storage_backup_capture_manifest_partial_path }}"
+    stdin: >-
+      {{
+        [
+          redis_metadata_password,
+          minio_object_root_password,
+          minio_object_juicefs_secret_key,
+          storage_backup_capture_metadata_url
+        ]
+        | join('\n')
+      }}
+    stdin_add_newline: true
+  register: storage_backup_capture_manifest_secret_search
+  changed_when: false
+  failed_when: storage_backup_capture_manifest_secret_search.rc not in [0, 1]
+  no_log: true
+
+- name: Require credentials to be absent from the backup manifest
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_manifest_secret_search.rc == 1
+    fail_msg: backup manifest contains a known plaintext credential
+  no_log: true
+
+- name: Verify the complete backup set through its partial manifest
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_manifest_verifier }}"
+      - "{{ storage_backup_capture_manifest_partial_path }}"
+  register: storage_backup_capture_manifest_verification
+  changed_when: false
+
+- name: Decode the backup verification result
+  ansible.builtin.set_fact:
+    storage_backup_capture_manifest_verification_result: >-
+      {{ storage_backup_capture_manifest_verification.stdout | from_json }}
+
+- name: Require successful complete-set verification
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_manifest_verification_result.status == 'verified'
+      - >-
+        storage_backup_capture_manifest_verification_result.set_id
+        == storage_backup_capture_set_id
+      - storage_backup_capture_manifest_verification_result.artifacts | int == 4
+    fail_msg: strict backup verifier returned an unexpected result
+
+- name: Promote the verified backup manifest atomically
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mv
+      - --no-target-directory
+      - "{{ storage_backup_capture_manifest_partial_path }}"
+      - "{{ storage_backup_capture_manifest_path }}"
+  changed_when: true
+
+- name: Inspect the promoted backup manifest
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_manifest_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_manifest_stat
+
+- name: Require a complete trusted backup manifest
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_manifest_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - storage_backup_capture_manifest_stat.stat.size | int > 0
+      - >-
+        storage_backup_capture_manifest_stat.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: promoted backup manifest failed integrity checks
+
+- name: Publish the complete local backup set
+  ansible.builtin.set_fact:
+    storage_backup_capture_complete_set:
+      schema_version: 1
+      set_id: "{{ storage_backup_capture_set_id }}"
+      directory: "{{ storage_backup_capture_set_directory }}"
+      manifest_path: "{{ storage_backup_capture_manifest_path }}"
+      manifest_size_bytes: "{{ storage_backup_capture_manifest_stat.stat.size | int }}"
+      manifest_sha256: "{{ storage_backup_capture_manifest_stat.stat.checksum }}"
+      artifact_count: 4

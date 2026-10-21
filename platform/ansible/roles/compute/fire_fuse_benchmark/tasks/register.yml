@@ -1,0 +1,109 @@
+---
+- name: Register the benchmark App
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_compute_ingress_address }}:{{
+      fire_fuse_benchmark_compute_ingress_port }}/v1/internal/users/{{
+      fire_fuse_benchmark_owner_id }}/apps/{{ fire_fuse_benchmark_app_id }}
+    method: PUT
+    body_format: json
+    body: >-
+      {{
+        {
+          'slug': fire_fuse_benchmark_app_slug,
+          'build_id': fire_fuse_benchmark_build_id,
+          'session_runtime': {
+            'runtime': {
+              'internal_port': fire_fuse_benchmark_runtime_port | int,
+              'profile': fire_fuse_benchmark_profile
+            }
+          }
+        }
+      }}
+    status_code: [200, 201]
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_app_create
+
+- name: Register the benchmark Workspace
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_compute_ingress_address }}:{{
+      fire_fuse_benchmark_compute_ingress_port }}/v1/internal/users/{{
+      fire_fuse_benchmark_owner_id }}/apps/{{ fire_fuse_benchmark_app_id
+      }}/workspaces/{{ fire_fuse_benchmark_workspace }}
+    method: PUT
+    body_format: json
+    body:
+      slug: benchmark
+    status_code: [200, 201]
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_workspace_create
+
+- name: Read the benchmark app
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/apps/{{
+      fire_fuse_benchmark_app_id }}
+    method: GET
+    status_code: 200
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_app_get
+
+- name: Require the benchmark App ownership
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_app_get.json.session_runtime.active_build_id
+        == fire_fuse_benchmark_build_id
+      - >-
+        fire_fuse_benchmark_app_get.json.builds
+        | map(attribute='id') | list
+        == [fire_fuse_benchmark_build_id]
+
+- name: Read the benchmark Workspace
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/workspaces?app_id={{
+      fire_fuse_benchmark_app_id }}
+    method: GET
+    status_code: 200
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_workspace_get
+
+- name: Require the benchmark Workspace binding
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_workspace_get.json['items'] | length == 1
+      - >-
+        fire_fuse_benchmark_workspace_get.json['items'][0].id
+        == fire_fuse_benchmark_workspace
+
+- name: Create the controller benchmark output directory
+  ansible.builtin.file:
+    path: "{{ fire_fuse_benchmark_output_directory }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Create the host benchmark result directory
+  ansible.builtin.file:
+    path: "{{ fire_fuse_benchmark_host_result_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"

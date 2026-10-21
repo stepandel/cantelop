@@ -1,0 +1,7 @@
+---
+storage_backup_capture_manifest_filename: manifest.json
+storage_backup_capture_manifest_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py
+storage_backup_capture_manifest_fire_fuse_service: fire-fuse.service
+storage_backup_capture_manifest_redis_service: fire-fuse-redis.service
+storage_backup_capture_manifest_minio_service: fire-fuse-minio.service

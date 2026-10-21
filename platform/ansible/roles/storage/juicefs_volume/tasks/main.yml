@@ -1,0 +1,161 @@
+---
+- name: Validate JuiceFS volume role inputs
+  ansible.builtin.assert:
+    that:
+      - juicefs_volume_release is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - juicefs_volume_client_artifact.startswith('/')
+      - juicefs_volume_client_checksum is match('^[0-9a-f]{64}$')
+      - juicefs_volume_binary.startswith('/')
+      - juicefs_volume_name is match('^[A-Za-z0-9][A-Za-z0-9_-]{2,62}$')
+      - >-
+        minio_object_juicefs_access_key
+        is match('^[A-Za-z0-9_-]{3,32}$')
+    fail_msg: >-
+      JuiceFS requires a pinned absolute client artifact, a safe volume name,
+      and a safe MinIO access key
+
+- name: Validate JuiceFS volume credentials
+  ansible.builtin.assert:
+    that:
+      - >-
+        (redis_metadata_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (minio_object_juicefs_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      JuiceFS requires valid Redis and MinIO Ansible Vault credentials
+  no_log: true
+
+- name: Verify the JuiceFS client artifact on the controller
+  ansible.builtin.stat:
+    path: "{{ juicefs_volume_client_artifact }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: juicefs_volume_client_artifact_stat
+
+- name: Require the expected JuiceFS client artifact
+  ansible.builtin.assert:
+    that:
+      - juicefs_volume_client_artifact_stat.stat.exists | default(false)
+      - juicefs_volume_client_artifact_stat.stat.isreg | default(false)
+      - >-
+        juicefs_volume_client_artifact_stat.stat.checksum | default('')
+        == juicefs_volume_client_checksum
+    fail_msg: >-
+      the controller JuiceFS client artifact is missing or has the wrong
+      SHA-256
+
+- name: Install the JuiceFS client
+  ansible.builtin.copy:
+    src: "{{ juicefs_volume_client_artifact }}"
+    dest: "{{ juicefs_volume_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read the installed JuiceFS version
+  ansible.builtin.command:
+    argv:
+      - "{{ juicefs_volume_binary }}"
+      - version
+  register: juicefs_volume_version
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the pinned JuiceFS version
+  ansible.builtin.assert:
+    that:
+      - >-
+        juicefs_volume_release in
+        (juicefs_volume_version.stdout ~ juicefs_volume_version.stderr)
+    fail_msg: >-
+      installed JuiceFS version did not report {{ juicefs_volume_release }}
+  when: not ansible_check_mode
+
+- name: Inspect the JuiceFS Redis database
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/redis-cli
+      - --no-auth-warning
+      - -h
+      - "{{ redis_metadata_bind_address }}"
+      - -p
+      - "{{ redis_metadata_port | string }}"
+      - -n
+      - "{{ redis_metadata_database | string }}"
+      - dbsize
+  environment:
+    REDISCLI_AUTH: "{{ redis_metadata_password }}"
+  register: juicefs_volume_redis_size
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Require a valid Redis database size
+  ansible.builtin.assert:
+    that:
+      - juicefs_volume_redis_size.stdout is match('^[0-9]+$')
+    fail_msg: Redis did not return a valid database size
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Format the empty JuiceFS volume
+  ansible.builtin.command:
+    argv:
+      - "{{ juicefs_volume_binary }}"
+      - format
+      - --no-update
+      - --storage
+      - s3
+      - --bucket
+      - "{{ juicefs_volume_bucket_url }}"
+      - "{{ juicefs_volume_metadata_url }}"
+      - "{{ juicefs_volume_name }}"
+  environment:
+    META_PASSWORD: "{{ redis_metadata_password }}"
+    ACCESS_KEY: "{{ minio_object_juicefs_access_key }}"
+    SECRET_KEY: "{{ minio_object_juicefs_secret_key }}"
+  when:
+    - not ansible_check_mode
+    - juicefs_volume_redis_size.stdout | int == 0
+  changed_when: true
+  no_log: true
+
+- name: Read the formatted JuiceFS volume status
+  ansible.builtin.command:
+    argv:
+      - "{{ juicefs_volume_binary }}"
+      - status
+      - "{{ juicefs_volume_metadata_url }}"
+  environment:
+    META_PASSWORD: "{{ redis_metadata_password }}"
+  register: juicefs_volume_status_command
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Decode the JuiceFS volume status
+  ansible.builtin.set_fact:
+    juicefs_volume_status: "{{ juicefs_volume_status_command.stdout | from_json }}"
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Require the expected JuiceFS volume configuration
+  ansible.builtin.assert:
+    that:
+      - juicefs_volume_status.Setting.Name == juicefs_volume_name
+      - juicefs_volume_status.Setting.Storage == 's3'
+      - >-
+        (juicefs_volume_status.Setting.Bucket | regex_replace('/+$', ''))
+        == (juicefs_volume_bucket_url | regex_replace('/+$', ''))
+      - >-
+        juicefs_volume_status.Setting.AccessKey
+        == minio_object_juicefs_access_key
+      - (juicefs_volume_status.Setting.UUID | length) > 0
+    fail_msg: >-
+      the existing JuiceFS volume does not match the configured name,
+      S3 storage type, and MinIO bucket
+  no_log: true
+  when: not ansible_check_mode

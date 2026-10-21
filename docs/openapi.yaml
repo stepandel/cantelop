@@ -1,0 +1,1861 @@
+openapi: 3.1.0
+info:
+  title: fire-fuse host API
+  version: 3.0.0
+  description: |
+    Private HTTP API of the `fire-fuse` compute host daemon
+    (`fire-fuse/runtime/cmd/fire-fuse`). It is never exposed publicly; the
+    customer-facing tenant API is served by the console and described in
+    [openapi-console.yaml](openapi-console.yaml).
+
+    fire-fuse serves two listeners:
+
+    - **Control listener** (`-listen`, default `127.0.0.1:8080`): the routes
+      registered in `fire-fuse/runtime/httpapi/handler.go`, used by the
+      gateway, dispatcher, observer, and operators on the host.
+    - **Provider ingress listener** (`-provider-ingress-listen`, default
+      `127.0.0.1:8084`): `/healthz` plus the `/v1/internal/...` routes
+      registered in `fire-fuse/runtime/httpapi/prepared_builds.go`, used by
+      the console's compute client to project desired state and install
+      prepared Builds. These operations declare that server explicitly.
+
+    Every request except `GET /readyz` on the control listener must carry
+    exactly one `Authorization: Bearer <token>` header holding one of the
+    host's distinct 64-hex control tokens. Each token is scoped to the
+    method-and-path patterns in
+    `fire-fuse/runtime/cmd/fire-fuse/control_credentials.go`; a valid token
+    used outside its scope receives a plain-text `403`, and a missing or
+    unknown token a plain-text `401`. The `operator` token is unrestricted on
+    both listeners; the `compute` token is accepted only on the provider
+    ingress listener. `x-control-credentials` on each operation lists the
+    credentials allowed to call it.
+
+    Apps own Builds and Session runtimes, Workspaces are their durable
+    addressable boundaries, and Sessions are reusable runtime allocations.
+    Durable Messages coordinate actor work and Session work leases protect
+    Sandboxes through runtime quiescence. Every response carries
+    `X-Request-ID`. JSON request bodies reject unknown fields.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Control listener
+security:
+  - controlAuth: []
+tags:
+  - name: service
+  - name: apps
+  - name: workspaces
+  - name: sessions
+  - name: messages
+  - name: session-events
+    description: Bounded in-memory Session event streams between Session runtimes and gateway subscribers.
+  - name: request-events
+  - name: sandboxes
+    description: Internal Sandbox lifecycle and host telemetry; not a tenant surface.
+  - name: compute-ingress
+    description: Internal desired-state and Build installation routes on the provider ingress listener.
+paths:
+  /healthz:
+    servers:
+      - url: http://127.0.0.1:8080
+        description: Control listener
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    get:
+      tags: [service]
+      operationId: getLiveness
+      summary: Liveness of either listener
+      x-control-credentials: [operator, compute]
+      description: Operator only on the control listener; operator or compute on the provider ingress listener.
+      responses:
+        "200":
+          description: The HTTP process is serving requests.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "401":
+          description: The bearer token is missing or invalid.
+  /readyz:
+    get:
+      tags: [service]
+      operationId: getReadiness
+      summary: Host prerequisite readiness (control listener only)
+      security: []
+      responses:
+        "200":
+          description: Host prerequisites are available.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/apps:
+    get:
+      tags: [apps]
+      operationId: listApps
+      summary: List every App registered on this host
+      x-control-credentials: [operator, gateway, dispatcher, observer]
+      responses:
+        "200":
+          description: Apps with their Session runtime and Build history.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/App"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/apps/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    get:
+      tags: [apps]
+      operationId: getApp
+      summary: Read one App registered on this host
+      x-control-credentials: [operator]
+      responses:
+        "200":
+          description: The App Session runtime and immutable Build history.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/App"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/apps/{app_id}/workspaces/by-slug/{workspace_slug}:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/ResourceID"}
+      - name: workspace_slug
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/AppSlug"}
+    get:
+      tags: [workspaces]
+      operationId: resolveAppWorkspaceBySlug
+      summary: Resolve an App Workspace directly by its exact slug
+      x-control-credentials: [operator, gateway]
+      responses:
+        "200":
+          description: The indexed App-scoped Workspace result.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Workspace"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/workspaces:
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaces
+      summary: List one App's Workspaces
+      description: "app_id is required and is the only accepted query parameter."
+      x-control-credentials: [operator, gateway, dispatcher, observer]
+      parameters:
+        - name: app_id
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/ResourceID"}
+      responses:
+        "200":
+          description: The App's Workspaces.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Workspace"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/workspaces/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    get:
+      tags: [workspaces]
+      operationId: getWorkspace
+      summary: Read one Workspace
+      x-control-credentials: [operator, gateway, dispatcher]
+      responses:
+        "200":
+          description: Workspace plus its App-owned Session runtime.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Workspace"}
+        "404": {$ref: "#/components/responses/Error"}
+        "400": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sessions:
+    post:
+      tags: [sessions]
+      operationId: createSession
+      summary: Create and start a Workspace Session
+      description: "503 release_transition means App release admission is closed; retry."
+      x-control-credentials: [operator, gateway, dispatcher]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateSessionRequest"}
+      responses:
+        "202":
+          description: Session is active with an allocated Sandbox.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Session"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "429": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [sessions]
+      operationId: listSessions
+      summary: List a Workspace's Sessions
+      description: "workspace_id is required and is the only accepted query parameter."
+      x-control-credentials: [operator, observer]
+      parameters:
+        - name: workspace_id
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/WorkspaceID"}
+      responses:
+        "200":
+          description: Sessions grouped by Workspace.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Session"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sessions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    get:
+      tags: [sessions]
+      operationId: getSession
+      summary: Read one Session
+      x-control-credentials: [operator, gateway, dispatcher]
+      responses:
+        "200":
+          description: Reconciled Session.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Session"}
+        "404": {$ref: "#/components/responses/Error"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [sessions]
+      operationId: terminateSession
+      summary: Release a Session's current Sandbox
+      description: "Idempotent; the Session stays reusable."
+      x-control-credentials: [operator, gateway, observer]
+      responses:
+        "200":
+          description: The current Sandbox was released; the Session remains reusable and idle.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Session"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sessions/{id}/route:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    get:
+      tags: [sessions]
+      operationId: resolveSessionRoute
+      summary: Resolve the private provider-neutral endpoint used by the loopback gateway
+      x-control-credentials: [operator, dispatcher]
+      parameters:
+        - in: query
+          name: sandbox_id
+          description: When supplied, resolve only this running Sandbox; never allocate a replacement.
+          schema: {type: string, pattern: "^sbx-[0-9a-f]{32}$"}
+      responses:
+        "200":
+          description: Session and its private provider-selected HTTP endpoint.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SessionRoute"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sessions/{id}/work-leases:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    post:
+      tags: [sessions]
+      operationId: acquireSessionWorkLease
+      summary: Protect a Session Sandbox while Message work remains active
+      x-control-credentials: [operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WorkLeaseRequest"}
+      responses:
+        "200":
+          description: The work lease is active and Sandbox idle expiry is suspended.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SessionWorkLease"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sessions/{id}/work-leases/{lease_id}/renew:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+      - $ref: "#/components/parameters/WorkLeaseID"
+    post:
+      tags: [sessions]
+      operationId: renewSessionWorkLease
+      summary: Extend active Message work protection
+      x-control-credentials: [operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WorkLeaseRenewal"}
+      responses:
+        "200":
+          description: The work lease expiry was extended.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SessionWorkLease"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sessions/{id}/work-leases/{lease_id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+      - $ref: "#/components/parameters/WorkLeaseID"
+    delete:
+      tags: [sessions]
+      operationId: releaseSessionWorkLease
+      summary: Release Message work protection and begin configured idle expiry
+      x-control-credentials: [operator]
+      responses:
+        "200":
+          description: The lease was released and the reconciled Session was returned.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Session"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/message-executions:
+    get:
+      tags: [messages]
+      operationId: listUnfinishedMessageExecutions
+      summary: List sandbox-bound work requiring reconciliation
+      x-control-credentials: [operator, dispatcher]
+      responses:
+        "200":
+          description: Current unfinished lifecycle metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/MessageExecution"}
+        "503": {$ref: "#/components/responses/Error"}
+    post:
+      tags: [messages]
+      operationId: saveMessageExecution
+      summary: Conditionally persist attempt ownership or authoritative lifecycle evidence
+      x-control-credentials: [operator, dispatcher]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MessageExecution"}
+      responses:
+        "200":
+          description: Stored execution and its current revision.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageExecution"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/pinned-work-leases:
+    post:
+      tags: [sessions]
+      operationId: mutatePinnedWorkLease
+      summary: Acquire, renew, or release an incarnation-bound work lease
+      x-control-credentials: [operator, dispatcher]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [session_id, sandbox_id, lease_id]
+              properties:
+                session_id: {$ref: "#/components/schemas/SessionID"}
+                sandbox_id: {type: string, pattern: "^sbx-[0-9a-f]{32}$"}
+                lease_id: {type: string}
+                renew: {type: boolean, default: false}
+                release: {type: boolean, default: false, description: Mutually exclusive with renew.}
+      responses:
+        "200":
+          description: Lease metadata, or the Session after release.
+          content:
+            application/json:
+              schema: {type: object}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries:
+    post:
+      tags: [messages]
+      operationId: enqueueMessageDelivery
+      summary: Durably accept one actor Message for asynchronous delivery
+      x-control-credentials: [operator, gateway]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EnqueueMessageDelivery"}
+      responses:
+        "200":
+          description: An identical Message was already accepted.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDelivery"}
+        "202":
+          description: The Message was durably accepted.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDelivery"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "429": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries/claim:
+    post:
+      tags: [messages]
+      operationId: claimMessageDelivery
+      summary: Atomically claim the next deliverable Message
+      x-control-credentials: [operator, dispatcher]
+      responses:
+        "200":
+          description: The claimed Message, or null when the queue has no eligible work.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDeliveryClaim"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries/requeue-handling:
+    post:
+      tags: [messages]
+      operationId: requeueHandlingMessageDeliveries
+      summary: Recover Messages left handling after dispatcher restart
+      x-control-credentials: [operator, dispatcher]
+      responses:
+        "200":
+          description: Number of handling Messages returned to pending delivery.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RequeuedMessageCount"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    get:
+      tags: [messages]
+      operationId: getMessageDelivery
+      summary: Read the durable platform delivery projection
+      x-control-credentials: [operator, gateway, dispatcher]
+      responses:
+        "200":
+          description: Current Message delivery state.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDelivery"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries/{id}/requeue:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    post:
+      tags: [messages]
+      operationId: requeueMessageDelivery
+      summary: Return an uncertain handling attempt to pending delivery
+      x-control-credentials: [operator, dispatcher]
+      responses:
+        "200":
+          description: Requeued Message delivery projection.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDelivery"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries/{id}/reply:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    post:
+      tags: [messages]
+      operationId: saveMessageReply
+      summary: Store the reply for a Message enqueued with reply_requested
+      x-control-credentials: [operator, dispatcher]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reply]
+              properties:
+                reply:
+                  description: Opaque JSON returned by the SDK Session runtime.
+      responses:
+        "200":
+          description: Message delivery projection including the stored reply.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDelivery"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "429": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+  /v1/message-deliveries/{id}/fail:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    post:
+      tags: [messages]
+      operationId: failMessageDelivery
+      summary: Mark a Message terminal before a runtime generation was established
+      x-control-credentials: [operator, dispatcher]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MessageFailure"}
+      responses:
+        "200":
+          description: Failed Message delivery projection.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDelivery"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+  /v1/message-delivery-events:
+    get:
+      tags: [messages]
+      operationId: listMessageDeliveryEvents
+      summary: Read a bounded newest-first page of payload-free Message transitions
+      x-control-credentials: [operator, observer]
+      parameters:
+        - name: workspace_id
+          in: query
+          schema: {$ref: "#/components/schemas/WorkspaceID"}
+        - name: message_id
+          in: query
+          schema: {$ref: "#/components/schemas/MessageID"}
+        - name: before_sequence
+          in: query
+          schema: {type: integer, minimum: 1}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 100}
+      responses:
+        "200":
+          description: A bounded page of durable Message transitions without payloads.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageDeliveryEventList"}
+        "400": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/request-events:
+    post:
+      tags: [sessions]
+      operationId: recordRequestEvent
+      summary: Durably record one reverse-proxy request
+      x-control-credentials: [operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RecordRequestEvent"}
+      responses:
+        "200":
+          description: An identical event was already recorded.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RequestEvent"}
+        "201":
+          description: The event was recorded.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RequestEvent"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [sessions]
+      operationId: listRequestEvents
+      summary: Read a bounded newest-first event page
+      x-control-credentials: [operator, observer]
+      parameters:
+        - name: workspace_id
+          in: query
+          schema: {$ref: "#/components/schemas/WorkspaceID"}
+        - name: app_id
+          in: query
+          description: Mutually exclusive with workspace_id.
+          schema: {$ref: "#/components/schemas/ResourceID"}
+        - name: before_sequence
+          in: query
+          description: Mutually exclusive with after_sequence.
+          schema: {type: integer, minimum: 1}
+        - name: after_sequence
+          in: query
+          description: >-
+            Return the oldest events newer than this sequence (still newest
+            first) instead of the newest. Mutually exclusive with before_sequence.
+          schema: {type: integer, minimum: 1}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 100}
+      responses:
+        "200":
+          description: A bounded page of durable request events.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RequestEventList"}
+        "400": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/session-events:
+    post:
+      tags: [session-events]
+      operationId: appendSessionEvent
+      summary: Append one event to a Session's in-memory event stream
+      x-control-credentials: [operator, dispatcher]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [workspace_id, session_id, message_id, data]
+              properties:
+                workspace_id: {type: string, description: Must not contain "/".}
+                session_id: {type: string, description: Must not contain "/".}
+                message_id: {$ref: "#/components/schemas/MessageID"}
+                source_sandbox_id:
+                  type: string
+                  pattern: "^sbx-[0-9a-f]{32}$"
+                  description: Supplied together with source_cursor to deduplicate replays from one Sandbox.
+                source_cursor: {type: integer, minimum: 1}
+                data:
+                  description: Opaque JSON event payload.
+      responses:
+        "201":
+          description: The appended event.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SessionEvent"}
+        "400": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [session-events]
+      operationId: readSessionEvents
+      summary: Read Session events after a cursor
+      description: >-
+        Without wait, long-polls for up to 15 seconds until events after the
+        cursor exist; wait=0 returns immediately. No other query parameters
+        are accepted.
+      x-control-credentials: [operator, gateway]
+      parameters:
+        - name: workspace_id
+          in: query
+          required: true
+          schema: {type: string}
+        - name: session_id
+          in: query
+          required: true
+          schema: {type: string}
+        - name: after
+          in: query
+          required: true
+          schema: {type: integer, minimum: 0}
+        - name: wait
+          in: query
+          required: false
+          schema: {type: string, enum: ["0"]}
+      responses:
+        "200":
+          description: Events after the cursor; events is null when none are available.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SessionEventBatch"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409":
+          description: The cursor has been evicted from the bounded buffer (event_cursor_expired).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: object
+                    required: [code, message, earliest_sequence]
+                    properties:
+                      code: {type: string, enum: [event_cursor_expired]}
+                      message: {type: string}
+                      earliest_sequence: {type: integer, minimum: 0}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/session-events/close:
+    post:
+      tags: [session-events]
+      operationId: closeSessionEvents
+      summary: Mark a Session event stream closed
+      x-control-credentials: [operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [workspace_id, session_id]
+              properties:
+                workspace_id: {type: string}
+                session_id: {type: string}
+      responses:
+        "200":
+          description: The stream is closed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [closed]
+                properties:
+                  closed: {type: boolean, enum: [true]}
+        "400": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sandboxes:
+    post:
+      tags: [sandboxes]
+      operationId: createSandbox
+      summary: Create and start a Sandbox directly (internal)
+      description: Operator-only diagnostic path; Sessions normally allocate Sandboxes.
+      x-control-credentials: [operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, app_id, workspace_id]
+              properties:
+                id: {$ref: "#/components/schemas/SandboxID"}
+                app_id: {$ref: "#/components/schemas/ResourceID"}
+                workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+      responses:
+        "202":
+          description: The Sandbox is running.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "429": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [sandboxes]
+      operationId: listSandboxes
+      summary: List every Sandbox record on this host (internal)
+      x-control-credentials: [operator, observer]
+      responses:
+        "200":
+          description: All Sandbox records.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Sandbox"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sandboxes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/SandboxID"}
+    get:
+      tags: [sandboxes]
+      operationId: getSandbox
+      summary: Read one Sandbox (internal)
+      x-control-credentials: [operator]
+      responses:
+        "200":
+          description: The Sandbox record.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "404": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [sandboxes]
+      operationId: terminateSandbox
+      summary: Terminate one Sandbox (internal)
+      x-control-credentials: [operator, dispatcher, observer]
+      responses:
+        "200":
+          description: The terminated Sandbox record.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sandboxes/{id}/crash:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/SandboxID"}
+    post:
+      tags: [sandboxes]
+      operationId: crashSandbox
+      summary: Inject a runtime crash into a Sandbox (internal fault injection)
+      x-control-credentials: [operator, observer]
+      responses:
+        "200":
+          description: The Sandbox record after the crash was recorded.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/sandbox-usage:
+    get:
+      tags: [sandboxes]
+      operationId: listSandboxUsage
+      summary: Read per-Sandbox CPU and memory usage (internal telemetry)
+      x-control-credentials: [operator, observer]
+      responses:
+        "200":
+          description: One reading per running Sandbox.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [observed_at, items]
+                properties:
+                  observed_at: {type: string, format: date-time}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [sandbox_id, cpu_usage_us, memory_current_bytes, guest_memory_mib]
+                      properties:
+                        sandbox_id: {$ref: "#/components/schemas/SandboxID"}
+                        cpu_usage_us: {type: integer, minimum: 0}
+                        memory_current_bytes: {type: integer, minimum: 0, description: Host RAM charged to the VM.}
+                        guest_memory_mib: {type: integer, minimum: 0}
+                        guest_memory_used_bytes: {type: integer, minimum: 0, description: Absent when guest telemetry is unavailable.}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/host-capacity:
+    get:
+      tags: [sandboxes]
+      operationId: readHostCapacity
+      summary: Read warm host-slot pool capacity (internal telemetry)
+      x-control-credentials: [operator, observer]
+      responses:
+        "200":
+          description: Warm slot counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [warm_slots]
+                properties:
+                  warm_slots:
+                    type: object
+                    required: [target, ready, claimed, preparing]
+                    properties:
+                      target: {type: integer, minimum: 0}
+                      ready: {type: integer, minimum: 0}
+                      claimed: {type: integer, minimum: 0}
+                      preparing: {type: integer, minimum: 0}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/database-access/{id}:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/SandboxID"}
+    get:
+      tags: [compute-ingress]
+      operationId: getSandboxDatabaseAccess
+      summary: Confirm a Sandbox is live before issuing Workspace database credentials (internal)
+      description: Any query string or a Sandbox that is not starting or running returns 404. Responses are not cacheable.
+      x-control-credentials: [operator, compute]
+      responses:
+        "200":
+          description: The Sandbox's App and Workspace identity.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sandboxId, appId, workspaceId, active]
+                properties:
+                  sandboxId: {$ref: "#/components/schemas/SandboxID"}
+                  appId: {$ref: "#/components/schemas/ResourceID"}
+                  workspaceId: {$ref: "#/components/schemas/WorkspaceID"}
+                  active: {type: boolean, enum: [true]}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+    put:
+      tags: [compute-ingress]
+      operationId: registerComputeApp
+      summary: Register an App's desired state for a compute tenant (internal)
+      description: Idempotent; replaying identical desired state returns 200. Requires Content-Type application/json and no query string.
+      x-control-credentials: [operator, compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [slug, session_runtime]
+              properties:
+                slug: {$ref: "#/components/schemas/AppSlug"}
+                build_id: {$ref: "#/components/schemas/BuildID"}
+                session_runtime:
+                  type: object
+                  additionalProperties: false
+                  required: [runtime]
+                  properties:
+                    runtime:
+                      type: object
+                      additionalProperties: false
+                      required: [profile, internal_port]
+                      properties:
+                        profile: {type: string}
+                        internal_port: {type: integer, minimum: 1, maximum: 65535}
+      responses:
+        "200": {$ref: "#/components/responses/ComputeAppStatus"}
+        "201": {$ref: "#/components/responses/ComputeAppStatus"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [compute-ingress]
+      operationId: archiveComputeApp
+      summary: Archive a compute tenant's App (internal)
+      description: Idempotent; an absent App is already satisfied. Requires an empty body and no query string.
+      x-control-credentials: [operator, compute]
+      responses:
+        "200": {$ref: "#/components/responses/ComputeAppStatus"}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/workspaces/{workspace_id}:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+      - $ref: "#/components/parameters/ComputeWorkspaceID"
+    put:
+      tags: [compute-ingress]
+      operationId: registerComputeWorkspace
+      summary: Register a Workspace's desired state (internal)
+      x-control-credentials: [operator, compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [slug]
+              properties:
+                slug: {$ref: "#/components/schemas/AppSlug"}
+      responses:
+        "200": {$ref: "#/components/responses/ComputeWorkspaceStatus"}
+        "201": {$ref: "#/components/responses/ComputeWorkspaceStatus"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [compute-ingress]
+      operationId: archiveComputeWorkspace
+      summary: Archive a Workspace (internal)
+      description: Idempotent; requires an empty body and no query string.
+      x-control-credentials: [operator, compute]
+      responses:
+        "200": {$ref: "#/components/responses/ComputeWorkspaceStatus"}
+        "400": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/workspaces/{workspace_id}/purge:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+      - $ref: "#/components/parameters/ComputeWorkspaceID"
+    delete:
+      tags: [compute-ingress]
+      operationId: purgeComputeWorkspace
+      summary: Purge a Workspace's host state (internal)
+      description: Idempotent; requires an empty body and no query string. 503 cleanup_pending must be retried.
+      x-control-credentials: [operator, compute]
+      responses:
+        "200": {$ref: "#/components/responses/ComputeWorkspaceStatus"}
+        "400": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/configuration:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+    put:
+      tags: [compute-ingress]
+      operationId: replaceComputeConfiguration
+      summary: Replace an App's projected variables and secrets (internal)
+      description: A revision older than the stored one returns 409 stale_revision.
+      x-control-credentials: [operator, compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [revision, values]
+              properties:
+                revision: {type: integer}
+                values:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [name, kind, value]
+                    properties:
+                      name: {type: string}
+                      kind: {type: string, enum: [variable, secret]}
+                      value: {type: string}
+      responses:
+        "200":
+          description: The projection was applied.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [app_id, revision, status]
+                properties:
+                  app_id: {$ref: "#/components/schemas/ResourceID"}
+                  revision: {type: integer}
+                  status: {type: string, enum: [applied]}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "500": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/prepared-builds:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+    post:
+      tags: [compute-ingress]
+      operationId: installPreparedBuild
+      summary: Download, verify, and install a prepared Build rootfs (internal)
+      description: >-
+        Synchronously downloads image_url (which must be on the configured
+        artifact origin and end in manifest.image_key), verifies size and
+        SHA-256, publishes it to the image catalog, and completes the Build
+        operation. Replaying a finished command returns its receipt.
+      x-control-credentials: [operator, compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [command_id, image_url, manifest]
+              properties:
+                command_id: {type: string, pattern: "^op_[0-9a-f]{32}$"}
+                image_url: {type: string, format: uri, description: Signed HTTPS URL on the artifact download origin.}
+                manifest:
+                  type: object
+                  additionalProperties: false
+                  required: [schema_version, build_id, image_key, rootfs_sha256, rootfs_size_bytes, process]
+                  properties:
+                    schema_version: {type: integer, enum: [1]}
+                    build_id: {$ref: "#/components/schemas/BuildID"}
+                    image_key: {type: string, pattern: "^prepared-images/sha256/[0-9a-f]{64}\\.ext4$"}
+                    rootfs_sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+                    rootfs_size_bytes: {type: integer, minimum: 1, maximum: 55834574848}
+                    process:
+                      type: object
+                      required: [args, env, working_directory, uid, gid]
+                      properties:
+                        args: {type: array, items: {type: string}}
+                        env: {type: array, items: {type: string}}
+                        working_directory: {type: string}
+                        uid: {type: integer, minimum: 0}
+                        gid: {type: integer, minimum: 0}
+      responses:
+        "200":
+          description: The Build operation receipt (succeeded or failed).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppBuildOperation"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "429": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/prepared-builds/{command_id}:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+      - name: command_id
+        in: path
+        required: true
+        schema: {type: string, pattern: "^op_[0-9a-f]{32}$"}
+    delete:
+      tags: [compute-ingress]
+      operationId: cancelPreparedBuild
+      summary: Cancel a pending prepared Build installation (internal)
+      x-control-credentials: [operator, compute]
+      responses:
+        "200":
+          description: The Build operation after cancellation.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppBuildOperation"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/active-build:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+    get:
+      tags: [compute-ingress]
+      operationId: getActiveBuild
+      summary: Read the App's active Build (internal)
+      x-control-credentials: [operator, compute]
+      responses:
+        "200": {$ref: "#/components/responses/ActiveBuild"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    put:
+      tags: [compute-ingress]
+      operationId: selectActiveBuild
+      summary: Select or clear the App's active Build (internal)
+      description: Release admission must be closed first, otherwise 409 release_admission_conflict.
+      x-control-credentials: [operator, compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [build_id]
+              properties:
+                build_id:
+                  oneOf:
+                    - {$ref: "#/components/schemas/BuildID"}
+                    - type: "null"
+      responses:
+        "200": {$ref: "#/components/responses/ActiveBuild"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+  /v1/internal/users/{user_id}/apps/{app_id}/release-admission:
+    servers:
+      - url: http://127.0.0.1:8084
+        description: Provider ingress listener
+    parameters:
+      - $ref: "#/components/parameters/ComputeTenantID"
+      - $ref: "#/components/parameters/ComputeAppID"
+    get:
+      tags: [compute-ingress]
+      operationId: getReleaseAdmission
+      summary: Read whether new Sessions are admitted for the App (internal)
+      description: An App with no recorded state reports closed.
+      x-control-credentials: [operator, compute]
+      responses:
+        "200": {$ref: "#/components/responses/ReleaseAdmission"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+    put:
+      tags: [compute-ingress]
+      operationId: setReleaseAdmission
+      summary: Close or reopen Session admission around a release switch (internal)
+      description: >-
+        Closing requires a generation not older than the current one; reopening
+        requires the current generation. Otherwise 409 release_admission_conflict.
+        While closed, POST /v1/sessions returns 503 release_transition.
+      x-control-credentials: [operator, compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [generation, closed]
+              properties:
+                generation: {$ref: "#/components/schemas/ReleaseGeneration"}
+                closed: {type: boolean}
+      responses:
+        "200": {$ref: "#/components/responses/ReleaseAdmission"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
+components:
+  securitySchemes:
+    controlAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        One of the host's distinct 64-lowercase-hex control tokens (operator,
+        gateway, dispatcher, observer on the control listener; operator or
+        compute on the provider ingress listener), each limited to its route
+        scope.
+  parameters:
+    ResourceID:
+      name: id
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/ResourceID"}
+    WorkLeaseID:
+      name: lease_id
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/WorkLeaseID"}
+    ComputeTenantID:
+      name: user_id
+      in: path
+      required: true
+      description: Console user ID that owns the App on this host.
+      schema: {type: string, pattern: "^usr_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$"}
+    ComputeAppID:
+      name: app_id
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/ResourceID"}
+    ComputeWorkspaceID:
+      name: workspace_id
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/WorkspaceID"}
+  responses:
+    Error:
+      description: Error response.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorResponse"}
+    ComputeAppStatus:
+      description: Desired-state receipt for the App.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [app_id, status]
+            properties:
+              app_id: {$ref: "#/components/schemas/ResourceID"}
+              status: {type: string, enum: [registered, archived]}
+    ComputeWorkspaceStatus:
+      description: Desired-state receipt for the Workspace.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [workspace_id, status]
+            properties:
+              workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+              status: {type: string, enum: [registered, archived, purged]}
+    ActiveBuild:
+      description: The App's active Build, or null when none is selected.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [app_id, build_id]
+            properties:
+              app_id: {$ref: "#/components/schemas/ResourceID"}
+              build_id:
+                oneOf:
+                  - {$ref: "#/components/schemas/BuildID"}
+                  - type: "null"
+    ReleaseAdmission:
+      description: Current Session admission state.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [generation, closed]
+            properties:
+              generation:
+                type: string
+                description: Empty until a generation has been recorded.
+                pattern: "^(act_[0-9a-f]{32})?$"
+              closed: {type: boolean}
+  schemas:
+    SandboxID:
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+    ReleaseGeneration:
+      type: string
+      pattern: "^act_[0-9a-f]{32}$"
+    App:
+      type: object
+      required: [id, slug, session_runtime, builds, created_at, updated_at]
+      properties:
+        id: {$ref: "#/components/schemas/ResourceID"}
+        slug: {$ref: "#/components/schemas/AppSlug"}
+        session_runtime: {$ref: "#/components/schemas/AppSessionRuntime"}
+        builds:
+          type: array
+          items: {$ref: "#/components/schemas/AppBuild"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Workspace:
+      type: object
+      required: [id, app_id, app_slug, slug, session_runtime, created_at, updated_at]
+      properties:
+        id: {$ref: "#/components/schemas/WorkspaceID"}
+        app_id: {$ref: "#/components/schemas/ResourceID"}
+        app_slug: {$ref: "#/components/schemas/AppSlug"}
+        slug: {$ref: "#/components/schemas/AppSlug"}
+        session_runtime: {$ref: "#/components/schemas/AppSessionRuntime"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        archived_at: {type: string, format: date-time}
+    Sandbox:
+      type: object
+      required: [runtime_timing, id, app_id, workspace_id, profile, build_id, vcpus, memory_mib, memory_max_mib, state, created_at, updated_at]
+      properties:
+        runtime_timing:
+          type: object
+          required: [status]
+          properties:
+            status: {type: string, enum: [pending, running, stopped, not_started, unknown]}
+            started_at: {type: string, format: date-time}
+            stopped_at: {type: string, format: date-time}
+        id: {$ref: "#/components/schemas/SandboxID"}
+        app_id: {$ref: "#/components/schemas/ResourceID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        profile: {type: string}
+        build_id: {$ref: "#/components/schemas/BuildID"}
+        vcpus: {type: integer, minimum: 1}
+        memory_mib: {type: integer, minimum: 1}
+        memory_max_mib: {type: integer, minimum: 1}
+        state: {type: string, enum: [starting, running, stopping, terminated, failed]}
+        network:
+          type: object
+          required: [guest_ip, gateway_ip, subnet, guest_mac]
+          properties:
+            guest_ip: {type: string}
+            gateway_ip: {type: string}
+            subnet: {type: string}
+            guest_mac: {type: string}
+        failure:
+          type: object
+          required: [reason]
+          properties:
+            reason: {type: string, enum: [runtime_start_failed, runtime_exited]}
+            runtime_exit:
+              type: object
+              required: [pid]
+              properties:
+                pid: {type: integer}
+                exit_code: {type: integer, description: Absent when the process was signalled.}
+                signal: {type: string}
+        startup:
+          type: object
+          required: [completed_at, duration_ms]
+          properties:
+            completed_at: {type: string, format: date-time}
+            duration_ms: {type: number}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SessionEvent:
+      type: object
+      required: [stream_id, sequence, session_id, message_id, created_at]
+      properties:
+        stream_id: {type: string}
+        source_sandbox_id: {type: string}
+        source_cursor: {type: integer, minimum: 1}
+        sequence: {type: integer, minimum: 1}
+        session_id: {type: string}
+        message_id: {$ref: "#/components/schemas/MessageID"}
+        created_at: {type: string, format: date-time}
+        data:
+          description: Opaque JSON event payload.
+    SessionEventBatch:
+      type: object
+      required: [stream_id, events]
+      properties:
+        stream_id: {type: string}
+        events:
+          oneOf:
+            - type: array
+              items: {$ref: "#/components/schemas/SessionEvent"}
+            - type: "null"
+        earliest_sequence: {type: integer, minimum: 1}
+        latest_sequence: {type: integer, minimum: 1}
+        closed: {type: boolean}
+    ResourceID:
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    WorkspaceID:
+      type: string
+      pattern: "^wsp_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$"
+    SessionID:
+      type: string
+      pattern: "^ses_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$"
+    MessageID:
+      type: string
+      pattern: "^msg_[0-9a-f]{32}$"
+    WorkLeaseID:
+      type: string
+      pattern: "^lease_[0-9a-f]{32}$"
+    BuildID:
+      type: string
+      pattern: "^sha256:[0-9a-f]{64}$"
+    AppSlug:
+      type: string
+      pattern: "^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    Status:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string}
+    AppBuild:
+      type: object
+      required: [version, id, created_at]
+      properties:
+        version: {type: integer, minimum: 1}
+        id: {$ref: "#/components/schemas/BuildID"}
+        created_at: {type: string, format: date-time}
+    AppBuildOperation:
+      type: object
+      required: [id, app_id, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: "^bop_[0-9a-f]{32}$"
+        app_id: {$ref: "#/components/schemas/ResourceID"}
+        status:
+          type: string
+          enum: [receiving, queued, processing, succeeded, failed]
+        size_bytes: {type: integer, minimum: 1}
+        build_id: {$ref: "#/components/schemas/BuildID"}
+        build_version:
+          type: integer
+          minimum: 1
+          description: Assigned by the server only when status is succeeded.
+        error_code: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    AppSessionRuntime:
+      type: object
+      required: [runtime]
+      properties:
+        active_build_id:
+          allOf: [{$ref: "#/components/schemas/BuildID"}]
+          description: Absent while the App is provisioning its first Build.
+        runtime:
+          type: object
+          required: [profile, internal_port]
+          properties:
+            profile: {type: string, enum: [default]}
+            internal_port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+              readOnly: true
+              description: Platform-assigned private SDK listener port.
+    CreateSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, keep_alive_seconds]
+      properties:
+        id: {$ref: "#/components/schemas/SessionID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        keep_alive_seconds: {type: integer, minimum: 0, maximum: 604800}
+        key_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: Optional trusted-gateway hash for a Workspace-scoped Session key.
+    Session:
+      type: object
+      required: [id, workspace_id, build_id, keep_alive_seconds, state, created_at, updated_at]
+      properties:
+        id: {$ref: "#/components/schemas/SessionID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        build_id: {$ref: "#/components/schemas/BuildID"}
+        keep_alive_seconds: {type: integer, minimum: 0, maximum: 604800}
+        state:
+          type: string
+          enum: [active, idle]
+          description: Derived from whether the Session currently has an allocated Sandbox; never terminal.
+        startup:
+          type: object
+          description: Recorded once the Session finished booting; absent until then.
+          required: [completed_at, duration_ms]
+          properties:
+            completed_at: {type: string, format: date-time}
+            duration_ms: {type: number}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SessionRoute:
+      type: object
+      required: [session, sandbox_id, endpoint]
+      properties:
+        sandbox_id: {type: string, pattern: "^sbx-[0-9a-f]{32}$"}
+        session:
+          type: object
+          required: [id, workspace_id, build_id, keep_alive_seconds, state, created_at, updated_at]
+          properties:
+            id: {$ref: "#/components/schemas/SessionID"}
+            workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+            build_id: {$ref: "#/components/schemas/BuildID"}
+            keep_alive_seconds: {type: integer, minimum: 0, maximum: 604800}
+            state: {type: string, enum: [active, idle]}
+            startup:
+              type: object
+              required: [completed_at, duration]
+              properties:
+                completed_at: {type: string, format: date-time}
+                duration: {type: integer, description: Startup duration in nanoseconds.}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+        endpoint:
+          type: object
+          required: [scheme, authority]
+          properties:
+            scheme: {type: string, enum: [http, https]}
+            authority: {type: string}
+            headers:
+              type: object
+              additionalProperties:
+                type: array
+                items: {type: string}
+    WorkLeaseRequest:
+      type: object
+      additionalProperties: false
+      required: [ttl_seconds]
+      properties:
+        lease_id: {$ref: "#/components/schemas/WorkLeaseID"}
+        ttl_seconds: {type: integer, minimum: 1, maximum: 300}
+    WorkLeaseRenewal:
+      type: object
+      additionalProperties: false
+      required: [ttl_seconds]
+      properties:
+        ttl_seconds: {type: integer, minimum: 1, maximum: 300}
+    SessionWorkLease:
+      type: object
+      required: [session_id, lease_id, expires_at, created_at, updated_at]
+      properties:
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        lease_id: {$ref: "#/components/schemas/WorkLeaseID"}
+        expires_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    EnqueueMessageDelivery:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, logical_session_id, keep_alive_seconds, payload]
+      properties:
+        id: {$ref: "#/components/schemas/MessageID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        logical_session_id: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"}
+        request_id: {type: string, pattern: "^req_[0-9a-f]{32}$"}
+        keep_alive_seconds: {type: integer, minimum: 0, maximum: 604800}
+        payload:
+          description: Opaque JSON passed only to the target SDK Session runtime.
+        reply_requested:
+          type: boolean
+          default: false
+          description: The dispatcher stores the handler's reply with POST /v1/message-deliveries/{id}/reply.
+    MessageDelivery:
+      type: object
+      required:
+        - id
+        - workspace_id
+        - logical_session_id
+        - keep_alive_seconds
+        - state
+        - work_state
+        - attempts
+        - accepted_at
+        - updated_at
+      properties:
+        execution: {$ref: "#/components/schemas/MessageExecution"}
+        id: {$ref: "#/components/schemas/MessageID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        logical_session_id: {type: string}
+        request_id: {type: string}
+        keep_alive_seconds: {type: integer, minimum: 0, maximum: 604800}
+        payload:
+          description: Present only on private control-plane delivery reads.
+        reply_requested: {type: boolean}
+        reply:
+          description: Stored handler reply, present once saved for a reply_requested Message.
+        state: {type: string, enum: [accepted, handling, handled, failed]}
+        work_state: {type: string, enum: [pending, delivering, awaiting_quiescence, quiescent, unavailable]}
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        generation: {type: integer, minimum: 1, maximum: 9007199254740991}
+        error_code: {type: string, pattern: "^[a-z][a-z0-9_]{0,63}$"}
+        attempts: {type: integer, minimum: 0}
+        accepted_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time}
+        handled_at: {type: string, format: date-time}
+        quiescent_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    MessageDeliveryClaim:
+      type: object
+      required: [message]
+      properties:
+        message:
+          oneOf:
+            - {$ref: "#/components/schemas/MessageDelivery"}
+            - type: "null"
+    RequeuedMessageCount:
+      type: object
+      required: [requeued]
+      properties:
+        requeued: {type: integer, minimum: 0}
+    MessageFailure:
+      type: object
+      additionalProperties: false
+      required: [error_code]
+      properties:
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        error_code: {type: string, pattern: "^[a-z][a-z0-9_]{0,63}$"}
+    MessageDeliveryEvent:
+      type: object
+      required:
+        - sequence
+        - message_id
+        - workspace_id
+        - logical_session_id
+        - attempt
+        - transition
+        - state
+        - work_state
+        - occurred_at
+      properties:
+        current_execution:
+          description: Current execution at read time; not part of the historic event snapshot.
+          $ref: "#/components/schemas/MessageExecution"
+        sequence: {type: integer, minimum: 1}
+        message_id: {$ref: "#/components/schemas/MessageID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        logical_session_id: {type: string}
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        request_id: {type: string}
+        attempt: {type: integer, minimum: 0}
+        generation: {type: integer, minimum: 1, maximum: 9007199254740991}
+        transition: {type: string, enum: [accepted, handling, requeued, settled, failed, quiescent, unavailable]}
+        state: {type: string, enum: [accepted, handling, handled, failed]}
+        work_state: {type: string, enum: [pending, delivering, awaiting_quiescence, quiescent, unavailable]}
+        error_code: {type: string}
+        occurred_at: {type: string, format: date-time}
+    MessageDeliveryEventList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/MessageDeliveryEvent"}
+        next_before_sequence: {type: integer, minimum: 1}
+    RecordRequestEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, workspace_id, received_at, status_code, duration_ms]
+      properties:
+        event_id:
+          type: string
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        received_at: {type: string, format: date-time}
+        status_code: {type: integer, minimum: 100, maximum: 599}
+        duration_ms: {type: number, minimum: 0}
+        request_id: {type: string}
+    RequestEvent:
+      type: object
+      required: [sequence, event_id, workspace_id, received_at, status_code, duration_ms]
+      properties:
+        sequence: {type: integer, minimum: 1}
+        event_id:
+          type: string
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        request_id: {type: string}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        received_at: {type: string, format: date-time}
+        status_code: {type: integer, minimum: 100, maximum: 599}
+        duration_ms: {type: number, minimum: 0}
+    RequestEventList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/RequestEvent"}
+        next_before_sequence: {type: integer, minimum: 1}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
+    MessageExecution:
+      type: object
+      description: Sandbox-bound lifecycle evidence; event buffers remain volatile.
+      required: [message_id, attempt, session_id, sandbox_id, revision, phase, phase_at, admission_deadline, execution_deadline, updated_at]
+      properties:
+        message_id: {$ref: "#/components/schemas/MessageID"}
+        attempt: {type: integer, minimum: 1}
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        sandbox_id: {type: string, pattern: "^sbx-[0-9a-f]{32}$"}
+        revision: {type: integer, minimum: 0}
+        phase: {type: string, enum: [sending, accepted, running, cancelling, settled, quiescent, unavailable]}
+        phase_at: {type: string, format: date-time}
+        admission_deadline: {type: string, format: date-time}
+        execution_deadline: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        error_code: {type: string}
+        receipt: {$ref: "#/components/schemas/MailboxReceipt"}
+        activity: {$ref: "#/components/schemas/RuntimeWorkDeadline"}
+        message_work: {$ref: "#/components/schemas/RuntimeWorkDeadline"}
+        observability:
+          type: object
+          description: Original attempt trace metadata, retained across transport retries.
+    MailboxReceipt:
+      type: object
+      required: [sandbox_id, message_id, sequence, generation, accepted_at, deadline, state]
+      properties:
+        sandbox_id: {type: string, pattern: "^sbx-[0-9a-f]{32}$"}
+        message_id: {$ref: "#/components/schemas/MessageID"}
+        attempt_id: {type: string}
+        sequence: {type: integer, minimum: 1, maximum: 9007199254740991}
+        generation: {type: integer, minimum: 1, maximum: 9007199254740991}
+        accepted_at: {type: string, format: date-time}
+        deadline: {type: string, format: date-time}
+        cancellation_requested_at: {type: string, format: date-time}
+        state: {type: string, enum: [queued, running, cancelling, succeeded, failed, timed_out]}
+    RuntimeWorkDeadline:
+      type: object
+      required: [deadline]
+      properties:
+        id: {type: string, description: Identity of a managed activity.}
+        deadline: {type: string, format: date-time}
+        cancellation_requested_at: {type: string, format: date-time}

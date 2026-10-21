@@ -1,0 +1,556 @@
+---
+- name: Validate restore finalization inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_finalize_restore_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_finalize_restore_juicefs == '/usr/local/bin/juicefs'
+      - >-
+        storage_backup_finalize_restore_juicefs_checksum
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_finalize_restore_metadata_url_file
+        == '/etc/fire-fuse/juicefs-meta-url'
+      - >-
+        storage_backup_finalize_restore_validator
+        ==
+        '/usr/local/lib/fire-fuse/validate-storage-backup-restore-evidence.py'
+    fail_msg: restore finalization requires fixed trusted paths and pins
+
+- name: Record restore finalization paths
+  ansible.builtin.set_fact:
+    storage_backup_finalize_restore_workspace: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_finalize_restore_rehearsal_id }}
+
+- name: Install exact restore evidence validation programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - validate-storage-backup-restore-evidence.py
+      - audit-storage-backups.py
+      - verify-storage-backup.py
+
+- name: Inspect rehearsal qualification records
+  ansible.builtin.stat:
+    path: "{{ storage_backup_finalize_restore_workspace }}/{{ item }}"
+    follow: false
+  loop:
+    - manifest.json
+    - materialization.json
+    - production-guard-before.json
+    - minio-recovery-bucket.json
+    - redis-runtime.json
+    - metadata-runtime.json
+    - mount-runtime.json
+  register: storage_backup_finalize_restore_record_paths
+
+- name: Require trusted rehearsal qualification records
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0600')
+      - item.stat.size | int > 0
+    fail_msg: rehearsal record {{ item.item }} failed trust checks
+  loop: "{{ storage_backup_finalize_restore_record_paths.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Read rehearsal qualification records
+  ansible.builtin.slurp:
+    src: "{{ storage_backup_finalize_restore_workspace }}/{{ item }}"
+  loop:
+    - manifest.json
+    - materialization.json
+    - production-guard-before.json
+    - minio-recovery-bucket.json
+    - redis-runtime.json
+    - metadata-runtime.json
+    - mount-runtime.json
+  register: storage_backup_finalize_restore_inputs
+
+- name: Decode rehearsal qualification records
+  ansible.builtin.set_fact:
+    storage_backup_finalize_restore_manifest: >-
+      {{ storage_backup_finalize_restore_inputs.results[0].content
+      | b64decode | from_json }}
+    storage_backup_finalize_restore_materialization: >-
+      {{ storage_backup_finalize_restore_inputs.results[1].content
+      | b64decode | from_json }}
+    storage_backup_finalize_restore_guard_before: >-
+      {{ storage_backup_finalize_restore_inputs.results[2].content
+      | b64decode | from_json }}
+    storage_backup_finalize_restore_minio: >-
+      {{ storage_backup_finalize_restore_inputs.results[3].content
+      | b64decode | from_json }}
+    storage_backup_finalize_restore_redis: >-
+      {{ storage_backup_finalize_restore_inputs.results[4].content
+      | b64decode | from_json }}
+    storage_backup_finalize_restore_metadata: >-
+      {{ storage_backup_finalize_restore_inputs.results[5].content
+      | b64decode | from_json }}
+    storage_backup_finalize_restore_mount: >-
+      {{ storage_backup_finalize_restore_inputs.results[6].content
+      | b64decode | from_json }}
+  no_log: true
+
+- name: Record the bound backup set and canonical evidence path
+  ansible.builtin.set_fact:
+    storage_backup_finalize_restore_set_id: >-
+      {{ storage_backup_finalize_restore_materialization.set_id }}
+    storage_backup_finalize_restore_evidence_path: >-
+      {{ storage_backup_evidence_root
+      }}/{{ storage_backup_finalize_restore_materialization.set_id }}.json
+
+- name: Inspect trusted finalization inputs and unused output
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: "{{ storage_backup_finalize_restore_juicefs }}"
+      expected: file
+      mode: "0755"
+      checksum: "{{ storage_backup_finalize_restore_juicefs_checksum }}"
+    - path: "{{ storage_backup_finalize_restore_metadata_url_file }}"
+      expected: file
+      mode: "0600"
+      checksum: ""
+    - path: >-
+        {{ storage_backup_staging_root
+        }}/{{ storage_backup_finalize_restore_set_id }}/manifest.json
+      expected: file
+      mode: "0600"
+      checksum: ""
+    - path: >-
+        {{ storage_backup_completed_root
+        }}/{{ storage_backup_finalize_restore_set_id }}.json
+      expected: file
+      mode: "0600"
+      checksum: ""
+    - path: "{{ storage_backup_finalize_restore_evidence_path }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+  register: storage_backup_finalize_restore_paths
+
+- name: Require trusted finalization inputs and new output
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.expected == 'absent'
+          and not (item.stat.exists | default(false))
+        )
+        or
+        (
+          item.item.expected == 'file'
+          and item.stat is trusted_file(owner='root', group='root', mode=item.item.mode)
+          and item.stat.size | int > 0
+          and
+          (
+            item.item.checksum == ''
+            or item.stat.checksum == item.item.checksum
+          )
+        )
+    fail_msg: restore finalization path {{ item.item.path }} failed trust checks
+  loop: "{{ storage_backup_finalize_restore_paths.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Require a single fully qualified rehearsal
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_finalize_restore_set_id
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_finalize_restore_manifest.schema_version == 1
+      - >-
+        storage_backup_finalize_restore_manifest.set_id
+        == storage_backup_finalize_restore_set_id
+      - >-
+        storage_backup_finalize_restore_materialization.status
+        == 'materialized-and-verified'
+      - >-
+        storage_backup_finalize_restore_materialization.rehearsal_id
+        == storage_backup_finalize_restore_rehearsal_id
+      - >-
+        storage_backup_finalize_restore_guard_before.status
+        == 'production-guard-captured'
+      - >-
+        storage_backup_finalize_restore_guard_before.rehearsal_id
+        == storage_backup_finalize_restore_rehearsal_id
+      - >-
+        storage_backup_finalize_restore_guard_before.set_id
+        == storage_backup_finalize_restore_set_id
+      - >-
+        storage_backup_finalize_restore_guard_before.guard_sha256
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (
+          storage_backup_finalize_restore_guard_before.guard
+          | to_json(sort_keys=true)
+          | hash('sha256')
+        )
+        == storage_backup_finalize_restore_guard_before.guard_sha256
+      - >-
+        storage_backup_finalize_restore_guard_before.guard.volume_name
+        == storage_backup_finalize_restore_manifest.source.volume_name
+      - >-
+        storage_backup_finalize_restore_guard_before.guard.volume_uuid
+        == storage_backup_finalize_restore_manifest.source.volume_uuid
+      - storage_backup_finalize_restore_guard_before.guard.storage == 's3'
+      - >-
+        storage_backup_finalize_restore_guard_before.guard.bucket
+        is match('^http://10\.78\.0\.2:[0-9]{2,5}/[^/]+$')
+      - >-
+        storage_backup_finalize_restore_minio.status
+        == 'minio-recovery-bucket-qualified'
+      - >-
+        storage_backup_finalize_restore_minio.rehearsal_id
+        == storage_backup_finalize_restore_rehearsal_id
+      - >-
+        storage_backup_finalize_restore_minio.set_id
+        == storage_backup_finalize_restore_set_id
+      - storage_backup_finalize_restore_minio.source_snapshot_unchanged is sameas true
+      - storage_backup_finalize_restore_minio.object_count | int > 0
+      - >-
+        storage_backup_finalize_restore_minio.tree_sha256
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_finalize_restore_minio.endpoint_url
+        == 'http://127.0.0.1:19000'
+      - >-
+        storage_backup_finalize_restore_minio.object_snapshot_id
+        == storage_backup_finalize_restore_manifest.source.object_snapshot_id
+      - >-
+        storage_backup_finalize_restore_redis.status
+        == 'isolated-redis-snapshot-qualified'
+      - >-
+        storage_backup_finalize_restore_redis.rehearsal_id
+        == storage_backup_finalize_restore_rehearsal_id
+      - >-
+        storage_backup_finalize_restore_redis.set_id
+        == storage_backup_finalize_restore_set_id
+      - >-
+        storage_backup_finalize_restore_redis.service
+        ==
+        (
+          'fire-fuse-restore-redis-'
+          ~ storage_backup_finalize_restore_rehearsal_id
+          ~ '.service'
+        )
+      - storage_backup_finalize_restore_redis.endpoint == 'redis://127.0.0.1:16379'
+      - storage_backup_finalize_restore_redis.database == 1
+      - storage_backup_finalize_restore_redis.key_count | int > 0
+      - >-
+        storage_backup_finalize_restore_redis.production_service_state_before
+        == storage_backup_finalize_restore_redis.production_service_state_after
+      - >-
+        storage_backup_finalize_restore_metadata.status
+        == 'juicefs-metadata-restored'
+      - >-
+        storage_backup_finalize_restore_metadata.rehearsal_id
+        == storage_backup_finalize_restore_rehearsal_id
+      - >-
+        storage_backup_finalize_restore_metadata.set_id
+        == storage_backup_finalize_restore_set_id
+      - >-
+        storage_backup_finalize_restore_metadata.service
+        ==
+        (
+          'fire-fuse-restore-metadata-redis-'
+          ~ storage_backup_finalize_restore_rehearsal_id
+          ~ '.service'
+        )
+      - >-
+        storage_backup_finalize_restore_metadata.endpoint
+        == 'redis://127.0.0.1:16380/1'
+      - storage_backup_finalize_restore_metadata.database == 1
+      - >-
+        storage_backup_finalize_restore_metadata.volume_name
+        == storage_backup_finalize_restore_manifest.source.volume_name
+      - >-
+        storage_backup_finalize_restore_metadata.volume_uuid
+        == storage_backup_finalize_restore_manifest.source.volume_uuid
+      - storage_backup_finalize_restore_metadata.storage == 's3'
+      - storage_backup_finalize_restore_metadata.sessions == 0
+      - storage_backup_finalize_restore_metadata.key_count | int > 0
+      - >-
+        storage_backup_finalize_restore_metadata.bucket
+        ==
+        (
+          storage_backup_finalize_restore_minio.endpoint_url
+          ~ '/'
+          ~ storage_backup_finalize_restore_minio.recovery_bucket
+        )
+      - >-
+        storage_backup_finalize_restore_mount.status
+        == 'juicefs-mount-remount-qualified'
+      - >-
+        storage_backup_finalize_restore_mount.rehearsal_id
+        == storage_backup_finalize_restore_rehearsal_id
+      - >-
+        storage_backup_finalize_restore_mount.first_mount_marker_sha256
+        == storage_backup_finalize_restore_mount.remount_marker_sha256
+      - >-
+        storage_backup_finalize_restore_mount.first_mount_marker_sha256
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_finalize_restore_mount.representative_sha256
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_finalize_restore_mount.clean_unmount_verified is sameas true
+      - storage_backup_finalize_restore_mount.marker_removed is sameas true
+    fail_msg: restore finalization requires one complete bound rehearsal
+  no_log: true
+
+- name: Require artifact checksum bindings
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_finalize_restore_metadata.metadata_dump_sha256
+        ==
+        (
+          storage_backup_finalize_restore_manifest.artifacts
+          | selectattr('component', 'equalto', 'juicefs_metadata')
+          | first
+        ).sha256
+      - >-
+        storage_backup_finalize_restore_materialization.source.manifest_sha256
+        == storage_backup_finalize_restore_paths.results[2].stat.checksum
+      - >-
+        storage_backup_finalize_restore_materialization.source.transfer_record_sha256
+        == storage_backup_finalize_restore_paths.results[3].stat.checksum
+    fail_msg: final restore records do not bind the original backup artifacts
+
+- name: Read the root-only production metadata URL
+  ansible.builtin.slurp:
+    src: "{{ storage_backup_finalize_restore_metadata_url_file }}"
+  register: storage_backup_finalize_restore_metadata_url_content
+  no_log: true
+
+- name: Decode the production metadata URL
+  ansible.builtin.set_fact:
+    storage_backup_finalize_restore_metadata_url: >-
+      {{ storage_backup_finalize_restore_metadata_url_content.content
+      | b64decode | trim }}
+  no_log: true
+
+- name: Require the production metadata network boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_finalize_restore_metadata_url
+        is match(
+          '^redis://:[0-9a-f]{64}@10\.78\.0\.2:6379/1$'
+        )
+    fail_msg: final guard requires the expected private Redis metadata URL
+  no_log: true
+
+- name: Read final production JuiceFS status
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_finalize_restore_juicefs }}"
+      - status
+      - redis://10.78.0.2:6379/1
+  environment:
+    META_PASSWORD: >-
+      {{ storage_backup_finalize_restore_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+  register: storage_backup_finalize_restore_status_command
+  changed_when: false
+  no_log: true
+
+- name: Build the final production configuration guard
+  ansible.builtin.set_fact:
+    storage_backup_finalize_restore_guard:
+      metadata_url_sha256: >-
+        {{ storage_backup_finalize_restore_metadata_url | hash('sha256') }}
+      volume_name: >-
+        {{ (storage_backup_finalize_restore_status_command.stdout
+        | from_json).Setting.Name }}
+      volume_uuid: >-
+        {{ (storage_backup_finalize_restore_status_command.stdout
+        | from_json).Setting.UUID }}
+      storage: >-
+        {{ (storage_backup_finalize_restore_status_command.stdout
+        | from_json).Setting.Storage }}
+      bucket: >-
+        {{ (storage_backup_finalize_restore_status_command.stdout
+        | from_json).Setting.Bucket | regex_replace('/+$', '') }}
+  no_log: true
+
+- name: Hash the final production configuration guard
+  ansible.builtin.set_fact:
+    storage_backup_finalize_restore_guard_sha256: >-
+      {{ storage_backup_finalize_restore_guard
+      | to_json(sort_keys=true) | hash('sha256') }}
+
+- name: Require unchanged production configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_finalize_restore_guard
+        == storage_backup_finalize_restore_guard_before.guard
+      - >-
+        storage_backup_finalize_restore_guard_sha256
+        == storage_backup_finalize_restore_guard_before.guard_sha256
+    fail_msg: production storage configuration changed during restore rehearsal
+  no_log: true
+
+- name: Require protected storage services still running
+  ansible.builtin.service_facts:
+
+- name: Verify final protected service states
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get('fire-fuse-redis.service', {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get('fire-fuse-minio.service', {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_finalize_restore_metadata.service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_finalize_restore_redis.service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          'fire-fuse-restore-minio-'
+          ~ storage_backup_finalize_restore_rehearsal_id
+          ~ '.service', {}
+        ).get('state', 'not-found') == 'running'
+    fail_msg: protected storage service state is not qualified at finalization
+
+- name: Record restore rehearsal completion time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%SZ
+  register: storage_backup_finalize_restore_completion_time
+  changed_when: false
+
+- name: Create canonical restore evidence directory
+  ansible.builtin.file:
+    path: "{{ storage_backup_evidence_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Publish and validate canonical restore evidence
+  block:
+    - name: Publish canonical restore evidence
+      ansible.builtin.copy:
+        content: >-
+          {{
+            {
+              'schema_version': 1,
+              'set_id': storage_backup_finalize_restore_set_id,
+              'started_at': (
+                storage_backup_finalize_restore_guard_before.captured_at
+              ),
+              'completed_at': (
+                storage_backup_finalize_restore_completion_time.stdout
+              ),
+              'source': {
+                'manifest_sha256': (
+                  storage_backup_finalize_restore_paths.results[2].stat.checksum
+                ),
+                'transfer_record_sha256': (
+                  storage_backup_finalize_restore_paths.results[3].stat.checksum
+                ),
+                'volume_uuid': (
+                  storage_backup_finalize_restore_manifest.source.volume_uuid
+                ),
+                'remote_prefix': (
+                  storage_backup_finalize_restore_materialization.source.remote_prefix
+                )
+              },
+              'target': {
+                'rehearsal_id': storage_backup_finalize_restore_rehearsal_id,
+                'isolated': true,
+                'restored_volume_uuid': (
+                  storage_backup_finalize_restore_metadata.volume_uuid
+                )
+              },
+              'checks': {
+                'manifest_verified': true,
+                'object_snapshot_restored': true,
+                'redis_snapshot_restored': true,
+                'metadata_dump_loaded': true,
+                'juicefs_status_verified': true,
+                'first_mount_marker_sha256': (
+                  storage_backup_finalize_restore_mount.first_mount_marker_sha256
+                ),
+                'clean_unmount_verified': true,
+                'remount_marker_sha256': (
+                  storage_backup_finalize_restore_mount.remount_marker_sha256
+                ),
+                'production_guard_before_sha256': (
+                  storage_backup_finalize_restore_guard_before.guard_sha256
+                ),
+                'production_guard_after_sha256': (
+                  storage_backup_finalize_restore_guard_sha256
+                )
+              }
+            }
+            | to_nice_json
+          }}
+        dest: "{{ storage_backup_finalize_restore_evidence_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Validate canonical restore evidence
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_finalize_restore_validator }}"
+          - "{{ storage_backup_finalize_restore_set_id }}"
+          - --restore-root
+          - "{{ storage_backup_evidence_root }}"
+          - --staging-root
+          - "{{ storage_backup_staging_root }}"
+          - --completed-root
+          - "{{ storage_backup_completed_root }}"
+      register: storage_backup_finalize_restore_validation
+      changed_when: false
+
+    - name: Decode canonical restore validation
+      ansible.builtin.set_fact:
+        storage_backup_finalize_restore_result: >-
+          {{ storage_backup_finalize_restore_validation.stdout | from_json }}
+
+    - name: Require canonical restore validation
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_finalize_restore_result.status
+            == 'restore-evidence-verified'
+          - >-
+            storage_backup_finalize_restore_result.set_id
+            == storage_backup_finalize_restore_set_id
+          - >-
+            storage_backup_finalize_restore_result.rehearsal_id
+            == storage_backup_finalize_restore_rehearsal_id
+        fail_msg: canonical restore evidence did not validate
+  rescue:
+    - name: Remove rejected canonical restore evidence
+      ansible.builtin.file:
+        path: "{{ storage_backup_finalize_restore_evidence_path }}"
+        state: absent
+
+    - name: Fail rejected restore finalization
+      ansible.builtin.fail:
+        msg: canonical restore evidence validation failed and was removed
+
+- name: Report canonical restore qualification
+  ansible.builtin.debug:
+    var: storage_backup_finalize_restore_result

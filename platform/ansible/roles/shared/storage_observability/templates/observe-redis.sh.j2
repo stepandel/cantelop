@@ -1,0 +1,68 @@
+#!/bin/sh
+set -eu
+
+password_file={{ storage_observability_redis_password_file | quote }}
+redis_host={{ storage_observability_redis_bind_address | quote }}
+redis_port={{ storage_observability_redis_port | string | quote }}
+state_file={{ (storage_observability_state_directory + '/redis.json') | quote }}
+
+publish() {
+  temporary_file="$(mktemp "${state_file}.XXXXXX")"
+  printf '%s\n' "$1" > "$temporary_file"
+  chmod 0644 "$temporary_file"
+  mv -f "$temporary_file" "$state_file"
+  printf '%s\n' "$1"
+}
+
+fail() {
+  publish "{\"event\":\"backend_health\",\"component\":\"redis\",\"available\":false,\"reason\":\"$1\",\"observed_at_epoch\":$(date +%s)}"
+  exit 1
+}
+
+password="$(tr -d '\n' < "$password_file")"
+started_ns="$(date +%s%N)"
+if ! response="$(
+  REDISCLI_AUTH="$password" /usr/bin/redis-cli --no-auth-warning \
+    -h "$redis_host" -p "$redis_port" PING 2>/dev/null
+)"; then
+  fail connection
+fi
+finished_ns="$(date +%s%N)"
+[ "$response" = PONG ] || fail response
+
+if ! information="$(
+  REDISCLI_AUTH="$password" /usr/bin/redis-cli --no-auth-warning --raw \
+    -h "$redis_host" -p "$redis_port" INFO 2>/dev/null
+)"; then
+  fail info
+fi
+unset password
+
+metric() {
+  printf '%s\n' "$information" |
+    awk -F: -v key="$1" '$1 == key { sub(/\r$/, "", $2); print $2; exit }'
+}
+
+used_memory_bytes="$(metric used_memory)"
+maxmemory_bytes="$(metric maxmemory)"
+rejected_connections_total="$(metric rejected_connections)"
+aof_write_status="$(metric aof_last_write_status)"
+rdb_save_status="$(metric rdb_last_bgsave_status)"
+
+for value in \
+  "$used_memory_bytes" \
+  "$maxmemory_bytes" \
+  "$rejected_connections_total"
+do
+  case "$value" in
+    '' | *[!0-9]*) fail metrics ;;
+  esac
+done
+case "$aof_write_status:$rdb_save_status" in
+  ok:ok) ;;
+  *) fail persistence ;;
+esac
+
+latency_us="$(((finished_ns - started_ns) / 1000))"
+publish \
+  "{\"event\":\"backend_health\",\"component\":\"redis\",\"available\":true,\"latency_us\":$latency_us,\"used_memory_bytes\":$used_memory_bytes,\"maxmemory_bytes\":$maxmemory_bytes,\"rejected_connections_total\":$rejected_connections_total,\"aof_write_status\":\"$aof_write_status\",\"rdb_save_status\":\"$rdb_save_status\",\"observed_at_epoch\":$(date +%s)}"

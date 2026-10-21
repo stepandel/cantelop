@@ -1,0 +1,8 @@
+{
+  "name": "cantelop-session-activation-benchmark",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@cantelop/sdk": "1.0.0"
+  }
+}

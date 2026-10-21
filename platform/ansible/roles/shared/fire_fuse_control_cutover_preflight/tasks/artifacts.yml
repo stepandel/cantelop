@@ -1,0 +1,37 @@
+---
+- name: Validate every checksum-pinned cutover artifact declaration
+  ansible.builtin.assert:
+    that:
+      - item.path | default('') is match('^/.+')
+      - item.checksum == '' or item.checksum is match('^[0-9a-f]{64}$')
+    fail_msg: "cutover artifact {{ item.name }} has an invalid path or checksum"
+  loop: "{{ fire_fuse_control_cutover_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Inspect every cutover artifact on the controller
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_control_cutover_artifact_stats
+  loop: "{{ fire_fuse_control_cutover_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require every cutover artifact before shutdown
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: >-
+      cutover artifact {{ item.item.name }} is missing, unsafe, or does not
+      match its declared SHA-256 checksum
+  loop: "{{ fire_fuse_control_cutover_artifact_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

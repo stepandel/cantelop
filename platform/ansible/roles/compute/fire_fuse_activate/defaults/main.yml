@@ -1,0 +1,27 @@
+---
+fire_fuse_activate_service_name: fire-fuse.service
+fire_fuse_activate_unit: /etc/systemd/system/fire-fuse.service
+fire_fuse_activate_binary: /usr/local/bin/fire-fuse
+fire_fuse_activate_config: /etc/fire-fuse/config.json
+fire_fuse_activate_listen_address: 127.0.0.1
+fire_fuse_activate_listen_port: 8080
+fire_fuse_activate_readiness_attempts: 30
+fire_fuse_activate_readiness_delay_seconds: 1
+fire_fuse_activate_dependent_services:
+  - fire-fuse-async-dispatcher.service
+  - fire-fuse-gateway.service
+  - fire-fuse-observer.service
+
+fire_fuse_activate_trusted_files:
+  - name: systemd unit
+    path: "{{ fire_fuse_activate_unit }}"
+    mode: "0644"
+    executable: false
+  - name: orchestrator
+    path: "{{ fire_fuse_activate_binary }}"
+    mode: "0755"
+    executable: true
+  - name: configuration
+    path: "{{ fire_fuse_activate_config }}"
+    mode: "0640"
+    executable: false

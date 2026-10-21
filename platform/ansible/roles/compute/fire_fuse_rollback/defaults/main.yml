@@ -1,0 +1,19 @@
+---
+fire_fuse_rollback_confirm: "{{ lookup('env', 'CANTELOP_FIRE_FUSE_ROLLBACK') }}"
+fire_fuse_rollback_id: "{{ lookup('env', 'CANTELOP_FIRE_FUSE_UPGRADE_ID') }}"
+fire_fuse_rollback_service: fire-fuse.service
+fire_fuse_rollback_root: /var/lib/fire-fuse/release-rollbacks
+fire_fuse_rollback_files:
+  - { name: orchestrator, destination: /usr/local/bin/fire-fuse, snapshot: files/fire-fuse, modes: ["0755"] }
+  - { name: admin, destination: /usr/local/bin/cantelop, snapshot: files/cantelop, modes: ["0755"] }
+  - { name: integration, destination: /usr/local/bin/fire-fuse-integration, snapshot: files/fire-fuse-integration, modes: ["0755"] }
+  - { name: snapshot_builder, destination: /usr/local/bin/fire-fuse-snapshot, snapshot: files/fire-fuse-snapshot, modes: ["0755"] }
+  - { name: image_publisher, destination: /usr/local/bin/fire-fuse-image, snapshot: files/fire-fuse-image, modes: ["0755"] }
+  - { name: firecracker, destination: /usr/local/lib/fire-fuse/firecracker, snapshot: files/firecracker, modes: ["0755"] }
+  - { name: jailer, destination: /usr/local/lib/fire-fuse/jailer, snapshot: files/jailer, modes: ["0755"] }
+  - { name: kernel, destination: /var/lib/fire-fuse/images/vmlinux, snapshot: files/vmlinux, modes: ["0644"] }
+  - { name: guest_rootfs, destination: /var/lib/fire-fuse/images/ubuntu-24.ext4, snapshot: files/ubuntu-24.ext4, modes: ["0644"] }
+  - { name: config, destination: /etc/fire-fuse/config.json, snapshot: files/config.json, modes: ["0600", "0640"] }
+  - { name: image_catalog, destination: /etc/fire-fuse/image-catalog.json, snapshot: files/image-catalog.json, modes: ["0640"] }
+  - { name: encryption_key, destination: /etc/fire-fuse/config-encryption.key, snapshot: files/config-encryption.key, modes: ["0600"] }
+  - { name: lifecycle_state, destination: /var/lib/fire-fuse/state/state.db, snapshot: files/state.db, modes: ["0600"] }

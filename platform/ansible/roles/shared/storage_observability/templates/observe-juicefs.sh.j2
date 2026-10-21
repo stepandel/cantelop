@@ -1,0 +1,108 @@
+#!/bin/sh
+set -eu
+
+metrics_address={{ storage_observability_juicefs_metrics_address | quote }}
+metrics_port={{ storage_observability_juicefs_metrics_port | string | quote }}
+state_file={{ (storage_observability_state_directory + '/juicefs.json') | quote }}
+
+event() {
+  /usr/bin/jq --compact-output --null-input "$@"
+}
+
+publish_state() {
+  temporary_file="$(mktemp "${state_file}.XXXXXX")"
+  /usr/bin/jq --compact-output --null-input "$@" > "$temporary_file"
+  chmod 0644 "$temporary_file"
+  mv -f "$temporary_file" "$state_file"
+}
+
+unavailable() {
+  event \
+    --arg reason "$1" \
+    '{event:"gateway_metrics",component:"juicefs",available:false,reason:$reason}'
+  publish_state \
+    --arg reason "$1" \
+    --argjson observed_at_epoch "$(date +%s)" \
+    '{
+      event:"gateway_metrics",
+      component:"juicefs",
+      available:false,
+      reason:$reason,
+      observed_at_epoch:$observed_at_epoch
+    }'
+  exit 1
+}
+
+if ! metrics="$(
+  /usr/bin/curl \
+    --fail \
+    --silent \
+    --show-error \
+    --max-time 5 \
+    --noproxy '*' \
+    "http://$metrics_address:$metrics_port/metrics" 2>/dev/null
+)"; then
+  unavailable scrape
+fi
+
+metric_sum() {
+  printf '%s\n' "$metrics" |
+    /usr/bin/awk -v metric="$1" '
+      $1 == metric || index($1, metric "{") == 1 {
+        total += $2
+        found = 1
+      }
+      END {
+        if (found) {
+          printf "%.0f\n", total
+        }
+      }
+    '
+}
+
+cache_bytes="$(metric_sum juicefs_blockcache_bytes)"
+cache_hits_total="$(metric_sum juicefs_blockcache_hits)"
+cache_misses_total="$(metric_sum juicefs_blockcache_miss)"
+object_errors_total="$(metric_sum juicefs_object_request_errors)"
+for value in \
+  "$cache_bytes" \
+  "$cache_hits_total" \
+  "$cache_misses_total" \
+  "$object_errors_total"
+do
+  case "$value" in
+    '' | *[!0-9]*) unavailable metrics ;;
+  esac
+done
+
+event \
+  --argjson cache_bytes "$cache_bytes" \
+  --argjson cache_hits_total "$cache_hits_total" \
+  --argjson cache_misses_total "$cache_misses_total" \
+  --argjson object_errors_total "$object_errors_total" \
+  '{
+    event:"gateway_metrics",
+    component:"juicefs",
+    available:true,
+    cache_bytes:$cache_bytes,
+    cache_hits_total:$cache_hits_total,
+    cache_misses_total:$cache_misses_total,
+    object_request_errors_total:$object_errors_total
+  }'
+
+publish_state \
+  --argjson cache_bytes "$cache_bytes" \
+  --argjson cache_hits_total "$cache_hits_total" \
+  --argjson cache_misses_total "$cache_misses_total" \
+  --argjson object_errors_total "$object_errors_total" \
+  --argjson observed_at_epoch "$(date +%s)" \
+  '{
+    event:"gateway_metrics",
+    component:"juicefs",
+    available:true,
+    cache_bytes:$cache_bytes,
+    cache_hits_total:$cache_hits_total,
+    cache_misses_total:$cache_misses_total,
+    object_request_errors_total:$object_errors_total,
+    observed_at_epoch:$observed_at_epoch
+  }'

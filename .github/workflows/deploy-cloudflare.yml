@@ -1,0 +1,124 @@
+name: Deploy Cloudflare
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Repository identity survives renames; public snapshots cannot deploy.
+    if: github.repository_id == '1323478043'
+    name: Deploy Cloudflare
+    environment: cloudflare
+    runs-on: ubuntu-latest
+    env:
+      APP_ROUTES_KV_NAMESPACE_ID: ${{ vars.APP_ROUTES_KV_NAMESPACE_ID }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      EDGE_INGRESS_TOKEN: ${{ secrets.EDGE_INGRESS_TOKEN }}
+      ORIGIN_ACCESS_CLIENT_ID: ${{ secrets.ORIGIN_ACCESS_CLIENT_ID }}
+      ORIGIN_ACCESS_CLIENT_SECRET: ${{ secrets.ORIGIN_ACCESS_CLIENT_SECRET }}
+      ORIGIN_URL: ${{ vars.ORIGIN_URL }}
+      OBSERVABILITY_INGEST_TOKEN: ${{ secrets.OBSERVABILITY_INGEST_TOKEN }}
+      RELEASE_GATE_TOKEN: ${{ secrets.RELEASE_GATE_TOKEN }}
+    steps:
+      - name: Check out deployment source
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: console/package.json
+
+      - name: Require main and deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || {
+            echo "Cloudflare deployments must run from main" >&2
+            exit 1
+          }
+          for command in bun curl jq; do
+            command -v "$command" >/dev/null || {
+              echo "${command} is required" >&2
+              exit 1
+            }
+          done
+          for variable in \
+            APP_ROUTES_KV_NAMESPACE_ID \
+            CLOUDFLARE_ACCOUNT_ID \
+            CLOUDFLARE_API_TOKEN \
+            EDGE_INGRESS_TOKEN \
+            ORIGIN_ACCESS_CLIENT_ID \
+            ORIGIN_ACCESS_CLIENT_SECRET \
+            ORIGIN_URL \
+            OBSERVABILITY_INGEST_TOKEN \
+            RELEASE_GATE_TOKEN; do
+            [[ -n "${!variable:-}" ]] || {
+              echo "${variable} is required in the cloudflare environment" >&2
+              exit 1
+            }
+          done
+          [[ "$OBSERVABILITY_INGEST_TOKEN" =~ ^[0-9a-f]{64}$ ]] || {
+            echo "OBSERVABILITY_INGEST_TOKEN is malformed" >&2
+            exit 1
+          }
+          [[ "$RELEASE_GATE_TOKEN" =~ ^[0-9a-f]{64}$ ]] || {
+            echo "RELEASE_GATE_TOKEN is malformed" >&2
+            exit 1
+          }
+          [[ "$APP_ROUTES_KV_NAMESPACE_ID" =~ ^[0-9a-f]{32}$ ]] || {
+            echo "APP_ROUTES_KV_NAMESPACE_ID is malformed" >&2
+            exit 1
+          }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]] || {
+            echo "CLOUDFLARE_ACCOUNT_ID is malformed" >&2
+            exit 1
+          }
+          [[ "$ORIGIN_URL" == https://* ]] || {
+            echo "ORIGIN_URL must use https" >&2
+            exit 1
+          }
+
+      - name: Test and build Workers
+        working-directory: edge/workers
+        env:
+          WRANGLER_LOG_PATH: ${{ runner.temp }}/cantelop-wrangler-build.log
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          (cd "$GITHUB_WORKSPACE/edge/contracts" && bun test)
+          bun test
+          bun test "$GITHUB_WORKSPACE/platform/cloudflare/sync-tail-settings.test.ts"
+          bun run typecheck
+          bun run build:broker
+          bun run build:outbound
+          bun run build:tail
+          bun run build:dispatcher
+
+      - name: Deploy the shared Worker chain
+        env:
+          WRANGLER_LOG_PATH: ${{ runner.temp }}/cantelop-wrangler-deploy.log
+        run: platform/cloudflare/deploy-workers.sh
+
+      - name: Verify the dispatcher deployment
+        working-directory: edge/workers
+        env:
+          WRANGLER_LOG_PATH: ${{ runner.temp }}/cantelop-wrangler-verify.log
+        run: |
+          set -euo pipefail
+          bunx wrangler deployments list --name cantelop-dispatcher | tee "$RUNNER_TEMP/dispatcher-deployments.txt"
+          grep -F 'Version(s):' "$RUNNER_TEMP/dispatcher-deployments.txt" >/dev/null
+          bunx wrangler deployments list --name cantelop-edge-tail | tee "$RUNNER_TEMP/tail-deployments.txt"
+          grep -F 'Version(s):' "$RUNNER_TEMP/tail-deployments.txt" >/dev/null
+          status="$(curl --silent --show-error --output "$RUNNER_TEMP/dispatcher-response.json" \
+            --write-out '%{http_code}' \
+            "https://deployment-check-does-not-exist.cantelop.dev/")"
+          [[ "$status" == 404 ]]
+          jq -e '.error.code == "app_not_found"' "$RUNNER_TEMP/dispatcher-response.json" >/dev/null

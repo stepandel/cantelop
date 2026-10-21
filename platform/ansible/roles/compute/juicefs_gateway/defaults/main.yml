@@ -1,0 +1,41 @@
+---
+juicefs_gateway_binary: /usr/local/bin/juicefs
+juicefs_gateway_metadata_url: redis://10.78.0.2:6379/1
+juicefs_gateway_mountpoint: /var/lib/fire-fuse/workspaces
+juicefs_gateway_admin_mountpoint: /var/lib/fire-fuse/workspace-admin
+juicefs_gateway_cache_directory: /var/cache/fire-fuse/juicefs
+juicefs_gateway_admin_cache_directory: /var/cache/fire-fuse/juicefs-admin
+juicefs_gateway_cache_size_mib: 4096
+juicefs_gateway_metrics_address: 127.0.0.1
+juicefs_gateway_metrics_port: 9567
+juicefs_gateway_environment_file: /etc/fire-fuse/juicefs-gateway.env
+juicefs_gateway_service: fire-fuse-juicefs-gateway.service
+juicefs_gateway_admin_service: fire-fuse-juicefs-admin.service
+
+juicefs_gateway_nfs_service: nfs-kernel-server.service
+juicefs_gateway_nfs_config_file: /etc/nfs.conf.d/fire-fuse.conf
+juicefs_gateway_nfs_exports_file: /etc/exports.d/fire-fuse.exports
+juicefs_gateway_nfs_drop_in_directory: >-
+  /etc/systemd/system/nfs-kernel-server.service.d
+juicefs_gateway_nfs_drop_in_file: >-
+  {{ juicefs_gateway_nfs_drop_in_directory }}/fire-fuse-gateway.conf
+juicefs_gateway_nfs_listen_address: 0.0.0.0
+juicefs_gateway_nfs_port: 2049
+juicefs_gateway_nfs_threads: 64
+juicefs_gateway_nfs_firewall_service: fire-fuse-nfs-firewall.service
+juicefs_gateway_nfs_firewall_script: >-
+  /usr/local/lib/fire-fuse/configure-nfs-firewall
+juicefs_gateway_nfs_firewall_chain: FIRE-FUSE-NFS
+juicefs_gateway_nfs_firewall_comment: fire-fuse-nfs-deny
+juicefs_gateway_nfs_loopback_comment: fire-fuse-nfs-loopback
+juicefs_gateway_rpcbind_port: 111
+juicefs_gateway_rpcbind_firewall_comment: fire-fuse-rpcbind-deny
+juicefs_gateway_rpcbind_loopback_comment: fire-fuse-rpcbind-loopback
+juicefs_gateway_rpcbind_units:
+  - rpcbind.socket
+  - rpcbind.service
+juicefs_gateway_nfs_export_options:
+  - rw
+  - async
+  - subtree_check
+  - all_squash

@@ -1,0 +1,92 @@
+---
+- name: Validate MinIO restore extraction inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_extract_minio_restore_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - >-
+        storage_backup_extract_minio_restore_bucket
+        == 'fire-fuse-workspaces'
+      - >-
+        storage_backup_extract_minio_restore_program
+        == '/usr/local/lib/fire-fuse/extract-minio-storage-restore.py'
+      - >-
+        storage_backup_extract_minio_restore_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+      - >-
+        storage_backup_extract_minio_restore_maximum_members
+        | type_debug == 'int'
+      - storage_backup_extract_minio_restore_maximum_members >= 2
+      - storage_backup_extract_minio_restore_maximum_members <= 10000000
+    fail_msg: MinIO restore extraction requires fixed isolated paths and safe bounds
+
+- name: Install exact MinIO restore extraction programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - extract-minio-storage-restore.py
+      - verify-storage-backup.py
+
+- name: Extract and verify the materialized MinIO snapshot
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_extract_minio_restore_program }}"
+      - "{{ storage_backup_extract_minio_restore_rehearsal_id }}"
+      - --restore-root
+      - "{{ storage_backup_restore_root }}"
+      - --bucket
+      - "{{ storage_backup_extract_minio_restore_bucket }}"
+      - --maximum-members
+      - "{{ storage_backup_extract_minio_restore_maximum_members | string }}"
+  register: storage_backup_extract_minio_restore_command
+  changed_when: true
+
+- name: Decode MinIO restore extraction evidence
+  ansible.builtin.set_fact:
+    storage_backup_extract_minio_restore_evidence: >-
+      {{ storage_backup_extract_minio_restore_command.stdout | from_json }}
+
+- name: Require complete redacted MinIO extraction evidence
+  ansible.builtin.assert:
+    that:
+      - storage_backup_extract_minio_restore_evidence.schema_version == 1
+      - >-
+        storage_backup_extract_minio_restore_evidence.status
+        == 'minio-snapshot-extracted'
+      - >-
+        storage_backup_extract_minio_restore_evidence.rehearsal_id
+        == storage_backup_extract_minio_restore_rehearsal_id
+      - >-
+        storage_backup_extract_minio_restore_evidence.source.archive
+        == 'minio-objects.tar'
+      - >-
+        storage_backup_extract_minio_restore_evidence.source.object_snapshot_id
+        ==
+        (
+          'sha256:'
+          ~ storage_backup_extract_minio_restore_evidence.source.sha256
+        )
+      - >-
+        storage_backup_extract_minio_restore_evidence.target.member_count
+        | int > 1
+      - >-
+        storage_backup_extract_minio_restore_evidence.target.regular_file_count
+        | int > 0
+      - >-
+        storage_backup_extract_minio_restore_evidence.target.data_directory
+        ==
+        (
+          storage_backup_restore_root
+          ~ '/'
+          ~ storage_backup_extract_minio_restore_rehearsal_id
+          ~ '/services/minio/data'
+        )
+    fail_msg: MinIO restore extraction evidence is incomplete
+
+- name: Report redacted MinIO restore extraction evidence
+  ansible.builtin.debug:
+    var: storage_backup_extract_minio_restore_evidence

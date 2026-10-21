@@ -1,0 +1,43 @@
+/* One route's page. Selectors keep the specificity they had in globals.css,
+   so the shared .data-table, .monitor-head and .section-* rules resolve as
+   before. */
+
+/* A share of a total drawn as a bar in its state's colour; the track is the
+   panel fill so an empty share still reads as a row. */
+.shareTrack { height: 6px; background: var(--panel); border-radius: 999px; overflow: hidden; }
+.shareBar { height: 100%; border-radius: 999px; }
+.shareBar:global(.ok) { background: var(--green); }
+.shareBar:global(.warn) { background: var(--amber); }
+.shareBar:global(.bad) { background: var(--red); }
+
+/* Edge and session outcomes side by side where there is room: two short
+   tables rather than two full-width bars. */
+.routeOutcomes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); padding: 0 var(--sp-4); align-items: start; }
+.routeOutcomes > section { min-width: 0; }
+.routeOutcomes > section > :global(.section-label) { padding-left: 0; padding-right: 0; }
+.routeOutcomes > section > :global(.section-panel) { margin: 0; }
+@media (max-width: 1180px) {
+  .routeOutcomes { grid-template-columns: 1fr; gap: 0; }
+}
+/* A route's headline facts: label over value, so the numbers carry. */
+:global(.monitor-head).routeFacts { gap: var(--sp-6); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); background: var(--bg); }
+.routeFacts :global(.monitor-meta) { flex-direction: column; align-items: flex-start; gap: 2px; }
+.routeFacts :global(.monitor-meta) dd { font: 500 var(--fs-data) var(--sans); color: var(--ink); }
+/* Reads have no Session panel; the edge panel takes the row. */
+.routeOutcomes.single { grid-template-columns: 1fr; }
+
+/* A recent call opens its trace in the row beneath it, the way a build row
+   opens its details: same fill, no rule between, the trace tree on the
+   ground it has on the Traces page. */
+:global(.data-table) col.cCallSession { width: 14rem; }
+.recentCalls tbody tr:global(.selected) td { border-bottom-color: transparent; }
+:global(.data-table) tbody tr.callTrace,
+:global(.data-table) tbody tr.callTrace:hover { background: var(--hover); }
+:global(.data-table) tr.callTrace td {
+  height: auto;
+  padding: 0 var(--sp-4) var(--sp-4);
+  white-space: normal;
+  overflow: visible;
+}
+.callTraceBody { display: grid; }
+.callTrace :global(.empty-note) { padding: var(--sp-2) 0; }

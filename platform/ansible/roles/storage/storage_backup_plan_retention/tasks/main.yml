@@ -1,0 +1,143 @@
+---
+- name: Validate storage backup retention-planning inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_plan_retention_restore_qualified_set_id
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_plan_retention_daily | type_debug == 'int'
+      - storage_backup_plan_retention_daily >= 1
+      - storage_backup_plan_retention_daily <= 366
+      - storage_backup_plan_retention_weekly | type_debug == 'int'
+      - storage_backup_plan_retention_weekly >= 1
+      - storage_backup_plan_retention_weekly <= 104
+      - storage_backup_plan_retention_monthly | type_debug == 'int'
+      - storage_backup_plan_retention_monthly >= 1
+      - storage_backup_plan_retention_monthly <= 120
+      - >-
+        storage_backup_plan_retention_program
+        == '/usr/local/lib/fire-fuse/plan-storage-backup-retention.py'
+      - >-
+        storage_backup_plan_retention_auditor
+        == '/usr/local/lib/fire-fuse/audit-storage-backups.py'
+      - >-
+        storage_backup_plan_retention_evidence_validator
+        ==
+        (
+          '/usr/local/lib/fire-fuse/'
+          ~ 'validate-storage-backup-restore-evidence.py'
+        )
+      - >-
+        storage_backup_plan_retention_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+    fail_msg: >-
+      retention planning requires a transferred restore-qualified set, bounded
+      recovery-point counts, and fixed trusted read-only inputs
+
+- name: Install exact storage backup retention-planning programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - plan-storage-backup-retention.py
+      - audit-storage-backups.py
+      - validate-storage-backup-restore-evidence.py
+      - verify-storage-backup.py
+
+- name: Inspect installed retention-planning programs
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - "{{ storage_backup_plan_retention_program }}"
+    - "{{ storage_backup_plan_retention_auditor }}"
+    - "{{ storage_backup_plan_retention_evidence_validator }}"
+    - "{{ storage_backup_plan_retention_verifier }}"
+  register: storage_backup_plan_retention_programs
+
+- name: Require trusted retention-planning programs
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0755')
+      - item.stat.executable
+      - item.stat.checksum is match('^[0-9a-f]{64}$')
+    fail_msg: retention-planning program {{ item.item }} failed trust checks
+  loop: "{{ storage_backup_plan_retention_programs.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Plan storage backup retention without deleting data
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_plan_retention_program }}"
+      - --restore-qualified-set-id
+      - "{{ storage_backup_plan_retention_restore_qualified_set_id }}"
+      - --staging-root
+      - "{{ storage_backup_staging_root }}"
+      - --completed-root
+      - "{{ storage_backup_completed_root }}"
+      - --restore-root
+      - "{{ storage_backup_evidence_root }}"
+      - --daily
+      - "{{ storage_backup_plan_retention_daily | string }}"
+      - --weekly
+      - "{{ storage_backup_plan_retention_weekly | string }}"
+      - --monthly
+      - "{{ storage_backup_plan_retention_monthly | string }}"
+  register: storage_backup_plan_retention_command
+  changed_when: false
+
+- name: Decode storage backup retention plan
+  ansible.builtin.set_fact:
+    storage_backup_retention_plan: >-
+      {{ storage_backup_plan_retention_command.stdout | from_json }}
+
+- name: Require a complete dry-run retention plan
+  ansible.builtin.assert:
+    that:
+      - >-
+        (storage_backup_retention_plan.keys() | list | sort)
+        ==
+        [
+          'counts',
+          'decisions',
+          'generated_at',
+          'policy',
+          'schema_version',
+          'status'
+        ]
+      - storage_backup_retention_plan.schema_version | int == 1
+      - storage_backup_retention_plan.status == 'planned'
+      - storage_backup_retention_plan.generated_at.endswith('Z')
+      - >-
+        storage_backup_retention_plan.policy.restore_qualified_set_id
+        == storage_backup_plan_retention_restore_qualified_set_id
+      - >-
+        storage_backup_retention_plan.policy.restore_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - >-
+        storage_backup_retention_plan.policy.restore_evidence_completed_at
+        | length > 0
+      - storage_backup_retention_plan.policy.daily | int
+        == storage_backup_plan_retention_daily
+      - storage_backup_retention_plan.policy.weekly | int
+        == storage_backup_plan_retention_weekly
+      - storage_backup_retention_plan.policy.monthly | int
+        == storage_backup_plan_retention_monthly
+      - storage_backup_retention_plan.policy.preserve_final_known_good
+      - storage_backup_retention_plan.decisions is sequence
+      - >-
+        storage_backup_retention_plan.counts.sets
+        == storage_backup_retention_plan.decisions | length
+      - >-
+        storage_backup_retention_plan.counts.keep
+        + storage_backup_retention_plan.counts.candidates
+        == storage_backup_retention_plan.counts.sets
+    fail_msg: retention planner returned an invalid dry-run plan
+
+- name: Report the dry-run storage backup retention plan
+  ansible.builtin.debug:
+    var: storage_backup_retention_plan

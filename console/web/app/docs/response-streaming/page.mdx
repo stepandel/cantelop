@@ -1,0 +1,70 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/response-streaming" },
+  title: "Streaming output", description: "Read Cantelop Session output from your backend with session.stream() and resume from a cursor.",
+};
+
+# Streaming output
+
+A Session's runtime publishes events with `output.send(event)`: text deltas,
+progress, completion, or anything JSON-compatible. Your backend reads them with
+`session.stream()`, an async iterator over the App's server-sent event stream.
+It works in production and with `cantelop dev`.
+
+```ts title="server.ts"
+const session = agent.workspace({ slug: userId }).session({ id: sessionId });
+
+for await (const event of session.stream({ signal })) {
+  send(event.data); // relay to your client over SSE, WebSocket, or anything else
+}
+```
+
+Each event carries its data, the Session and message IDs, its creation time,
+and a cursor `{ streamId, sequence }`. Filter by `event.messageId` to follow
+one message's work.
+
+The stream is reached with the App's integration credential, so it stays on
+your backend. Your own route authorizes the user and relays events to the
+browser in whatever transport suits your app.
+
+## Resume a stream
+
+Save the last cursor and resume after it explicitly:
+
+```ts
+for await (const event of session.stream({ after: savedCursor })) {
+  apply(event.data);
+}
+```
+
+The SDK does not reconnect automatically. If replay has expired or a stream
+has reset, recover from application state stored in Workspace files or its
+database, or request a snapshot from your runtime.
+
+## Durable views in local development
+
+Durable [views](/docs/session-runtime#durable-views) are included in SDK 1.0 but
+are not yet available on hosted Cantelop. Where supported, read the view first,
+then stream from its cursor:
+
+```ts
+const snapshot = await session.view();
+render(snapshot.state);
+for await (const event of session.stream({ after: snapshot.cursor })) {
+  apply(event.data);
+}
+```
+
+## Limitations
+
+- Replay is bounded: the most recent 256 output events per Session. Cursors
+  can expire and streams can reset; both fail with explicit error codes, and
+  clients must recover from gaps using their application's persisted state.
+- Events must be JSON-compatible and at most **64 KiB**. The harness or
+  activity publishing them must still be running.
+- Ending the iteration or aborting its signal closes only that subscription.
+  It does not cancel the agent or keep a Sandbox warm.
+
+See the [SDK streaming guide](https://github.com/stepandel/cantelop-sdk#stream-output)
+for event metadata and errors, or the
+[web chat example](https://github.com/stepandel/cantelop-sdk/blob/main/examples/web-chat/README.md)
+for a complete browser and backend integration.

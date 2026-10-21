@@ -1,0 +1,7 @@
+---
+- name: Restore JuiceFS metadata into an empty isolated Redis
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_restore_metadata

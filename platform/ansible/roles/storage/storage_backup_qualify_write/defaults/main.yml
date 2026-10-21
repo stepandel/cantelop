@@ -1,0 +1,16 @@
+---
+storage_backup_write_directory: /etc/fire-fuse-storage
+storage_backup_write_config_file: >-
+  {{ storage_backup_write_directory }}/backup-destination.json
+storage_backup_write_credentials_file: >-
+  {{ storage_backup_write_directory }}/backup-s3-credentials.json
+storage_backup_write_validator: >-
+  /usr/local/lib/fire-fuse/validate-storage-backup-destination.py
+storage_backup_write_read_qualifier: >-
+  /usr/local/lib/fire-fuse/qualify-storage-backup-destination.py
+storage_backup_write_qualifier: >-
+  /usr/local/lib/fire-fuse/qualify-storage-backup-destination-write.py
+storage_backup_write_mc_binary: /usr/local/bin/mc
+storage_backup_write_mc_checksum: >-
+  01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891
+storage_backup_write_minimum_retention_days: 14

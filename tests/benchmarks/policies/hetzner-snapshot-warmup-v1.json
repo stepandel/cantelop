@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "minimum_trials": 10,
+  "checks": [
+    {
+      "name": "vm-warmup-median",
+      "target": {
+        "section": "lifecycle",
+        "measurement": "startup_duration_ns"
+      },
+      "statistic": "median",
+      "comparison": "at_most",
+      "threshold": 260000000
+    },
+    {
+      "name": "vm-warmup-p95",
+      "target": {
+        "section": "lifecycle",
+        "measurement": "startup_duration_ns"
+      },
+      "statistic": "p95_nearest_rank",
+      "comparison": "at_most",
+      "threshold": 300000000
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+---
+storage_backup_capture_set_id: ""
+storage_backup_capture_metadata_filename: metadata.dump
+
+storage_backup_capture_metadata_juicefs_binary: /usr/local/bin/juicefs
+storage_backup_capture_metadata_fire_fuse_service: fire-fuse.service
+storage_backup_capture_metadata_redis_service: fire-fuse-redis.service
+storage_backup_capture_metadata_minio_service: fire-fuse-minio.service

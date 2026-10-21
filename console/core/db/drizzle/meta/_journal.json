@@ -1,0 +1,230 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786576599421,
+      "tag": "0000_complete_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786730000000,
+      "tag": "0001_preserve_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786739446616,
+      "tag": "0002_session_owned_keep_alive",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787086321877,
+      "tag": "0003_remove_session_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787864562862,
+      "tag": "0004_session_runtime_cutover",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788404396866,
+      "tag": "0005_cancel_deployment_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789850725623,
+      "tag": "0006_release_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789851065765,
+      "tag": "0007_deployment_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789932833199,
+      "tag": "0008_deployment_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790089881150,
+      "tag": "0009_lush_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790092939054,
+      "tag": "0010_link_user_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790094983798,
+      "tag": "0011_app_invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790096343728,
+      "tag": "0012_preserve_compute_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790108000000,
+      "tag": "0013_invitation_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790113115520,
+      "tag": "0014_preserve_user_aliases",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790354382742,
+      "tag": "0015_watery_kulan_gath",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790361449505,
+      "tag": "0016_busy_zuras",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790801169734,
+      "tag": "0017_demo_request_budgets",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790807059704,
+      "tag": "0018_opposite_praxagora",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791232981058,
+      "tag": "0019_quick_monster_badoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791248213533,
+      "tag": "0020_default_unused_quota_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791254261161,
+      "tag": "0021_kind_martin_li",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791334044839,
+      "tag": "0022_workspace_host_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791591953752,
+      "tag": "0023_api_artifact_object_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791774333220,
+      "tag": "0024_sdk_app_artifacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791920578779,
+      "tag": "0025_integration_token_rotations",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792533124439,
+      "tag": "0026_managed_fleets",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792534346008,
+      "tag": "0027_fleet_policy_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792534777137,
+      "tag": "0028_managed_upgrade_drain",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792536572749,
+      "tag": "0029_installation_tombstones",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792536689597,
+      "tag": "0030_policy_projection_fences",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792617096717,
+      "tag": "0031_fleet_app_slots",
+      "breakpoints": true
+    }
+  ]
+}

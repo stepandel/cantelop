@@ -1,0 +1,23 @@
+{
+  "name": "@cantelop/workers",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "build:broker": "wrangler deploy --dry-run --config origin-broker/wrangler.jsonc --outdir dist/origin-broker",
+    "build:outbound": "wrangler deploy --dry-run --config outbound/wrangler.jsonc --outdir dist/outbound",
+    "build:tail": "wrangler deploy --dry-run --config tail/wrangler.jsonc --outdir dist/tail",
+    "build:dispatcher": "wrangler deploy --dry-run --config dispatcher/wrangler.jsonc --outdir dist/dispatcher"
+  },
+  "dependencies": {
+    "@cantelop/edge-contracts": "file:../contracts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260811.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.121.0"
+  }
+}

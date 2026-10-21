@@ -1,0 +1,311 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly schema_version=2
+readonly mountpoint='/workspace'
+readonly sequential_prefix='.fire-fuse-benchmark-sequential'
+readonly maximum_schedule_ahead_ns=60000000000
+readonly schedule_sleep_threshold_ns=5000000
+
+fail() {
+  printf 'fire-fuse-workspace-benchmark: %s\n' "$*" >&2
+  exit 1
+}
+
+require_integer() {
+  local name="$1"
+  local value="$2"
+  local minimum="$3"
+  local maximum="$4"
+
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || fail "${name} must be a positive integer"
+  (( value >= minimum && value <= maximum )) || \
+    fail "${name} must be between ${minimum} and ${maximum}"
+}
+
+require_run_id() {
+  local value="$1"
+  [[ "${value}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || \
+    fail 'run ID must be 1-64 safe characters'
+}
+
+now_ns() {
+  local value
+  value="$(/usr/bin/date +%s%N)"
+  [[ "${value}" =~ ^[0-9]{19}$ ]] || fail 'date did not return nanoseconds'
+  printf '%s' "${value}"
+}
+
+require_scheduled_start() {
+  local value="$1"
+  local current_ns
+  local schedule_ahead_ns
+
+  [[ "${value}" =~ ^[0-9]{19}$ ]] || \
+    fail 'scheduled start must be a 19-digit Unix nanosecond timestamp'
+  current_ns="$(now_ns)"
+  (( value > current_ns )) || fail 'scheduled start must be in the future'
+  schedule_ahead_ns="$((value - current_ns))"
+  (( schedule_ahead_ns <= maximum_schedule_ahead_ns )) || \
+    fail 'scheduled start must be no more than 60 seconds in the future'
+}
+
+wait_for_scheduled_start() {
+  local scheduled_start_ns="$1"
+  local current_ns
+  local remaining_ns
+
+  while true; do
+    current_ns="$(now_ns)"
+    (( current_ns >= scheduled_start_ns )) && return
+    remaining_ns="$((scheduled_start_ns - current_ns))"
+    if (( remaining_ns > schedule_sleep_threshold_ns )); then
+      /usr/bin/sleep 0.001
+    fi
+  done
+}
+
+emit_result() {
+  local workload="$1"
+  local run_id="$2"
+  local operations="$3"
+  local bytes="$4"
+  local duration_ns="$5"
+
+  printf \
+    '{"schema_version":%d,"workload":"%s","run_id":"%s","operations":%d,"bytes":%d,"duration_ns":%d}\n' \
+    "${schema_version}" \
+    "${workload}" \
+    "${run_id}" \
+    "${operations}" \
+    "${bytes}" \
+    "${duration_ns}"
+}
+
+require_workspace() {
+  /usr/bin/mountpoint --quiet "${mountpoint}" || fail '/workspace is not mounted'
+}
+
+create_run_directory() {
+  local path="$1"
+
+  /usr/bin/mkdir --mode=0700 -- "${path}" || fail "cannot create run path: ${path}"
+  [[ ! -L "${path}" ]] || fail "run path is a symbolic link: ${path}"
+}
+
+run_small_files() {
+  local count="$1"
+  local run_id="$2"
+  local run_directory="${mountpoint}/.fire-fuse-benchmark-small-${run_id}"
+  local start_ns
+  local end_ns
+  local index
+
+  require_integer 'small-file count' "${count}" 1 100000
+  require_run_id "${run_id}"
+  require_workspace
+  create_run_directory "${run_directory}"
+  trap 'rm -rf -- "${run_directory}"' RETURN
+
+  start_ns="$(now_ns)"
+  (
+    cd -P -- "${run_directory}"
+    for ((index = 0; index < count; index++)); do
+      printf '%08d\n' "${index}" > "${index}"
+    done
+    /usr/bin/sync -f .
+  )
+  end_ns="$(now_ns)"
+
+  emit_result small-files "${run_id}" "${count}" "$((count * 9))" \
+    "$((end_ns - start_ns))"
+}
+
+run_dependency_tree() {
+  local count="$1"
+  local run_id="$2"
+  local source_directory="/tmp/fire-fuse-benchmark-deps-source-${run_id}"
+  local archive="/tmp/fire-fuse-benchmark-deps-${run_id}.tar"
+  local run_directory="${mountpoint}/.fire-fuse-benchmark-deps-${run_id}"
+  local package_directory
+  local package_count
+  local start_ns
+  local end_ns
+  local index
+
+  require_integer 'dependency-file count' "${count}" 1 100000
+  require_run_id "${run_id}"
+  require_workspace
+  [[ ! -e "${source_directory}" ]] || fail "source path already exists: ${source_directory}"
+  [[ ! -e "${archive}" ]] || fail "archive path already exists: ${archive}"
+  [[ ! -e "${run_directory}" ]] || fail "run path already exists: ${run_directory}"
+
+  create_run_directory "${source_directory}"
+  create_run_directory "${run_directory}"
+  trap 'rm -rf -- "${source_directory}" "${archive}" "${run_directory}"' RETURN
+
+  package_count="${count}"
+  (( package_count > 128 )) && package_count=128
+  for ((index = 0; index < package_count; index++)); do
+    install -d -m 0700 "${source_directory}/package-${index}"
+  done
+  for ((index = 0; index < count; index++)); do
+    package_directory="${source_directory}/package-$((index % 128))"
+    printf '{"file":%d}\n' "${index}" > "${package_directory}/${index}.json"
+  done
+  /usr/bin/tar -cf "${archive}" -C "${source_directory}" .
+
+  start_ns="$(now_ns)"
+  (
+    cd -P -- "${run_directory}"
+    /usr/bin/tar --no-same-owner -xf "${archive}" -C .
+    /usr/bin/sync -f .
+  )
+  end_ns="$(now_ns)"
+
+  emit_result dependency-tree "${run_id}" "${count}" 0 \
+    "$((end_ns - start_ns))"
+}
+
+sequential_path() {
+  local size_mib="$1"
+  printf '%s/%s-%sMiB.bin' "${mountpoint}" "${sequential_prefix}" "${size_mib}"
+}
+
+run_sequential_write() {
+  local size_mib="$1"
+  local run_id="$2"
+  local path
+  local start_ns
+  local end_ns
+
+  require_integer 'sequential size MiB' "${size_mib}" 1 4096
+  require_run_id "${run_id}"
+  require_workspace
+  path="$(sequential_path "${size_mib}")"
+  /usr/bin/rm -f -- "${path}"
+
+  start_ns="$(now_ns)"
+  /usr/bin/dd if=/dev/zero of="${path}" bs=1M count="${size_mib}" \
+    conv=fsync oflag=nofollow status=none
+  end_ns="$(now_ns)"
+
+  emit_result sequential-write "${run_id}" 1 "$((size_mib * 1048576))" \
+    "$((end_ns - start_ns))"
+}
+
+run_sequential_read() {
+  local size_mib="$1"
+  local run_id="$2"
+  local expected_bytes
+  local actual_bytes
+  local path
+  local start_ns
+  local end_ns
+
+  require_integer 'sequential size MiB' "${size_mib}" 1 4096
+  require_run_id "${run_id}"
+  require_workspace
+  path="$(sequential_path "${size_mib}")"
+  expected_bytes="$((size_mib * 1048576))"
+  [[ -f "${path}" && ! -L "${path}" ]] || fail "sequential seed is missing or unsafe: ${path}"
+  actual_bytes="$(/usr/bin/stat --format=%s "${path}")"
+  [[ "${actual_bytes}" == "${expected_bytes}" ]] || \
+    fail "sequential seed size is ${actual_bytes}, expected ${expected_bytes}"
+
+  start_ns="$(now_ns)"
+  /usr/bin/dd if="${path}" iflag=nofollow of=/dev/null bs=1M status=none
+  end_ns="$(now_ns)"
+
+  emit_result sequential-read "${run_id}" 1 "${expected_bytes}" \
+    "$((end_ns - start_ns))"
+}
+
+run_scheduled_sequential_read() {
+  local size_mib="$1"
+  local run_id="$2"
+  local scheduled_start_ns="$3"
+  local expected_bytes
+  local actual_bytes
+  local path
+  local start_ns
+  local end_ns
+
+  require_integer 'sequential size MiB' "${size_mib}" 1 4096
+  require_run_id "${run_id}"
+  require_scheduled_start "${scheduled_start_ns}"
+  require_workspace
+  path="$(sequential_path "${size_mib}")"
+  expected_bytes="$((size_mib * 1048576))"
+  [[ -f "${path}" && ! -L "${path}" ]] || fail "sequential seed is missing or unsafe: ${path}"
+  actual_bytes="$(/usr/bin/stat --format=%s "${path}")"
+  [[ "${actual_bytes}" == "${expected_bytes}" ]] || \
+    fail "sequential seed size is ${actual_bytes}, expected ${expected_bytes}"
+
+  wait_for_scheduled_start "${scheduled_start_ns}"
+  start_ns="$(now_ns)"
+  /usr/bin/dd if="${path}" iflag=nofollow of=/dev/null bs=1M status=none
+  end_ns="$(now_ns)"
+
+  printf \
+    '{"schema_version":%d,"workload":"sequential-read","run_id":"%s","operations":1,"bytes":%d,"duration_ns":%d,"scheduled_start_ns":%d,"actual_start_ns":%d,"start_lag_ns":%d}\n' \
+    "${schema_version}" \
+    "${run_id}" \
+    "${expected_bytes}" \
+    "$((end_ns - start_ns))" \
+    "${scheduled_start_ns}" \
+    "${start_ns}" \
+    "$((start_ns - scheduled_start_ns))"
+}
+
+run_sequential_clean() {
+  local size_mib="$1"
+  local path
+
+  require_integer 'sequential size MiB' "${size_mib}" 1 4096
+  require_workspace
+  path="$(sequential_path "${size_mib}")"
+  /usr/bin/rm -f -- "${path}"
+  /usr/bin/sync -f "${mountpoint}"
+}
+
+describe() {
+  printf \
+    '{"schema_version":%d,"workloads":["small-files","dependency-tree","sequential-write","sequential-read","sequential-read-at","sequential-clean"]}\n' \
+    "${schema_version}"
+}
+
+case "${1:-}" in
+  describe)
+    [[ $# -eq 1 ]] || fail 'describe accepts no arguments'
+    describe
+    ;;
+  small-files)
+    [[ $# -eq 3 ]] || fail 'usage: small-files COUNT RUN_ID'
+    run_small_files "$2" "$3"
+    ;;
+  dependency-tree)
+    [[ $# -eq 3 ]] || fail 'usage: dependency-tree COUNT RUN_ID'
+    run_dependency_tree "$2" "$3"
+    ;;
+  sequential-write)
+    [[ $# -eq 3 ]] || fail 'usage: sequential-write SIZE_MIB RUN_ID'
+    run_sequential_write "$2" "$3"
+    ;;
+  sequential-read)
+    [[ $# -eq 3 ]] || fail 'usage: sequential-read SIZE_MIB RUN_ID'
+    run_sequential_read "$2" "$3"
+    ;;
+  sequential-read-at)
+    [[ $# -eq 4 ]] || \
+      fail 'usage: sequential-read-at SIZE_MIB RUN_ID START_UNIX_NS'
+    run_scheduled_sequential_read "$2" "$3" "$4"
+    ;;
+  sequential-clean)
+    [[ $# -eq 2 ]] || fail 'usage: sequential-clean SIZE_MIB'
+    run_sequential_clean "$2"
+    ;;
+  *)
+    fail 'expected describe, small-files, dependency-tree, sequential-write, sequential-read, sequential-read-at, or sequential-clean'
+    ;;
+esac

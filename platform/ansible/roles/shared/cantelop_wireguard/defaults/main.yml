@@ -1,0 +1,7 @@
+---
+cantelop_wireguard_address: ""
+cantelop_wireguard_private_key: ""
+cantelop_wireguard_peer_public_key: ""
+cantelop_wireguard_peer_address: ""
+cantelop_wireguard_endpoint: ""
+cantelop_wireguard_listen_port: 51820

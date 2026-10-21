@@ -1,0 +1,331 @@
+---
+- name: Validate restore materialization inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_materialize_restore_set_id
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - >-
+        storage_backup_materialize_restore_destination
+        == '/etc/fire-fuse-storage/backup-destination.json'
+      - >-
+        storage_backup_materialize_restore_credentials
+        == '/etc/fire-fuse-storage/backup-s3-credentials.json'
+      - storage_backup_materialize_restore_mc_binary == '/usr/local/bin/mc'
+      - >-
+        storage_backup_materialize_restore_mc_checksum
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_materialize_restore_juicefs == '/usr/local/bin/juicefs'
+      - >-
+        storage_backup_materialize_restore_juicefs_checksum
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_materialize_restore_metadata_url_file
+        == '/etc/fire-fuse/juicefs-meta-url'
+      - >-
+        storage_backup_materialize_restore_timeout_seconds | type_debug == 'int'
+      - storage_backup_materialize_restore_timeout_seconds >= 60
+      - storage_backup_materialize_restore_timeout_seconds <= 172800
+      - storage_backup_materialize_restore_lock_root == '/run/lock'
+    fail_msg: restore materialization requires fixed trusted paths and bounded inputs
+
+- name: Install exact restore materialization programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - materialize-storage-backup-restore.py
+      - audit-storage-backups.py
+      - verify-storage-backup.py
+      - validate-storage-backup-destination.py
+      - qualify-storage-backup-destination.py
+
+- name: Create isolated restore staging directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /var/lib/fire-fuse/storage-restores
+    - "{{ storage_backup_restore_root }}"
+
+- name: Inspect trusted restore materialization inputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: "{{ storage_backup_materialize_restore_destination }}"
+      mode: "0644"
+      checksum: ""
+    - path: "{{ storage_backup_materialize_restore_credentials }}"
+      mode: "0600"
+      checksum: ""
+    - path: "{{ storage_backup_materialize_restore_mc_binary }}"
+      mode: "0755"
+      checksum: "{{ storage_backup_materialize_restore_mc_checksum }}"
+    - path: "{{ storage_backup_materialize_restore_juicefs }}"
+      mode: "0755"
+      checksum: "{{ storage_backup_materialize_restore_juicefs_checksum }}"
+    - path: "{{ storage_backup_materialize_restore_metadata_url_file }}"
+      mode: "0600"
+      checksum: ""
+    - path: "{{ storage_backup_materialize_restore_program }}"
+      mode: "0755"
+      checksum: ""
+  register: storage_backup_materialize_restore_inputs
+
+- name: Require trusted restore materialization inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum == item.item.checksum
+    fail_msg: restore materialization input {{ item.item.path }} failed trust checks
+  loop: "{{ storage_backup_materialize_restore_inputs.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Read the root-only production metadata URL
+  ansible.builtin.slurp:
+    src: "{{ storage_backup_materialize_restore_metadata_url_file }}"
+  register: storage_backup_materialize_restore_metadata_url_content
+  no_log: true
+
+- name: Decode the production metadata URL
+  ansible.builtin.set_fact:
+    storage_backup_materialize_restore_metadata_url: >-
+      {{
+        storage_backup_materialize_restore_metadata_url_content.content
+        | b64decode
+        | trim
+      }}
+  no_log: true
+
+- name: Require the production metadata network boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_materialize_restore_metadata_url
+        is match(
+          '^redis://:[0-9a-f]{64}@10\.78\.0\.2:6379/1$'
+        )
+    fail_msg: restore guard requires the expected private Redis metadata URL
+  no_log: true
+
+- name: Read production JuiceFS status before restore materialization
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_materialize_restore_juicefs }}"
+      - status
+      - redis://10.78.0.2:6379/1
+  environment:
+    META_PASSWORD: >-
+      {{ storage_backup_materialize_restore_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+  register: storage_backup_materialize_restore_status_command
+  changed_when: false
+  no_log: true
+
+- name: Decode the production JuiceFS status
+  ansible.builtin.set_fact:
+    storage_backup_materialize_restore_status: >-
+      {{ storage_backup_materialize_restore_status_command.stdout | from_json }}
+  no_log: true
+
+- name: Require a production S3 volume identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_materialize_restore_status.Setting.Name
+        is match('^[A-Za-z0-9][A-Za-z0-9_-]{2,62}$')
+      - >-
+        storage_backup_materialize_restore_status.Setting.UUID
+        is match(
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-'
+          ~ '[0-9a-f]{4}-[0-9a-f]{12}$'
+        )
+      - storage_backup_materialize_restore_status.Setting.Storage == 's3'
+      - >-
+        storage_backup_materialize_restore_status.Setting.Bucket
+        is match('^http://10\.78\.0\.2:[0-9]{2,5}/[^/]+/?$')
+    fail_msg: restore guard requires the expected production JuiceFS identity
+  no_log: true
+
+- name: Record production guard capture time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%SZ
+  register: storage_backup_materialize_restore_guard_time
+  changed_when: false
+
+- name: Build the production configuration guard
+  ansible.builtin.set_fact:
+    storage_backup_materialize_restore_guard:
+      metadata_url_sha256: >-
+        {{ storage_backup_materialize_restore_metadata_url | hash('sha256') }}
+      volume_name: "{{ storage_backup_materialize_restore_status.Setting.Name }}"
+      volume_uuid: "{{ storage_backup_materialize_restore_status.Setting.UUID }}"
+      storage: "{{ storage_backup_materialize_restore_status.Setting.Storage }}"
+      bucket: >-
+        {{
+          storage_backup_materialize_restore_status.Setting.Bucket
+          | regex_replace('/+$', '')
+        }}
+  no_log: true
+
+- name: Hash the production configuration guard
+  ansible.builtin.set_fact:
+    storage_backup_materialize_restore_guard_sha256: >-
+      {{
+        storage_backup_materialize_restore_guard
+        | to_json(sort_keys=true)
+        | hash('sha256')
+      }}
+
+- name: Record the per-set restore materialization lock
+  ansible.builtin.set_fact:
+    storage_backup_materialize_restore_lock_directory: >-
+      {{ storage_backup_materialize_restore_lock_root
+      }}/fire-fuse-storage-restore-materialize-{{
+      storage_backup_materialize_restore_set_id }}
+
+- name: Acquire the per-set restore materialization lock
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mkdir
+      - --mode=0700
+      - "{{ storage_backup_materialize_restore_lock_directory }}"
+  register: storage_backup_materialize_restore_lock
+  changed_when: storage_backup_materialize_restore_lock.rc == 0
+  failed_when: false
+
+- name: Require the per-set restore materialization lock
+  ansible.builtin.assert:
+    that:
+      - storage_backup_materialize_restore_lock.rc == 0
+    fail_msg: this backup set is already being materialized or its lock is stale
+
+- name: Materialize exact restore inputs
+  block:
+    - name: Download and verify the recorded object versions
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_materialize_restore_program }}"
+          - "{{ storage_backup_materialize_restore_set_id }}"
+          - --destination
+          - "{{ storage_backup_materialize_restore_destination }}"
+          - --mc
+          - "{{ storage_backup_materialize_restore_mc_binary }}"
+          - --staging-root
+          - "{{ storage_backup_staging_root }}"
+          - --completed-root
+          - "{{ storage_backup_completed_root }}"
+          - --restore-root
+          - "{{ storage_backup_restore_root }}"
+          - --timeout-seconds
+          - "{{ storage_backup_materialize_restore_timeout_seconds | string }}"
+      register: storage_backup_materialize_restore_command
+      changed_when: true
+
+    - name: Decode restore materialization evidence
+      ansible.builtin.set_fact:
+        storage_backup_materialize_restore_evidence: >-
+          {{ storage_backup_materialize_restore_command.stdout | from_json }}
+
+    - name: Require complete redacted restore materialization evidence
+      ansible.builtin.assert:
+        that:
+          - storage_backup_materialize_restore_evidence.schema_version == 1
+          - >-
+            storage_backup_materialize_restore_evidence.status
+            == 'materialized-and-verified'
+          - >-
+            storage_backup_materialize_restore_evidence.set_id
+            == storage_backup_materialize_restore_set_id
+          - >-
+            storage_backup_materialize_restore_evidence.rehearsal_id
+            is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+          - storage_backup_materialize_restore_evidence.artifacts | length == 4
+          - >-
+            storage_backup_materialize_restore_evidence.workspace.startswith(
+              storage_backup_restore_root ~ '/restore-'
+            )
+        fail_msg: restore materialization evidence is incomplete
+
+    - name: Read the materialized backup manifest
+      ansible.builtin.slurp:
+        src: >-
+          {{ storage_backup_materialize_restore_evidence.workspace
+          }}/manifest.json
+      register: storage_backup_materialize_restore_manifest_content
+
+    - name: Decode the materialized backup manifest
+      ansible.builtin.set_fact:
+        storage_backup_materialize_restore_manifest: >-
+          {{
+            storage_backup_materialize_restore_manifest_content.content
+            | b64decode
+            | from_json
+          }}
+
+    - name: Bind the production guard to the materialized backup
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_materialize_restore_manifest.set_id
+            == storage_backup_materialize_restore_set_id
+          - >-
+            storage_backup_materialize_restore_guard.volume_name
+            == storage_backup_materialize_restore_manifest.source.volume_name
+          - >-
+            storage_backup_materialize_restore_guard.volume_uuid
+            == storage_backup_materialize_restore_manifest.source.volume_uuid
+        fail_msg: production guard does not identify the materialized backup source
+
+    - name: Publish the start-of-rehearsal production guard
+      ansible.builtin.copy:
+        content: >-
+          {{
+            {
+              'schema_version': 1,
+              'status': 'production-guard-captured',
+              'rehearsal_id': (
+                storage_backup_materialize_restore_evidence.rehearsal_id
+              ),
+              'set_id': storage_backup_materialize_restore_set_id,
+              'captured_at': (
+                storage_backup_materialize_restore_guard_time.stdout
+              ),
+              'guard': storage_backup_materialize_restore_guard,
+              'guard_sha256': (
+                storage_backup_materialize_restore_guard_sha256
+              )
+            }
+            | to_nice_json
+          }}
+        dest: >-
+          {{ storage_backup_materialize_restore_evidence.workspace
+          }}/production-guard-before.json
+        owner: root
+        group: root
+        mode: "0600"
+  always:
+    - name: Release the per-set restore materialization lock
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/rmdir
+          - "{{ storage_backup_materialize_restore_lock_directory }}"
+      changed_when: true
+
+- name: Report redacted restore materialization evidence
+  ansible.builtin.debug:
+    var: storage_backup_materialize_restore_evidence

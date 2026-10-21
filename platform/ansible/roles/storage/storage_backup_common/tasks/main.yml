@@ -1,0 +1,21 @@
+---
+- name: Require the fixed storage backup paths
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_staging_root
+        == '/var/lib/fire-fuse/storage-backups/staging'
+      - >-
+        storage_backup_completed_root
+        == '/var/lib/fire-fuse/storage-backups/completed'
+      - >-
+        storage_backup_evidence_root
+        == '/var/lib/fire-fuse/storage-backups/restores'
+      - >-
+        storage_backup_restore_root
+        == '/var/lib/fire-fuse/storage-restores/staging'
+      - storage_backup_program_directory == '/usr/local/lib/fire-fuse'
+      - storage_backup_script_module == 'storage_script_common.py'
+    fail_msg: >-
+      storage backup roles require the fixed staging, completed, evidence,
+      restore, and program paths; do not override them with extra vars

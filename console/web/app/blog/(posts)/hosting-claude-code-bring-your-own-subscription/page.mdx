@@ -1,0 +1,110 @@
+import { ClaudePlanExample } from "./claude-plan-example";
+import { CantelopClaudeCodeDiagram, HostedClaudeCodeDiagram, SingleUserClaudeCodeDiagram } from "./diagrams";
+
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/blog/hosting-claude-code-bring-your-own-subscription" },
+  title: "Hosting Claude Code with bring-your-own-subscription",
+  description: "Host Claude Code in your app and let users sign in with their own Claude subscription. Covers Anthropic's terms, sandboxing, and persisting auth per user.",
+};
+
+*Disclaimer: this article is a technical guide, not legal advice. Refer to Anthropic's current
+terms and documentation for the requirements that apply to your product.*
+
+This article explains how to host Claude Code such that users can use their own subscription credits
+inside your product.
+
+<ClaudePlanExample />
+
+## Requirements
+
+Anthropic provides a
+[guide](https://code.claude.com/docs/en/legal-and-compliance#can-customers-offer-claude-code-in-their-products) on
+how to do this properly. It comes down to the following:
+
+1. **[Agree to Anthropic's Commercial Terms of Service](https://www.anthropic.com/legal/commercial-terms).**
+2. Keep the binary unmodified, including its built-in authentication methods.
+3. Don't resell or broker Claude usage; users authenticate and pay Anthropic directly.
+4. Don't imply an affiliation with Anthropic or use its branding as your own.
+
+This translates into these *technical requirements*:
+
+- Keep the Claude Code binary unmodified.
+- Allow users to sign in with their own subscription through Anthropic's own flow.
+- Persist the user's authentication state and don't share it with other users.
+- Never collect, store, or forward the user's Claude tokens in your own application.
+
+## General approach
+
+For a single user, we need a sandbox that runs unmodified Claude Code and a durable
+workspace that stores the user's authentication state. So we can run unmodified:
+
+```bash
+claude auth login
+```
+
+This generates a sign-in URL. The user signs in on Anthropic's site and pastes the one-time
+code back into Claude Code, which stores their credentials
+in `~/.claude/.credentials.json` on Linux. Set `CLAUDE_CONFIG_DIR` to
+`/workspace/.claude` to keep those credentials in the durable workspace.
+
+<SingleUserClaudeCodeDiagram />
+
+For multiple users, we also need to route requests to the correct sandbox and
+terminate idle sandboxes while preserving each user's workspace. A control plane
+acts as both the router and the sandbox orchestrator.
+
+<HostedClaudeCodeDiagram />
+
+Each message runs as a `claude -p` process:
+
+```bash
+# Use --session-id instead of --resume for a conversation's first message.
+claude -p --output-format stream-json --verbose \
+  --permission-mode dontAsk --allowedTools "Read,Glob,Grep" \
+  --resume "$CONVERSATION_ID" < message.txt
+```
+
+We can build this on most sandbox providers. The main difference is the durable workspace:
+
+- **E2B** and **Modal** provide volumes that outlive the sandbox, but multiple sandboxes
+  can't safely write to the same volume.
+- **Fly Machines** start fast, but a volume lives on one server, so a new machine is not
+  guaranteed to get the same volume.
+- **k8s**, **k3s**, **Nomad** and **Docker Swarm** give full control and are
+  practical, but hard to set up correctly. We need to build the control plane, idle
+  shutdown and sandbox isolation ourselves.
+
+## Simpler with Cantelop
+
+Cantelop provides the control plane and the durable workspace abstraction out of
+the box.
+
+In addition, by using NFS, Cantelop enables non-blocking reads and writes to the 
+workspace. This means we can mount the same workspace by multiple sandboxes concurrently.
+
+<CantelopClaudeCodeDiagram />
+
+Its actor model gives each active Session a dedicated process. We can dispatch a
+message to the Session running Claude Code, and Cantelop releases the sandbox
+after the work is done. In code it looks as simple as this:
+
+```typescript
+await session.dispatch(message);
+```
+
+Since claude code persists the session history in the workspace, we can restart 
+the sandboxes without losing the context. Cantelops almost instant sandbox warm up
+time (around 250ms) makes restarts unnoticeable to the user.
+
+If the agent needs Bash access and creates temporary state, we can set
+`keepAliveSeconds` to keep the sandbox warm while it waits for the next message.
+
+The application backend uses the Cantelop SDK for Workspaces, Session requests, and
+event subscriptions. Browser-facing endpoints belong to that backend; the Cantelop
+App defines its runtime without custom HTTP routes.
+
+To deploy Claude Code with Cantelop, define an App using the SDK’s
+`createClaudeRuntime`, `claudeAuth`, and packaged Dockerfile. The SDK supplies
+the runner, native link-and-code login, queue, recovery, and events. Follow the
+[Hosting Claude Code guide](/guides/claude-code), or inspect the
+[demo App definition](https://github.com/stepandel/cantelop/blob/main/console/examples/claude-demo/cantelop.ts).

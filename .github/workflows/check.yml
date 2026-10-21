@@ -1,0 +1,88 @@
+name: Contributor checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contributor-checks-${{ github.ref }}
+  # Superseded PR runs may stop early; every main commit keeps a completed check.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cantelop_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CANTELOP_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantelop_test
+      CANTELOP_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantelop_test
+      CANTELOP_DATABASE_SSL: disable
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: console/package.json
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --requirement scripts/requirements-test.txt
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.15.2"
+          terraform_wrapper: false
+      - run: bun install --frozen-lockfile
+        working-directory: console
+      - run: bun install --frozen-lockfile
+        working-directory: edge/workers
+      - name: Initialize disposable databases
+        working-directory: console
+        run: |
+          bun run db:migrate
+          bun run observability:db:migrate
+      - run: make check
+
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan reachable Git history with pinned Gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner="$RUNNER_TEMP/cantelop-gitleaks"
+          mkdir -p "$scanner"
+          curl --fail --silent --show-error --location \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output "$scanner/gitleaks.tar.gz"
+          printf '%s  %s\n' "$GITLEAKS_SHA256" "$scanner/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$scanner/gitleaks.tar.gz" -C "$scanner" gitleaks
+          "$scanner/gitleaks" git --redact=100 --no-banner --ignore-gitleaks-allow \
+            --log-opts="--all --full-history" --gitleaks-ignore-path "$GITHUB_WORKSPACE/.gitleaksignore" \
+            "$GITHUB_WORKSPACE"

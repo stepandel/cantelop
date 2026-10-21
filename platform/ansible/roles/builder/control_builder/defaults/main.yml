@@ -1,0 +1,7 @@
+---
+control_builder_binary_artifact: ""
+control_builder_binary_checksum: ""
+control_builder_binary: /usr/local/bin/cantelop-build-materializer
+control_builder_unit_source: "{{ role_path }}/../../../../systemd/builder/cantelop-build-materializer.service"
+control_builder_scratch_root: /var/lib/cantelop-builder
+control_builder_minimum_volume_bytes: 250000000000

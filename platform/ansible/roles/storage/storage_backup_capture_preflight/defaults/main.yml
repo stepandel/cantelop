@@ -1,0 +1,19 @@
+---
+storage_backup_capture_maintenance_authorized: false
+
+storage_backup_capture_fire_fuse_service: fire-fuse.service
+storage_backup_capture_redis_service: fire-fuse-redis.service
+storage_backup_capture_minio_service: fire-fuse-minio.service
+storage_backup_capture_listen_address: 127.0.0.1
+storage_backup_capture_listen_port: 8080
+
+storage_backup_capture_juicefs_binary: /usr/local/bin/juicefs
+storage_backup_capture_juicefs_checksum: >-
+  {{ juicefs_volume_client_checksum | default('') }}
+storage_backup_capture_metadata_url_file: /etc/fire-fuse/juicefs-meta-url
+storage_backup_capture_volume_name: fire-fuse-workspaces
+storage_backup_capture_bucket_url: >-
+  http://10.78.0.2:9000/fire-fuse-workspaces
+
+storage_backup_capture_readiness_attempts: 30
+storage_backup_capture_readiness_delay_seconds: 1

@@ -1,0 +1,93 @@
+---
+- name: Validate all cutover credentials and fixed identities before shutdown
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+      - fire_fuse_gateway_user | default('') == 'fire-fuse-gateway'
+      - fire_fuse_gateway_group | default('') == 'fire-fuse-gateway'
+      - fire_fuse_dispatcher_user | default('') == 'fire-fuse-dispatcher'
+      - fire_fuse_dispatcher_group | default('') == 'fire-fuse-dispatcher'
+      - fire_fuse_observer_user | default('') == 'fire-fuse-observer'
+      - fire_fuse_observer_group | default('') == 'fire-fuse-observer'
+      - >-
+        [fire_fuse_gateway_user, fire_fuse_dispatcher_user,
+         fire_fuse_observer_user] | unique | length == 3
+      - >-
+        [fire_fuse_gateway_group, fire_fuse_dispatcher_group,
+         fire_fuse_observer_group] | unique | length == 3
+      - fire_fuse_operator_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_dispatcher_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_compute_ingress_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_product_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_edge_token | default('') is match('^[0-9a-f]{64}$')
+      - fire_fuse_observability_ingest_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_session_mutation_token is match('^[0-9a-f]{64}$')
+      - >-
+        [fire_fuse_operator_token,
+         fire_fuse_gateway_runtime_token,
+         fire_fuse_dispatcher_runtime_token,
+         fire_fuse_observer_runtime_token,
+         fire_fuse_compute_ingress_token,
+         fire_fuse_gateway_product_token,
+         fire_fuse_gateway_edge_token,
+         fire_fuse_observability_ingest_token,
+         fire_fuse_observer_token,
+         fire_fuse_session_mutation_token]
+        | unique | length == 10
+      - fire_fuse_artifact_download_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$')
+      - fire_fuse_stage_orchestrator_checksum is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      coordinated cutover preflight requires fixed, distinct service identities
+      and the complete mutually distinct credential set
+  no_log: true
+
+- name: Validate host cutover artifacts
+  ansible.builtin.include_tasks: artifacts.yml
+
+- name: Inspect live activation prerequisites
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: "{{ item.follow | default(false) }}"
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: fire_fuse_control_cutover_prerequisite_stats
+  loop:
+    - name: installed runtime
+      path: /usr/local/bin/fire-fuse
+      directory: false
+      checksum: "{{ fire_fuse_stage_orchestrator_checksum }}"
+    - name: runtime configuration
+      path: /etc/fire-fuse/config.json
+      directory: false
+      checksum: ""
+    - name: observer TLS certificate
+      path: /etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem
+      directory: false
+      checksum: ""
+      follow: true
+    - name: observer TLS key
+      path: /etc/letsencrypt/live/apps.cantelop.dev/privkey.pem
+      directory: false
+      checksum: ""
+      follow: true
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require live activation prerequisites before shutdown
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.item.directory and item.stat is trusted_directory)
+        or (not item.item.directory and item.stat is trusted_file)
+      - >-
+        item.item.checksum | default('') == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: "cutover prerequisite {{ item.item.name }} is missing or unsafe"
+  loop: "{{ fire_fuse_control_cutover_prerequisite_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

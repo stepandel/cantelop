@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788289634108,
+      "tag": "0000_dashing_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788296612293,
+      "tag": "0001_milky_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792538308979,
+      "tag": "0002_retention_indexes",
+      "breakpoints": true
+    }
+  ]
+}

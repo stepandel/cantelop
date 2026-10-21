@@ -1,0 +1,115 @@
+/* The front door's footer. Same measure as the home page's content so its
+   left edge lines up with everything above it. */
+
+.footer {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+}
+
+.inner {
+  width: min(1430px, 100%);
+  margin: 0 auto;
+  padding: var(--sp-12) var(--sp-6) var(--sp-8);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: var(--sp-12);
+}
+
+.about { max-width: 330px; }
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+}
+.brand:hover { text-decoration: none; }
+.brand .brand-name { font-size: 1.125rem; }
+
+.blurb {
+  margin: var(--sp-4) 0 0;
+  color: var(--muted);
+  font: 400 var(--fs-data)/var(--lh-prose) var(--sans);
+}
+
+.note {
+  margin: var(--sp-4) 0 0;
+  color: var(--grey);
+  font: 400 var(--fs-support)/var(--lh-prose) var(--sans);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-6);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.heading {
+  margin: 0 0 var(--sp-2);
+  color: var(--muted);
+  font: 500 var(--fs-label)/1.4 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 400 var(--fs-support)/1.4 var(--sans);
+  color: var(--grey);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.link:hover { color: var(--ink); text-decoration: none; }
+
+.bottom {
+  margin-top: var(--sp-12);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font: 400 var(--fs-support)/1.4 var(--sans);
+}
+
+.legal {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--grey);
+}
+.dot { color: var(--ghost); }
+.legalLink { color: var(--ink); }
+
+.repo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--grey);
+  text-decoration: none;
+}
+.repo:hover { color: var(--ink); text-decoration: none; }
+
+@media (max-width: 860px) {
+  .top { grid-template-columns: 1fr; gap: var(--sp-8); }
+}
+
+@media (max-width: 480px) {
+  .inner { padding: var(--sp-8) var(--sp-4) var(--sp-6); }
+  .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--sp-8); }
+}

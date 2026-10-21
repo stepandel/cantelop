@@ -1,0 +1,15 @@
+---
+storage_backup_restore_metadata_rehearsal_id: ""
+storage_backup_restore_metadata_juicefs: /usr/local/bin/juicefs
+storage_backup_restore_metadata_juicefs_checksum: >-
+  {{ juicefs_volume_client_checksum | default('') }}
+storage_backup_restore_metadata_redis_server: /usr/bin/redis-server
+storage_backup_restore_metadata_redis_server_target: /usr/bin/redis-check-rdb
+storage_backup_restore_metadata_redis_cli: /usr/bin/redis-cli
+storage_backup_restore_metadata_user: redis
+storage_backup_restore_metadata_group: redis
+storage_backup_restore_metadata_port: 16380
+storage_backup_restore_metadata_database: 1
+storage_backup_restore_metadata_maxmemory: 8gb
+storage_backup_restore_metadata_production_redis_service: fire-fuse-redis.service
+storage_backup_restore_metadata_production_minio_service: fire-fuse-minio.service

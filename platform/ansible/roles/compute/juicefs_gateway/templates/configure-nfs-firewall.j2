@@ -1,0 +1,152 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly iptables=/usr/sbin/iptables
+readonly ip6tables=/usr/sbin/ip6tables
+readonly awk=/usr/bin/awk
+readonly chain={{ juicefs_gateway_nfs_firewall_chain | quote }}
+readonly next_chain="${chain}_next"
+readonly comment={{ juicefs_gateway_nfs_firewall_comment | quote }}
+readonly loopback_comment={{ juicefs_gateway_nfs_loopback_comment | quote }}
+readonly port={{ juicefs_gateway_nfs_port | quote }}
+readonly rpcbind_comment={{ juicefs_gateway_rpcbind_firewall_comment | quote }}
+readonly rpcbind_loopback_comment={{ juicefs_gateway_rpcbind_loopback_comment | quote }}
+readonly rpcbind_port={{ juicefs_gateway_rpcbind_port | quote }}
+
+for firewall in "${iptables}" "${ip6tables}"; do
+  for protocol in tcp udp; do
+    while "${firewall}" --wait 5 --check INPUT \
+      --protocol "${protocol}" \
+      --destination-port "${rpcbind_port}" \
+      --match comment \
+      --comment "${rpcbind_comment}" \
+      --jump DROP >/dev/null 2>&1; do
+      "${firewall}" --wait 5 --delete INPUT \
+        --protocol "${protocol}" \
+        --destination-port "${rpcbind_port}" \
+        --match comment \
+        --comment "${rpcbind_comment}" \
+        --jump DROP
+    done
+
+    "${firewall}" --wait 5 --insert INPUT 1 \
+      --protocol "${protocol}" \
+      --destination-port "${rpcbind_port}" \
+      --match comment \
+      --comment "${rpcbind_comment}" \
+      --jump DROP
+  done
+done
+
+# rpc.mountd probes the local Portmapper while starting even for an NFSv4-only
+# server. Let that loopback probe fail fast against the masked service instead
+# of silently dropping it, while the following DROP rules remain authoritative
+# for every non-loopback source.
+for firewall in "${iptables}" "${ip6tables}"; do
+  for protocol in tcp udp; do
+    while "${firewall}" --wait 5 --check INPUT \
+      --in-interface lo \
+      --protocol "${protocol}" \
+      --destination-port "${rpcbind_port}" \
+      --match comment \
+      --comment "${rpcbind_loopback_comment}" \
+      --jump ACCEPT >/dev/null 2>&1; do
+      "${firewall}" --wait 5 --delete INPUT \
+        --in-interface lo \
+        --protocol "${protocol}" \
+        --destination-port "${rpcbind_port}" \
+        --match comment \
+        --comment "${rpcbind_loopback_comment}" \
+        --jump ACCEPT
+    done
+
+    "${firewall}" --wait 5 --insert INPUT 1 \
+      --in-interface lo \
+      --protocol "${protocol}" \
+      --destination-port "${rpcbind_port}" \
+      --match comment \
+      --comment "${rpcbind_loopback_comment}" \
+      --jump ACCEPT
+  done
+done
+
+if ! "${iptables}" --wait 5 --numeric --list "${chain}" >/dev/null 2>&1; then
+  if "${iptables}" --wait 5 --numeric --list "${next_chain}" >/dev/null 2>&1; then
+    "${iptables}" --wait 5 --rename-chain "${next_chain}" "${chain}"
+  else
+    "${iptables}" --wait 5 --new-chain "${chain}"
+    "${iptables}" --wait 5 --append "${chain}" --jump DROP
+  fi
+fi
+
+while "${iptables}" --wait 5 --check INPUT --jump "${next_chain}" >/dev/null 2>&1; do
+  "${iptables}" --wait 5 --delete INPUT --jump "${next_chain}"
+done
+if "${iptables}" --wait 5 --numeric --list "${next_chain}" >/dev/null 2>&1; then
+  "${iptables}" --wait 5 --flush "${next_chain}"
+  "${iptables}" --wait 5 --delete-chain "${next_chain}"
+fi
+"${iptables}" --wait 5 --new-chain "${next_chain}"
+"${iptables}" --wait 5 --append "${next_chain}" \
+  --in-interface lo \
+  --source 127.0.0.0/8 \
+  --protocol tcp \
+  --destination-port "${port}" \
+  --match comment \
+  --comment "${loopback_comment}" \
+  --jump ACCEPT
+"${iptables}" --wait 5 --append "${next_chain}" --jump DROP
+
+# Preserve the current deny jump's position so any live per-workspace rules
+# inserted ahead of it remain effective across firewall reconciliation. If the
+# jump was lost, place it immediately after the last surviving workspace rule.
+jump_position="$(
+  "${iptables}" --wait 5 --line-numbers --numeric --list INPUT \
+    | "${awk}" -v chain="${chain}" -v comment="${comment}" '
+        $1 ~ /^[0-9]+$/ && $2 == chain && index($0, "/* " comment " */") {
+          print $1
+          exit
+        }
+      '
+)"
+if [[ -z "${jump_position}" ]]; then
+  jump_position="$(
+    "${iptables}" --wait 5 --line-numbers --numeric --list INPUT \
+      | "${awk}" '
+          $1 ~ /^[0-9]+$/ && index($0, ":workspace-nfs */") {
+            position = $1 + 1
+          }
+          END {
+            if (position) {
+              print position
+            }
+          }
+        '
+  )"
+fi
+readonly jump_position="${jump_position:-1}"
+
+"${iptables}" --wait 5 --insert INPUT "${jump_position}" \
+  --protocol tcp \
+  --destination-port "${port}" \
+  --match comment \
+  --comment "${comment}" \
+  --jump "${next_chain}"
+
+while "${iptables}" --wait 5 --check INPUT \
+  --protocol tcp \
+  --destination-port "${port}" \
+  --match comment \
+  --comment "${comment}" \
+  --jump "${chain}" >/dev/null 2>&1; do
+  "${iptables}" --wait 5 --delete INPUT \
+    --protocol tcp \
+    --destination-port "${port}" \
+    --match comment \
+    --comment "${comment}" \
+    --jump "${chain}"
+done
+
+"${iptables}" --wait 5 --flush "${chain}"
+"${iptables}" --wait 5 --delete-chain "${chain}"
+"${iptables}" --wait 5 --rename-chain "${next_chain}" "${chain}"

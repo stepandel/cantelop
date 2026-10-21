@@ -1,0 +1,123 @@
+---
+- name: Validate Redis role inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        (redis_metadata_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - redis_metadata_maxmemory is match('^[1-9][0-9]*(mb|gb)$')
+      - redis_metadata_allow_password_rotation is boolean
+      - >-
+        redis_metadata_consumer_service
+        is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+    fail_msg: >-
+      redis_metadata_password must be a 64-character lowercase hexadecimal
+      Ansible Vault value, redis_metadata_maxmemory must be a positive mb or gb
+      value, and rotation controls must be typed and safe
+  no_log: true
+
+- name: Inspect the installed Redis password
+  ansible.builtin.stat:
+    path: "{{ redis_metadata_password_file }}"
+    follow: false
+    get_checksum: false
+  register: redis_metadata_password_file_status
+
+- name: Require a trusted installed Redis password
+  ansible.builtin.assert:
+    that:
+      - >-
+        not redis_metadata_password_file_status.stat.exists
+        or redis_metadata_password_file_status.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - >-
+        not redis_metadata_password_file_status.stat.exists
+        or redis_metadata_password_file_status.stat.size | default(0) == 65
+    fail_msg: >-
+      the installed Redis password must be a root-owned, nonsymlinked,
+      mode-0600 regular file containing the expected 64 characters and newline
+
+- name: Read the installed Redis password
+  ansible.builtin.slurp:
+    src: "{{ redis_metadata_password_file }}"
+  register: redis_metadata_installed_password
+  when: redis_metadata_password_file_status.stat.exists
+  no_log: true
+
+- name: Compare the installed Redis password with Vault
+  ansible.builtin.set_fact:
+    redis_metadata_password_matches: >-
+      {{
+        redis_metadata_installed_password.content
+        | b64decode
+        | trim
+        == redis_metadata_password
+      }}
+  when: redis_metadata_password_file_status.stat.exists
+  no_log: true
+
+- name: Inspect the compute consumer before Redis reconciliation
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-active, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: redis_metadata_compute_service_state
+  changed_when: false
+  failed_when: redis_metadata_compute_service_state.rc not in [0, 3, 4]
+  check_mode: false
+
+- name: Record whether compute is stopped for Redis reconciliation
+  ansible.builtin.set_fact:
+    storage_compute_stopped: "{{ redis_metadata_compute_service_state.stdout in ['inactive', 'unknown'] }}"
+
+- name: Read service state before Redis reconciliation
+  ansible.builtin.service_facts:
+
+- name: Require an explicit offline Redis credential rotation
+  ansible.builtin.assert:
+    that:
+      - >-
+        not redis_metadata_password_file_status.stat.exists
+        or redis_metadata_password_matches | default(false)
+        or
+        (
+          redis_metadata_allow_password_rotation
+          and storage_compute_stopped | default(false)
+        )
+    fail_msg: >-
+      the installed Redis password differs from the proposed Vault value;
+      rotation requires redis_metadata_allow_password_rotation=true and a
+      confirmed-stopped fire-fuse consumer service
+
+- name: Install Redis
+  ansible.builtin.apt:
+    name: redis-server
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Inspect the Redis service account
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/getent
+      - passwd
+      - redis
+  check_mode: false
+  register: redis_metadata_service_account_status
+  changed_when: false
+  failed_when: redis_metadata_service_account_status.rc not in [0, 2]
+
+- name: Report deferred Redis configuration preview
+  ansible.builtin.debug:
+    msg: >-
+      Redis account-dependent configuration is deferred until the previewed
+      redis-server package has been installed
+  when:
+    - ansible_check_mode
+    - redis_metadata_service_account_status.rc != 0
+
+- name: Configure the installed Redis service
+  ansible.builtin.include_tasks: configure.yml
+  when:
+    - >-
+      not ansible_check_mode
+      or redis_metadata_service_account_status.rc == 0

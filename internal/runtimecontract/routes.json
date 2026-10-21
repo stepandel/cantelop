@@ -1,0 +1,42 @@
+{
+  "description": "Every runtime request shape the published SDKs send. The gateway, the local development runtime and the edge outbound Worker must all route each one; a handler may still reject the request body or state. Each reject is a request shape all three must refuse before dispatch, with 404 runtime_route_not_found or 405 runtime_method_not_allowed.",
+  "routes": [
+    { "method": "GET", "path": "/__cantelop/integration/v2/workspaces?workspace_slug=production" },
+    { "method": "GET", "path": "/__cantelop/integration/v2/workspaces?workspace_id=wsp_0123456789abcdef0123456789abcdef" },
+    { "method": "DELETE", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef" },
+    { "method": "POST", "path": "/__cantelop/v1/workspaces" },
+    { "method": "POST", "path": "/__cantelop/v1/workspaces/open" },
+    { "method": "POST", "path": "/__cantelop/v1/workspaces/database/credentials" },
+    { "method": "POST", "path": "/__cantelop/v1/sessions" },
+    { "method": "POST", "path": "/__cantelop/v1/sessions/open" },
+    { "method": "POST", "path": "/__cantelop/v1/messages" },
+    { "method": "POST", "path": "/__cantelop/v1/requests" },
+    { "method": "DELETE", "path": "/__cantelop/v1/sessions/agent%3Aprimary" },
+    { "method": "GET", "path": "/__cantelop/v1/sessions/agent%3Aprimary/messages/msg_0123456789abcdef0123456789abcdef" },
+    { "method": "GET", "path": "/__cantelop/v1/sessions/agent%3Aprimary/messages/msg_0123456789abcdef0123456789abcdef?workspace_id=wsp_0123456789abcdef0123456789abcdef" },
+    { "method": "GET", "path": "/__cantelop/v1/sessions/agent%3Aprimary/events?workspace_id=wsp_0123456789abcdef0123456789abcdef" },
+    { "method": "GET", "path": "/__cantelop/v1/sessions/agent%3Aprimary/events?workspace_id=wsp_0123456789abcdef0123456789abcdef&after=3&stream_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    {"method": "GET", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=scan&root="},
+    {"method": "GET", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=scan&root=src%2Fmy-project"},
+    {"method": "PUT", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=write&root=my-project&path=README.md&base=missing"},
+    {"method": "GET", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=scan"},
+    {"method": "GET", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=read&path=src/a.ts&base=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+    {"method": "PUT", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=write&path=src/a.ts&base=missing"},
+    {"method": "DELETE", "path": "/__cantelop/integration/v2/workspaces/wsp_0123456789abcdef0123456789abcdef/sync?op=remove&path=src/a.ts&base=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+  ],
+  "rejects": [
+    { "method": "GET", "path": "/__cantelop/v1/unknown", "status": 404 },
+    { "method": "GET", "path": "/__cantelop/v2/messages", "status": 404 },
+    { "method": "POST", "path": "/__cantelop/v1/messages/extra", "status": 404 },
+    { "method": "POST", "path": "/__cantelop/v1/messages?extra=1", "status": 404 },
+    { "method": "POST", "path": "/__cantelop/v1/requests?extra=1", "status": 404 },
+    { "method": "POST", "path": "/__cantelop/v1/sessions?workspace_id=wsp_0123456789abcdef0123456789abcdef", "status": 404 },
+    { "method": "GET", "path": "/__cantelop/v1/sessions/agent%3Aprimary/messages/msg_short", "status": 404 },
+    { "method": "GET", "path": "/__cantelop/integration/v2/unknown", "status": 404 },
+    { "method": "GET", "path": "/__cantelop/v1/messages", "status": 405 },
+    { "method": "PUT", "path": "/__cantelop/v1/sessions", "status": 405 },
+    { "method": "POST", "path": "/__cantelop/v1/sessions/agent%3Aprimary", "status": 405 },
+    { "method": "DELETE", "path": "/__cantelop/v1/sessions/agent%3Aprimary/messages/msg_0123456789abcdef0123456789abcdef", "status": 405 },
+    { "method": "POST", "path": "/__cantelop/v1/sessions/agent%3Aprimary/events?workspace_id=wsp_0123456789abcdef0123456789abcdef", "status": 405 }
+  ]
+}

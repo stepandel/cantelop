@@ -1,0 +1,79 @@
+/* The send panel reads like an API client: the request line on top — method,
+   the URL as it will be sent, and the Send button — then the fields in a
+   grid, body beside query and headers when the method takes one.
+   Selectors keep the specificity they had in globals.css, so the shared
+   .inline-form, .monitor-head and .section-label rules resolve as before. */
+:global(.inline-form).sendForm { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: var(--sp-4); padding: var(--sp-4); }
+.sendLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.sendMethod {
+  flex: none;
+  padding: 3px var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--surface);
+  font: 500 var(--fs-label) var(--mono);
+  letter-spacing: 0.04em;
+}
+.sendUrl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 var(--fs-support) var(--mono);
+  color: var(--ink);
+}
+.sendUrl .sendOrigin { color: var(--faint); }
+.sendUrl .sendQuery { color: var(--blue); }
+:global(.inline-form) .sendLine button[type="submit"] { flex: none; min-width: 5.5rem; }
+.sendFields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3) var(--sp-4); }
+.sendForm.hasBody .sendFields { grid-template-areas: "query body" "headers body"; grid-template-rows: auto 1fr; }
+.sendForm.hasBody .sendQueryField { grid-area: query; }
+.sendForm.hasBody .sendHeaders { grid-area: headers; }
+.sendForm.hasBody .sendBody { grid-area: body; }
+.sendFields label { min-width: 0; }
+.sendForm .sendFields input { width: 100%; min-width: 0; font-family: var(--mono); font-size: var(--fs-support); }
+.sendHeaders > span em { font-style: normal; letter-spacing: 0; text-transform: none; color: var(--faint); margin-left: var(--sp-1); }
+.sendForm textarea {
+  flex: 1;
+  width: 100%;
+  padding: var(--sp-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 var(--fs-support)/1.5 var(--mono);
+  letter-spacing: 0;
+  text-transform: none;
+  resize: vertical;
+}
+.sendForm textarea::placeholder { color: var(--faint); }
+.sendForm textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--active); }
+.sendForm ~ :global(.monitor-head) { border-top: 1px solid var(--line); padding-top: var(--sp-3); }
+@media (max-width: 720px) {
+  .sendFields, .sendForm.hasBody .sendFields { grid-template-columns: 1fr; grid-template-areas: none; grid-template-rows: none; }
+  .sendForm.hasBody .sendQueryField,
+  .sendForm.hasBody .sendHeaders,
+  .sendForm.hasBody .sendBody { grid-area: auto; }
+}
+/* A response status reads as a badge in its class's colour. */
+:global(.monitor-head) > strong.sendStatus { padding: 1px var(--sp-2); border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--line); }
+:global(.monitor-head) > strong.sendStatus:global(.http-2xx) { color: var(--green); }
+:global(.monitor-head) > strong.sendStatus:global(.http-4xx) { background: var(--amber-wash); border-color: var(--amber-line); }
+:global(.monitor-head) > strong.sendStatus:global(.http-5xx) { background: var(--red-wash); border-color: var(--red-line); }
+/* Response and trace side by side where there is room, stacked otherwise. */
+.sendExchange { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); padding: 0 var(--sp-4) var(--sp-4); }
+.sendExchange > section { min-width: 0; }
+.sendExchange :global(.section-label) { padding-left: 0; padding-right: 0; display: flex; align-items: center; gap: var(--sp-2); }
+@media (max-width: 1180px) {
+  .sendExchange { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,124 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ fire_fuse_observer_hostname }};
+    return 308 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name {{ fire_fuse_observer_hostname }};
+
+    ssl_certificate {{ fire_fuse_observer_tls_certificate }};
+    ssl_certificate_key {{ fire_fuse_observer_tls_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:fire_fuse_gateway:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    location = /snapshot {
+        proxy_pass http://127.0.0.1:8082/snapshot;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+        proxy_send_timeout 15s;
+    }
+
+    location = /requests {
+        proxy_pass http://127.0.0.1:8082/requests;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+        proxy_send_timeout 15s;
+    }
+
+    location = /infrastructure {
+        proxy_pass http://127.0.0.1:8082/infrastructure;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+        proxy_send_timeout 15s;
+    }
+
+    location ~ "^/apps/[A-Za-z0-9][A-Za-z0-9._-]{0,63}/builds$" {
+        limit_except GET { deny all; }
+        proxy_pass http://127.0.0.1:8082$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+        proxy_send_timeout 15s;
+    }
+
+    location ~ "^/sandboxes/sbx-[0-9a-f]{32}/database-access$" {
+        limit_except GET { deny all; }
+        proxy_pass http://127.0.0.1:8082$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+        proxy_send_timeout 15s;
+    }
+
+    location ~ "^/sessions/ses_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$" {
+        limit_except DELETE { deny all; }
+        proxy_pass http://127.0.0.1:8082$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 35s;
+        proxy_send_timeout 15s;
+    }
+
+    location ~ "^/sandboxes/sbx-[0-9a-f]{32}$" {
+        limit_except DELETE { deny all; }
+        proxy_pass http://127.0.0.1:8082$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 35s;
+        proxy_send_timeout 15s;
+    }
+
+    location ~ "^/sandboxes/sbx-[0-9a-f]{32}/crash$" {
+        limit_except POST { deny all; }
+        proxy_pass http://127.0.0.1:8082$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 35s;
+        proxy_send_timeout 15s;
+    }
+
+    location / {
+        return 404;
+    }
+}

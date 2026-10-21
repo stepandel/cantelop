@@ -1,0 +1,87 @@
+all:
+  children:
+    fire_fuse_hosts:
+      hosts:
+        fire-fuse-staging:
+          ansible_host: 192.0.2.10
+          ansible_user: root
+      vars:
+        storage_wireguard_address: 10.78.0.1
+        storage_wireguard_peer_address: 10.78.0.2
+        storage_wireguard_private_key: "{{ vault_compute_storage_wireguard_private_key }}"
+        storage_wireguard_peer_public_key: replace-with-storage-public-key
+        storage_wireguard_endpoint: 192.0.2.30:51821
+        juicefs_client_artifact: /absolute/path/to/juicefs-linux-amd64
+        juicefs_client_checksum: replace-with-lowercase-sha256
+        redis_metadata_password: "{{ vault_redis_metadata_password }}"
+        # Numeric server id returned by the Hetzner Robot API.
+        hetzner_robot_firewall_server_number: 1234567
+        cantelop_wireguard_address: 10.77.0.1
+        cantelop_wireguard_peer_address: 10.77.0.2
+        cantelop_wireguard_private_key: "{{ vault_fire_fuse_wireguard_private_key }}"
+        cantelop_wireguard_peer_public_key: replace-with-builder-public-key
+        fire_fuse_stage_orchestrator_artifact: /absolute/path/to/release/bin/fire-fuse
+        fire_fuse_stage_orchestrator_checksum: replace-with-lowercase-sha256
+        fire_fuse_stage_admin_artifact: /absolute/path/to/release/bin/cantelop
+        fire_fuse_stage_admin_checksum: replace-with-lowercase-sha256
+        fire_fuse_stage_integration_artifact: /absolute/path/to/release/bin/fire-fuse-integration
+        fire_fuse_stage_integration_checksum: replace-with-lowercase-sha256
+        fire_fuse_gateway_binary_artifact: /absolute/path/to/release/bin/fire-fuse-gateway
+        fire_fuse_gateway_binary_checksum: replace-with-lowercase-sha256
+        fire_fuse_async_dispatcher_binary_artifact: /absolute/path/to/release/bin/fire-fuse-async-dispatcher
+        fire_fuse_async_dispatcher_binary_checksum: replace-with-lowercase-sha256
+        fire_fuse_observer_binary_artifact: /absolute/path/to/release/bin/fire-fuse-observer
+        fire_fuse_observer_binary_checksum: replace-with-lowercase-sha256
+        fire_fuse_stage_snapshot_builder_artifact: /absolute/path/to/release/bin/fire-fuse-snapshot
+        fire_fuse_stage_snapshot_builder_checksum: replace-with-lowercase-sha256
+        fire_fuse_stage_image_publisher_artifact: /absolute/path/to/release/bin/fire-fuse-image
+        fire_fuse_stage_image_publisher_checksum: replace-with-lowercase-sha256
+        fire_fuse_stage_snapshot_bundle: /var/lib/fire-fuse/snapshots/default-4vcpu-512m-hotplug-4g
+        fire_fuse_release_images:
+          - name: application
+            rootfs_artifact: /absolute/path/to/application.ext4
+            rootfs_checksum: replace-with-lowercase-sha256
+            process_artifact: /absolute/path/to/application.process.json
+            process_checksum: replace-with-lowercase-sha256
+    storage_hosts:
+      hosts:
+        cantelop-storage-staging:
+          ansible_host: 192.0.2.30
+          ansible_user: root
+      vars:
+        storage_wireguard_address: 10.78.0.2
+        storage_wireguard_peer_address: 10.78.0.1
+        storage_wireguard_private_key: "{{ vault_storage_wireguard_private_key }}"
+        storage_wireguard_peer_public_key: replace-with-compute-public-key
+        redis_metadata_password: "{{ vault_redis_metadata_password }}"
+        minio_object_root_password: "{{ vault_minio_object_root_password }}"
+        minio_object_juicefs_secret_key: "{{ vault_minio_object_juicefs_secret_key }}"
+        minio_object_server_artifact: /absolute/path/to/minio-linux-amd64
+        minio_object_server_checksum: replace-with-lowercase-sha256
+        juicefs_volume_client_artifact: /absolute/path/to/juicefs-linux-amd64
+        juicefs_volume_client_checksum: replace-with-lowercase-sha256
+    control_builder_hosts:
+      hosts:
+        cantelop-builder-staging:
+          ansible_host: 192.0.2.20
+          ansible_user: root
+      vars:
+        cantelop_wireguard_address: 10.77.0.2
+        cantelop_wireguard_peer_address: 10.77.0.1
+        cantelop_wireguard_private_key: "{{ vault_control_builder_wireguard_private_key }}"
+        cantelop_wireguard_peer_public_key: replace-with-fire-fuse-public-key
+        cantelop_wireguard_endpoint: 192.0.2.10:51820
+        control_builder_binary_artifact: /absolute/path/to/cantelop-build-materializer-linux-amd64
+        control_builder_binary_checksum: replace-with-lowercase-sha256
+        cantelop_control_worker_binary_artifact: /absolute/path/to/cantelop-control-worker-linux-amd64
+        cantelop_control_worker_binary_checksum: replace-with-lowercase-sha256
+        cantelop_control_migrate_artifact: /absolute/path/to/cantelop-control-migrate-linux-amd64
+        cantelop_control_migrate_checksum: replace-with-lowercase-sha256
+        cantelop_control_migrations_artifact: /absolute/path/to/cantelop-control-migrations
+        cantelop_control_migrations_manifest_checksum: replace-with-lowercase-sha256
+        cantelop_control_worker_artifact_bucket: cantelop-api-artifacts
+        cantelop_control_worker_artifact_endpoint: https://replace-with-account-id.r2.cloudflarestorage.com
+        cantelop_control_worker_cloudflare_account_id: replace-with-32-lowercase-hex
+        cantelop_control_worker_cloudflare_dispatch_namespace: cantelop-user-workers-staging
+        cantelop_control_worker_cloudflare_route_namespace_id: replace-with-32-lowercase-hex
+        cantelop_control_worker_cloudflare_compatibility_date: "2026-08-12"

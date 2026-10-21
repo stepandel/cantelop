@@ -1,0 +1,6 @@
+ALTER TABLE "cantelop_control"."app_config_values" DROP CONSTRAINT "app_config_values_name_check";--> statement-breakpoint
+ALTER TABLE "cantelop_control"."deployment_uploads" ADD COLUMN "session_runtime_manifest" jsonb;--> statement-breakpoint
+ALTER TABLE "cantelop_control"."session_runtime_artifacts" ADD COLUMN "manifest" jsonb;--> statement-breakpoint
+ALTER TABLE "cantelop_control"."app_config_values" ADD CONSTRAINT "app_config_values_name_check" CHECK ("cantelop_control"."app_config_values"."name" ~ '^[A-Za-z_][A-Za-z0-9_]{0,127}$' AND ("cantelop_control"."app_config_values"."name" !~ '^CANTELOP_' OR ("cantelop_control"."app_config_values"."name" = 'CANTELOP_INTEGRATION_TOKEN' AND "cantelop_control"."app_config_values"."kind" = 'secret')));--> statement-breakpoint
+ALTER TABLE "cantelop_control"."deployment_uploads" ADD CONSTRAINT "deployment_uploads_runtime_manifest_check" CHECK ("cantelop_control"."deployment_uploads"."session_runtime_manifest" IS NULL OR jsonb_typeof("cantelop_control"."deployment_uploads"."session_runtime_manifest") = 'object');--> statement-breakpoint
+ALTER TABLE "cantelop_control"."session_runtime_artifacts" ADD CONSTRAINT "session_runtime_artifacts_manifest_check" CHECK ("cantelop_control"."session_runtime_artifacts"."manifest" IS NULL OR jsonb_typeof("cantelop_control"."session_runtime_artifacts"."manifest") = 'object');

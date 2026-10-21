@@ -1,0 +1,227 @@
+/* The blog: the front door's bar over the section. Posts render in the same
+   bounded Prose measure the docs use; the index lays its cards out on the
+   home page's wider canvas. */
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.content { min-width: 0; }
+
+.skipLink {
+  position: fixed;
+  top: var(--sp-2);
+  left: var(--sp-4);
+  z-index: 3;
+  transform: translateY(-200%);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg);
+  color: var(--ink);
+}
+.skipLink:focus { transform: translateY(0); }
+
+/* ---- A post's masthead ---- */
+
+/* The quiet context line, title, and byline form three distinct levels.
+   This keeps navigation and publication data out of the title's way while
+   preserving the same narrow measure as the article. The title is the
+   reading ramp's h1, not the home page's hero: a post is read, not glanced
+   at, and a 44px title pushed the first paragraph most of a screen down. */
+/* A hairline closes the masthead, so the article starts on its own line
+   rather than running on from the byline. */
+.postHeader {
+  margin: 0;
+  padding-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.postContext {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  color: var(--grey);
+  font: 400 var(--fs-support)/1.4 var(--sans);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+.content .backLink {
+  display: inline-flex;
+  gap: var(--sp-2);
+  color: var(--grey);
+  text-decoration: none;
+}
+.content .backLink:hover { color: var(--ink); text-decoration: none; }
+
+.content .postTitle {
+  margin: var(--sp-3) 0 0;
+  font: 500 var(--fs-read-h1)/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* An author is a face and a name, the name a link to their GitHub. The
+   same row serves the post's masthead and the index card's footer; only the
+   masthead sets it off from the title and gives it its own size. */
+.content .author {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: fit-content;
+  color: var(--grey);
+  text-decoration: none;
+}
+.content .author:hover { color: var(--ink); text-decoration: none; }
+.content .postHeader .author {
+  margin-top: var(--sp-3);
+  font: 400 var(--fs-data)/1.4 var(--sans);
+}
+
+/* A post opens straight into its body text. The one exception is a note
+   set ahead of the article — a disclaimer written as a single italic run —
+   which reads a step below the body, not in competition with it, and is
+   set off from the article by a rule at the measure's width. */
+.content .postHeader + p { margin-top: var(--sp-6); }
+.content .postHeader + p:has(> em:only-child) {
+  padding-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-read-small);
+}
+.content .postHeader + p:has(> em:only-child) + * { margin-top: var(--sp-6); }
+
+.avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+/* ---- The index ---- */
+
+.index {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: var(--sp-12) var(--sp-4);
+}
+
+.indexTitle {
+  margin: 0 0 var(--sp-8);
+  font: 500 var(--fs-read-h1)/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* Cards, in the shape the reader knows from other engineering blogs: a
+   visual band, a date, a title, and an author row. The first post leads at
+   full width; the rest pair up. Cards are the one place the site departs
+   from hairline-only division, and they keep to its tokens: a hairline
+   border on the paper surface, no shadow. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.card:hover { border-color: var(--line-strong); }
+.card:first-child { grid-column: 1 / -1; }
+
+.cardLink {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  color: var(--ink);
+  text-decoration: none;
+}
+.cardLink:hover { color: var(--ink); text-decoration: none; }
+
+/* The visual band: the home page's picture ground — white, with a dot grid
+   that fades toward the edges — and the post's own figure set into it where
+   the post has one. The figure is decoration here, drawn smaller than in the
+   post; its caption stays in the post. */
+.art {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--line-strong) 1px, transparent 1.5px);
+  background-size: 20px 20px;
+  background-position: center;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  pointer-events: none;
+}
+.card:first-child .art { height: 300px; }
+
+.artInner {
+  position: relative;
+  transform: scale(0.6);
+  pointer-events: none;
+}
+.card:first-child .artInner { transform: scale(0.85); }
+.artInner figure { margin: 0; --fig-scale: 1; }
+/* The card is the frame here, so the figure's own frame steps back. */
+.artInner figure > div { border: 0; border-radius: 0; background: none; }
+.artInner figure > div > div { padding: 0; }
+.artInner figcaption { display: none; }
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+}
+
+.cardDate {
+  color: var(--grey);
+  font: 400 var(--fs-support) var(--sans);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+.cardTitle {
+  margin: 0;
+  font: 500 var(--fs-stat)/1.35 var(--sans);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.card:first-child .cardTitle { font: 500 var(--fs-display)/1.25 var(--sans); letter-spacing: -0.02em; }
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-4);
+  color: var(--grey);
+  font: 400 var(--fs-support)/1 var(--sans);
+}
+
+@media (max-width: 640px) {
+  .postContext { align-items: flex-start; }
+  .content .postTitle { margin-top: var(--sp-3); }
+
+  .index { padding: var(--sp-8) var(--sp-4); }
+  .cards { grid-template-columns: minmax(0, 1fr); }
+  .card:first-child .art { height: 200px; }
+  .card:first-child .artInner { transform: scale(0.5); }
+  .card:first-child .cardTitle { font: 500 var(--fs-stat)/1.35 var(--sans); }
+}

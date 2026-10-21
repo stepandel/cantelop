@@ -1,0 +1,10 @@
+---
+storage_backup_qualify_restore_mount_rehearsal_id: ""
+storage_backup_qualify_restore_mount_juicefs: /usr/local/bin/juicefs
+storage_backup_qualify_restore_mount_juicefs_checksum: >-
+  {{ juicefs_volume_client_checksum | default('') }}
+storage_backup_qualify_restore_mount_mountpoint_root: /mnt/fire-fuse-restores
+storage_backup_qualify_restore_mount_cache_root: /var/cache/fire-fuse-restores
+storage_backup_qualify_restore_mount_cache_size_mib: 64
+storage_backup_qualify_restore_mount_helper: >-
+  /usr/local/lib/fire-fuse/qualify-juicefs-restore-mount

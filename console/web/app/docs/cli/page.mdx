@@ -1,0 +1,116 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/cli" },
+  title: "CLI reference", description: "Find Cantelop CLI commands for local development, deployment, App configuration, Sessions, and logs.",
+};
+
+# CLI reference
+
+Use the CLI to develop, deploy, configure, and operate an App. Start with the
+[quick start](/docs/quick-start) for installation, or run `cantelop --help`
+for the command overview.
+
+## Project
+
+Project commands read `cantelop.json`, compile the App definition it names
+(`src/cantelop.ts` by default), and use the App name declared there. Use
+`-config PATH` when the manifest is elsewhere; paths in it are relative to
+that file. When the definition exports more than one App, `dev`, `build`,
+`deploy`, and `doctor` take `--app NAME`.
+
+For the optional Dockerfile and its build context, see
+[Session runtime configuration](/docs/session-runtime#runtime-configuration).
+
+- `cantelop init -app SLUG -provider openai|claude|pi` creates `cantelop.json`,
+  the App definition `src/cantelop.ts`, the runtime `src/agent.ts`, and
+  `package.json`. The provider is required. It needs no login and refuses to
+  overwrite files. Install the supported SDK 1.0 afterwards with
+  `npm install @cantelop/sdk`. With CLI 0.15.2, add the inline message type
+  shown in the [quick start](/docs/quick-start) before running `dev`.
+- `cantelop dev` serves the App at `127.0.0.1:8787`, rebuilds after edits, and
+  records a local credential in the SDK's `local` profile. `-port` changes the
+  port, `-env-file` chooses a local environment file, and `--container` runs
+  Sessions in Docker. Restart container mode after edits.
+- `cantelop build` builds the generated Edge Worker and Linux runtime image
+  locally. It does not require login or upload anything.
+- `cantelop doctor` checks the toolchain, project, authentication, and required
+  production configuration. It runs every check and exits non-zero on failure.
+- `cantelop deploy` builds, uploads, and creates a release. `--dry-run` stops
+  after the build; `--create-app` allows creation of a missing App without an
+  interactive prompt; `--env-file .env` imports the App's declared variables
+  and secrets first.
+- `cantelop env sync` imports the declared variables and secrets from `.env`
+  (or `--env-file`) without deploying. `--dry-run` shows names only.
+
+## Operations
+
+These commands use the project's App and accept `--json`.
+`logs --follow --json` emits one event per line; finite commands return one
+document.
+
+- `cantelop routes` lists the routes the live release serves (one `/commands/*` path per SDK command,
+  the homepage, and declared webhooks) with their traffic, as on the App's
+  Ingress page. `cantelop routes --openapi > openapi.json` writes them as an
+  OpenAPI 3.1 document. It describes methods and paths only.
+- `cantelop logs --follow` tails completed-request events with status, duration,
+  Session, and Workspace. Omit `--follow` for a single read.
+- `cantelop session list` lists Sessions and their states.
+- `cantelop session inspect SESSION_ID` shows one Session's details.
+- `cantelop session terminate SESSION_ID` releases its Sandbox. The Session
+  remains reusable and Workspace files persist.
+- `cantelop releases` lists releases newest first.
+- `cantelop rollback` activates the newest superseded release. It refuses to
+  race a deployment still being provisioned.
+- `cantelop database migrations WORKSPACE_ID` shows the system and application
+  migrations applied to one Workspace's database.
+
+## Resources
+
+Resource commands take generated App IDs instead of using the project manifest.
+
+- `cantelop app list` lists your Apps and their IDs.
+- `cantelop app inspect APP_ID` shows an App, its Workspaces, and active release.
+- `cantelop app create -slug SLUG` creates an App at `https://<slug>.cantelop.dev`.
+- `cantelop app archive APP_ID` removes the App and its Workspaces from product
+  reads and queues cleanup. Local project files remain untouched.
+- `cantelop app env set APP_ID NAME=VALUE` sets a variable. Use
+  `env list APP_ID` to read values and `env unset APP_ID NAME` to remove one.
+- `cantelop app secret set APP_ID NAME` reads a secret from stdin. Use
+  `secret list APP_ID` to list names and `secret unset APP_ID NAME` to remove
+  one. Values are never returned.
+- `cantelop app deploy APP_ID -image IMAGE -artifact DIRECTORY` deploys
+  artifacts built by your own automation.
+- `cantelop app credentials [--app APP]` prints the credentials a hosted
+  backend uses to call the App, as dotenv (default), a `CANTELOP_APP_CONFIG`
+  document (`--format app-config`), or the bare token (`--format token`).
+- `cantelop app credentials rotate [--app APP]` issues a new token. The
+  previous one keeps working for `--grace` (24h by default, at most 168h), or
+  stops at once with `--now`.
+
+Variables and secrets are shared by the Edge Worker's webhooks and homepage
+and by newly started Sessions.
+See [environments](/docs/environments) for local defaults and production checks.
+
+## Account
+
+- `cantelop login` opens browser authorization and stores the CLI credential
+  with mode `0600`. `-console ORIGIN` selects another console;
+  `CANTELOP_CONFIG` overrides the credential file path.
+- `cantelop version` prints the CLI version and source commit. `-v` is an alias.
+- `cantelop --help` shows command groups and common examples. `help` and `-h`
+  are aliases.
+
+## Uninstall
+
+Stop any running `cantelop dev` process first. For a Homebrew installation,
+run `brew uninstall cantelop`. For the alternative installer, remove only the
+`cantelop` executable in `~/.local/bin`, or the custom `CANTELOP_INSTALL_DIR`
+you selected. Do not remove the whole directory, which may contain other tools.
+
+If an earlier installer edited your shell profile, remove the line marked
+`# added by cantelop installer` from `.zshrc`, `.bashrc`, `.bash_profile`,
+`.profile`, or the fish configuration file `conf.d/cantelop.fish`, as appropriate.
+Keep any PATH entries needed by your other software.
+
+Uninstalling the CLI does not delete local projects, saved credentials, or
+hosted Apps and Workspaces. Use `cantelop app archive APP_ID` before uninstalling
+if you want to archive a hosted App and queue its cleanup.

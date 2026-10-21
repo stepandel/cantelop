@@ -1,0 +1,1 @@
+ALTER TABLE "cantelop_control"."fleet_policies" ADD COLUMN "next_sync_at" timestamp with time zone DEFAULT now() NOT NULL;

@@ -1,0 +1,65 @@
+.page { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+.content { min-width: 0; flex: 1; }
+.skipLink { position: fixed; top: var(--sp-2); left: var(--sp-4); z-index: 3; transform: translateY(-200%); padding: var(--sp-2) var(--sp-3); background: var(--surface); color: var(--ink); }
+.skipLink:focus { transform: translateY(0); }
+.index { max-width: 1040px; margin: 0 auto; padding: var(--sp-12) var(--sp-4); }
+.title { margin: 0; font: 500 var(--fs-read-h1)/1.15 var(--sans); letter-spacing: -0.02em; }
+.intro { max-width: 64ch; margin: var(--sp-4) 0 var(--sp-8); color: var(--muted); font: 400 var(--fs-read)/var(--lh-read) var(--sans); }
+.card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
+.card + .card { margin-top: var(--sp-6); }
+.cardArt { display: flex; align-items: center; overflow: hidden; min-width: 0; padding: var(--sp-4); background: var(--panel); border-right: 1px solid var(--line); }
+.cardArt figure { margin: 0; width: 100%; --fig-scale: 1; }
+.cardArt figure > div { overflow: hidden; border: 0; border-radius: 0; background: none; }
+.cardArt figure > div > div { padding: 0; }
+.cardArt svg { min-width: 0; width: 100%; height: auto; }
+.cardArt figcaption { display: none; }
+/* The lockup: two marks in ink with a quiet plus between them. The shade
+   is decorative (the counter of OpenCode's "o"), never text. */
+.lockup { display: block; width: 100%; height: auto; color: var(--ink); }
+.mark { fill: currentColor; }
+.markShade { fill: var(--ghost); }
+.plus { stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; }
+.cardBody { padding: var(--sp-8); align-self: center; }
+.eyebrow { margin: 0; font: 500 var(--fs-support)/1.5 var(--sans); color: var(--muted); }
+.cardBody h2 { margin: var(--sp-4) 0; font: 500 var(--fs-display)/1.25 var(--sans); letter-spacing: -0.02em; }
+.cardBody h2 a { color: var(--ink); text-decoration: none; }
+.cardBody > p:not(.eyebrow) { font: 400 var(--fs-data)/var(--lh-prose) var(--sans); color: var(--muted); }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-6); font-size: var(--fs-data); }
+.actions a { color: var(--ink); }
+.actions .primaryLink { display: inline-flex; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--ink); color: var(--surface); border-radius: var(--radius-sm); text-decoration: none; }
+.actions .primaryLink:hover { background: var(--ink-hover); }
+.readingLayout { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--sp-8); padding: 0 var(--sp-4); }
+.sidebar { position: sticky; top: calc(48px + var(--sp-8)); align-self: start; margin: var(--sp-12) 0; font: 400 var(--fs-data)/var(--lh-prose) var(--sans); max-height: calc(100dvh - 128px); overflow-y: auto; }
+.back { display: inline-block; margin-bottom: var(--sp-8); color: var(--muted); text-decoration: none; }
+/* The contents hang off a hairline, and the section being read inks up and
+   takes the line's place with a 2px rule, so the reader can see where they
+   are in a long guide at a glance. */
+.sidebar ol { list-style: none; padding: 0; margin: var(--sp-3) 0 var(--sp-6); border-left: 1px solid var(--line); }
+.sidebar li + li { margin-top: 2px; }
+.sidebar nav a { display: block; margin-left: -1px; padding: var(--sp-1) 0 var(--sp-1) var(--sp-3); border-left: 2px solid transparent; color: var(--muted); text-decoration: none; transition: color 0.15s, border-color 0.15s; }
+.sidebar nav a:hover { color: var(--ink); text-decoration: none; }
+.sidebar nav a.current { color: var(--ink); border-left-color: var(--ink); }
+.sidebar > a:hover { color: var(--ink); text-decoration: underline; }
+.sourceLink { color: var(--ink); font-size: var(--fs-support); }
+.mobileContents { display: none; }
+.article { min-width: 0; }
+@media (max-width: 800px) {
+  .card { grid-template-columns: minmax(0, 1fr); }
+  .cardArt { border-right: 0; border-bottom: 1px solid var(--line); }
+  .cardArt figure { max-width: 480px; margin: auto; }
+  .readingLayout { display: block; padding: 0; }
+  .sidebar { position: static; max-height: none; max-width: 680px; margin: 0 auto; padding: var(--sp-6) var(--sp-6) 0; }
+  .desktopContents, .sidebar .sourceLink { display: none; }
+  .mobileContents { display: block; padding: var(--sp-3) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .mobileContents summary { cursor: pointer; color: var(--ink); }
+  .back { margin-bottom: var(--sp-4); }
+  .sidebar ol { columns: 2; column-gap: var(--sp-6); border-left: 0; }
+  .sidebar nav a { margin-left: 0; padding-left: 0; border-left: 0; }
+  .sidebar li { break-inside: avoid; }
+}
+@media (max-width: 480px) {
+  .index { padding-top: var(--sp-8); }
+  .cardBody { padding: var(--sp-6); }
+  .sidebar ol { columns: 1; }
+  .readingLayout .article :is(h2, h3) { scroll-margin-top: 112px; }
+}

@@ -1,0 +1,38 @@
+# Exact known placeholder/fixture lines, including fresh snapshot histories.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Reviewed deterministic fixture or documented placeholder"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)console/\.env\.example$''']
+regexes = ['''^\s*CLOUDFLARE_OBSERVABILITY_TOKEN=replace\-with\-workers\-observability\-token\s*$''']
+
+[[allowlists]]
+description = "Reviewed deterministic fixture or documented placeholder"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)console/core/db/release\-repository\.test\.mjs$''']
+regexes = ['''^\s*const\ apiOperationID\ =\ "op_0123456789abcdef0123456789abcdef";\s*$''']
+
+[[allowlists]]
+description = "Reviewed deterministic fixture or documented placeholder"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)fire\-fuse/controlauth/controlauth_test\.go$''']
+regexes = ['''^\s*const\ testToken\ =\ "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"\s*$''']
+
+[[allowlists]]
+description = "Reviewed deterministic fixture or documented placeholder"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)fire\-fuse/gateway/gateway_test\.go$''']
+regexes = ['''^\s*const\ testEdgeToken\ =\ "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"\s*$''']
+
+[[allowlists]]
+description = "Reviewed deterministic fixture or documented placeholder"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)platform/ansible/README\.md$''']
+regexes = ['''^\s*vault_cantelop_artifact_secret_access_key:\ replace\-with\-r2\-secret\-key\s*$''']

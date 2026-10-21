@@ -1,0 +1,8 @@
+---
+storage_backup_finalize_restore_rehearsal_id: ""
+storage_backup_finalize_restore_juicefs: /usr/local/bin/juicefs
+storage_backup_finalize_restore_juicefs_checksum: >-
+  {{ juicefs_volume_client_checksum | default('') }}
+storage_backup_finalize_restore_metadata_url_file: /etc/fire-fuse/juicefs-meta-url
+storage_backup_finalize_restore_validator: >-
+  /usr/local/lib/fire-fuse/validate-storage-backup-restore-evidence.py

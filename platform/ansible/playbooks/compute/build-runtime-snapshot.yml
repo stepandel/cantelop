@@ -1,0 +1,7 @@
+---
+- name: Build and verify a generic fire-fuse runtime snapshot
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: fire_fuse_snapshot

@@ -1,0 +1,2 @@
+inventory/staging/hosts.yml
+inventory/staging/group_vars/fire_fuse_hosts/vault.yml

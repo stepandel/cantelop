@@ -1,0 +1,5 @@
+[Unit]
+Requires={{ juicefs_gateway_service }}
+Requires={{ juicefs_gateway_nfs_firewall_service }}
+After={{ juicefs_gateway_service }}
+After={{ juicefs_gateway_nfs_firewall_service }}

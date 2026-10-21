@@ -1,0 +1,26 @@
+---
+storage_rotate_minio_previous_secret_key: "{{ fire_fuse_rotate_minio_previous_secret_key | default('') }}"
+storage_rotate_minio_service: fire-fuse.service
+storage_rotate_minio_minio_service: fire-fuse-minio.service
+storage_rotate_minio_metadata_url_file: /etc/fire-fuse/juicefs-meta-url
+storage_rotate_minio_juicefs_binary: /usr/local/bin/juicefs
+storage_rotate_minio_client_binary: /usr/local/bin/mc
+storage_rotate_minio_bind_address: 10.78.0.2
+storage_rotate_minio_api_port: 9000
+storage_rotate_minio_access_key: juicefs
+storage_rotate_minio_bucket: fire-fuse-workspaces
+storage_rotate_minio_listen_address: 127.0.0.1
+storage_rotate_minio_listen_port: 8080
+storage_rotate_minio_readiness_attempts: 30
+storage_rotate_minio_readiness_delay_seconds: 1
+
+storage_rotate_minio_files:
+  - name: JuiceFS metadata URL
+    path: "{{ storage_rotate_minio_metadata_url_file }}"
+    mode: "0600"
+  - name: JuiceFS client
+    path: "{{ storage_rotate_minio_juicefs_binary }}"
+    mode: "0755"
+  - name: MinIO client
+    path: "{{ storage_rotate_minio_client_binary }}"
+    mode: "0755"

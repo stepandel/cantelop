@@ -1,0 +1,11 @@
+---
+fire_fuse_snapshot_stage_directory: /var/lib/fire-fuse/staged-release
+fire_fuse_snapshot_builder_binary: "{{ fire_fuse_snapshot_stage_directory }}/fire-fuse-snapshot"
+fire_fuse_snapshot_config: "{{ fire_fuse_snapshot_stage_directory }}/snapshot-build-config.json"
+fire_fuse_snapshot_runtime_directory: /var/lib/fire-fuse/snapshot-build-runtime
+fire_fuse_snapshot_root: /var/lib/fire-fuse/snapshots
+fire_fuse_snapshot_placeholder: >-
+  {{ fire_fuse_snapshot_root }}/container-placeholder-64m
+fire_fuse_snapshot_placeholder_bytes: 67108864
+fire_fuse_snapshot_assignment_protocol: 2
+fire_fuse_snapshot_bundle: "{{ fire_fuse_snapshot_root }}/default-4vcpu-512m-hotplug-4g"

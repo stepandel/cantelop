@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly juicefs="$1"
+readonly metadata_url="$2"
+readonly mountpoint="$3"
+readonly cache_root="$4"
+readonly cache_size="$5"
+readonly rehearsal_id="$6"
+readonly marker="${mountpoint}/.fire-fuse-${rehearsal_id}"
+mounted=false
+marker_written=false
+
+fail() { printf 'restore mount qualification: %s\n' "$*" >&2; exit 1; }
+is_mounted() { /usr/bin/mountpoint --quiet "${mountpoint}"; }
+wait_state() {
+  local expected="$1"
+  local attempt
+  for attempt in {1..100}; do
+    if [[ "${expected}" == mounted ]] && is_mounted; then return 0; fi
+    if [[ "${expected}" == unmounted ]] && ! is_mounted; then return 0; fi
+    /usr/bin/sleep 0.1
+  done
+  return 1
+}
+mount_volume() {
+  local cache="$1"
+  "${juicefs}" mount \
+    --cache-dir="${cache}" \
+    --cache-size="${cache_size}" \
+    --free-space-ratio=0.2 \
+    --backup-meta=0 \
+    --no-bgjob \
+    --no-syslog \
+    --no-usage-report \
+    --background \
+    "${metadata_url}" \
+    "${mountpoint}"
+  wait_state mounted || fail 'mount did not become ready'
+  mounted=true
+}
+unmount_volume() {
+  "${juicefs}" umount "${mountpoint}"
+  wait_state unmounted || fail 'mount did not stop cleanly'
+  mounted=false
+}
+cleanup() {
+  local status="$?"
+  trap - EXIT
+  set +e
+  if [[ "${mounted}" == true && "${marker_written}" == true ]]; then
+    "${juicefs}" rmr --skip-trash "${marker}"
+  fi
+  if [[ "${mounted}" == true ]]; then
+    "${juicefs}" umount "${mountpoint}"
+  fi
+  exit "${status}"
+}
+trap cleanup EXIT
+
+[[ "${rehearsal_id}" =~ ^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]] \
+  || fail 'invalid rehearsal ID'
+[[ "${cache_size}" =~ ^[1-9][0-9]{0,2}$ ]] || fail 'invalid cache size'
+[[ -x "${juicefs}" && -d "${mountpoint}" && -d "${cache_root}" ]] \
+  || fail 'missing trusted runtime input'
+is_mounted && fail 'mountpoint is already mounted'
+[[ -z "$(/usr/bin/find "${mountpoint}" -mindepth 1 -maxdepth 1 -print -quit)" ]] \
+  || fail 'mountpoint is not empty'
+
+/usr/bin/mkdir --mode=0700 "${cache_root}/first" "${cache_root}/second"
+mount_volume "${cache_root}/first"
+[[ ! -e "${marker}" ]] || fail 'restore marker already exists'
+
+representative=""
+while IFS= read -r -d '' candidate; do
+  representative="${candidate}"
+  break
+done < <(
+  /usr/bin/find "${mountpoint}" -xdev -type f -size +0c \
+    ! -path "${mountpoint}/.config" \
+    ! -path "${mountpoint}/.stats" \
+    ! -path "${mountpoint}/.accesslog" \
+    ! -path "${mountpoint}/.control" \
+    ! -name ".fire-fuse-${rehearsal_id}" -print0
+)
+[[ -n "${representative}" ]] || fail 'restored volume has no representative file'
+readonly representative
+readonly representative_first="$(
+  /usr/bin/sha256sum "${representative}" | /usr/bin/cut -d ' ' -f 1
+)"
+
+readonly marker_value="${rehearsal_id}:$(
+  /usr/bin/date --utc +%Y-%m-%dT%H:%M:%SZ
+)"
+/usr/bin/printf '%s' "${marker_value}" \
+  | /usr/bin/dd of="${marker}" conv=fsync status=none
+marker_written=true
+readonly marker_first="$(
+  /usr/bin/sha256sum "${marker}" | /usr/bin/cut -d ' ' -f 1
+)"
+unmount_volume
+
+mount_volume "${cache_root}/second"
+readonly representative_second="$(
+  /usr/bin/sha256sum "${representative}" | /usr/bin/cut -d ' ' -f 1
+)"
+readonly marker_second="$(
+  /usr/bin/sha256sum "${marker}" | /usr/bin/cut -d ' ' -f 1
+)"
+[[ "${representative_first}" == "${representative_second}" ]] \
+  || fail 'representative file changed after cold remount'
+[[ "${marker_first}" == "${marker_second}" ]] \
+  || fail 'marker changed after cold remount'
+"${juicefs}" rmr --skip-trash "${marker}"
+marker_written=false
+[[ ! -e "${marker}" ]] || fail 'restore marker cleanup did not complete'
+/usr/bin/sync -f "${mountpoint}"
+unmount_volume
+
+/usr/bin/printf \
+  '{"schema_version":1,"status":"juicefs-mount-remount-qualified","rehearsal_id":"%s","representative_sha256":"%s","first_mount_marker_sha256":"%s","remount_marker_sha256":"%s","clean_unmount_verified":true,"marker_removed":true}\n' \
+  "${rehearsal_id}" "${representative_first}" "${marker_first}" "${marker_second}"

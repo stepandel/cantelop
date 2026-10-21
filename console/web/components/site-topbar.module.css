@@ -1,0 +1,93 @@
+/* The front door's bar and its CTA. The home hero reuses .cta for Get
+   started and the console's topbar for Sign out, so the buttons are one rule. */
+
+/* Three columns, the outer two equal, so the nav sits on the page's center
+   line whatever the brand and the actions measure. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-4) 0 var(--sp-6);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+.actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 400 var(--fs-data) var(--sans);
+  color: var(--grey);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.link:hover { color: var(--ink); text-decoration: none; }
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-4);
+  height: 32px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--surface);
+  text-decoration: none;
+  white-space: nowrap;
+  font: 500 var(--fs-data)/1 var(--sans);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.cta:hover { background: var(--ink-hover); color: var(--surface); text-decoration: none; }
+.cta:active { transform: translateY(1px); }
+.cta:disabled { cursor: default; background: var(--hover); border-color: var(--hover); color: var(--faint); }
+
+/* On the front door the way in is a pill, the one round thing on the page. */
+.pill { border-radius: 999px; }
+
+/* Narrow screens: brand and actions on the first row, the nav on its own
+   row under them. */
+@media (max-width: 720px) {
+  .topbar {
+    height: auto;
+    min-height: 48px;
+    flex-basis: auto;
+    grid-template-columns: 1fr auto;
+    row-gap: 0;
+    padding: var(--sp-2) var(--sp-4);
+  }
+  .nav { grid-row: 2; grid-column: 1 / -1; gap: var(--sp-4); padding: var(--sp-2) 0 var(--sp-1); }
+}
+
+@media (max-width: 400px) {
+  .actions > .link { display: none; }
+}

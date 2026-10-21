@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+minio_host={{ storage_observability_minio_bind_address | quote }}
+minio_port={{ storage_observability_minio_api_port | string | quote }}
+data_directory={{ storage_observability_minio_data_directory | quote }}
+state_file={{ (storage_observability_state_directory + '/minio.json') | quote }}
+
+publish() {
+  temporary_file="$(mktemp "${state_file}.XXXXXX")"
+  printf '%s\n' "$1" > "$temporary_file"
+  chmod 0644 "$temporary_file"
+  mv -f "$temporary_file" "$state_file"
+  printf '%s\n' "$1"
+}
+
+fail() {
+  publish "{\"event\":\"backend_health\",\"component\":\"minio\",\"available\":false,\"reason\":\"$1\",\"observed_at_epoch\":$(date +%s)}"
+  exit 1
+}
+
+started_ns="$(date +%s%N)"
+if ! /usr/bin/curl \
+  --fail \
+  --silent \
+  --show-error \
+  --max-time 5 \
+  --noproxy '*' \
+  --output /dev/null \
+  "http://$minio_host:$minio_port/minio/health/ready" 2>/dev/null
+then
+  fail readiness
+fi
+finished_ns="$(date +%s%N)"
+
+if ! filesystem_capacity="$(
+  /usr/bin/df --block-size=1 --output=size,used,avail "$data_directory" |
+    /usr/bin/awk 'NR == 2 { print $1 ":" $2 ":" $3 }'
+)"; then
+  fail capacity
+fi
+
+filesystem_total_bytes="${filesystem_capacity%%:*}"
+capacity_remainder="${filesystem_capacity#*:}"
+filesystem_used_bytes="${capacity_remainder%%:*}"
+filesystem_available_bytes="${capacity_remainder#*:}"
+
+for value in \
+  "$filesystem_total_bytes" \
+  "$filesystem_used_bytes" \
+  "$filesystem_available_bytes"
+do
+  case "$value" in
+    '' | *[!0-9]*) fail metrics ;;
+  esac
+done
+
+latency_us="$(((finished_ns - started_ns) / 1000))"
+publish \
+  "{\"event\":\"backend_health\",\"component\":\"minio\",\"available\":true,\"latency_us\":$latency_us,\"filesystem_total_bytes\":$filesystem_total_bytes,\"filesystem_used_bytes\":$filesystem_used_bytes,\"filesystem_available_bytes\":$filesystem_available_bytes,\"observed_at_epoch\":$(date +%s)}"

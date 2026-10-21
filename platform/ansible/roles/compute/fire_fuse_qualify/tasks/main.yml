@@ -1,0 +1,256 @@
+---
+- name: Validate fire-fuse qualification inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        fire_fuse_qualify_service_name
+        is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+      - fire_fuse_qualify_integration_binary == '/usr/local/bin/fire-fuse-integration'
+      - fire_fuse_qualify_systemd_run == '/usr/bin/systemd-run'
+      - fire_fuse_qualify_config == '/etc/fire-fuse/config.json'
+      - >-
+        fire_fuse_qualify_control_token_file
+        == '/etc/fire-fuse/control-clients/operator.token'
+      - >-
+        fire_fuse_qualify_build_id
+        is match('^sha256:[0-9a-f]{64}$')
+      - fire_fuse_qualify_guest_tcp_port | int >= 1
+      - fire_fuse_qualify_guest_tcp_port | int <= 65535
+      - fire_fuse_qualify_ssh_key | length > 1
+      - fire_fuse_qualify_ssh_key.startswith('/')
+      - fire_fuse_qualify_listen_address == '127.0.0.1'
+      - fire_fuse_qualify_listen_port | int == 8080
+      - fire_fuse_qualify_readiness_attempts | int >= 1
+      - fire_fuse_qualify_readiness_attempts | int <= 120
+      - fire_fuse_qualify_readiness_delay_seconds | int >= 1
+      - fire_fuse_qualify_readiness_delay_seconds | int <= 10
+      - fire_fuse_qualify_unmount_hang is boolean
+      - fire_fuse_qualify_dependent_services is sequence
+      - fire_fuse_qualify_dependent_services is not string
+    fail_msg: >-
+      qualification requires a normal Ansible run, fixed trusted runtime
+      paths, a safe profile and SSH key path, the loopback API, and bounded
+      readiness retries
+
+- name: Validate dependent service names
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+    fail_msg: qualification dependent service names must be safe systemd units
+  loop: "{{ fire_fuse_qualify_dependent_services }}"
+
+- name: Inspect qualification files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  register: fire_fuse_qualify_file_stats
+  loop: "{{ fire_fuse_qualify_trusted_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted qualification files
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', modes=item.item.modes)
+      - item.stat.size | default(0) > 0
+    fail_msg: qualification file {{ item.item.name }} failed trust checks
+  loop: "{{ fire_fuse_qualify_file_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Inspect the control-plane token
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_qualify_control_token_file }}"
+  register: fire_fuse_qualify_control_token_stat
+
+- name: Require the trusted control-plane token
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_qualify_control_token_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+    fail_msg: qualification requires the trusted control-plane token file
+
+- name: Read the control-plane token
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_qualify_control_token_file }}"
+  register: fire_fuse_qualify_control_token_contents
+  no_log: true
+
+- name: Decode the control-plane token
+  ansible.builtin.set_fact:
+    fire_fuse_qualify_control_token: >-
+      {{ fire_fuse_qualify_control_token_contents.content | b64decode | trim }}
+  no_log: true
+
+- name: Validate the control-plane token
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_qualify_control_token is match('^[0-9a-f]{64}$')
+    fail_msg: qualification requires a valid control-plane token
+  no_log: true
+
+- name: Read service state before qualification
+  ansible.builtin.service_facts:
+
+- name: Require the activated fire-fuse service
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get(
+          fire_fuse_qualify_service_name, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          fire_fuse_qualify_service_name, {}
+        ).get('status', 'not-found') == 'enabled'
+    fail_msg: qualification requires fire-fuse to be running and enabled
+
+- name: Initialize the active dependent service inventory
+  ansible.builtin.set_fact:
+    fire_fuse_qualify_active_dependents: []
+  changed_when: false
+
+- name: Record active dependent services before qualification
+  ansible.builtin.set_fact:
+    fire_fuse_qualify_active_dependents: >-
+      {{ fire_fuse_qualify_active_dependents + [item] }}
+  loop: "{{ fire_fuse_qualify_dependent_services }}"
+  when:
+    - >-
+      ansible_facts.services.get(item, {}).get('state', 'not-found')
+      == 'running'
+  changed_when: false
+
+- name: Require fire-fuse readiness before qualification
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_qualify_listen_address }}:{{
+      fire_fuse_qualify_listen_port }}/readyz
+    method: GET
+    status_code: 200
+    return_content: false
+    use_proxy: false
+
+- name: Inventory live Sandboxes before qualification
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_qualify_listen_address }}:{{
+      fire_fuse_qualify_listen_port }}/v1/sandboxes
+    method: GET
+    headers:
+      Authorization: "Bearer {{ fire_fuse_qualify_control_token }}"
+    status_code: 200
+    return_content: true
+    use_proxy: false
+  register: fire_fuse_qualify_sandbox_inventory
+  changed_when: false
+  no_log: true
+
+- name: Require the production supervisor to be drained
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_qualify_sandbox_inventory.json['items'] is defined
+      - >-
+        fire_fuse_qualify_sandbox_inventory.json['items']
+        | map(attribute='state')
+        | difference(['failed', 'terminated'])
+        | length == 0
+    fail_msg: >-
+      qualification refuses to stop fire-fuse while a Sandbox is starting,
+      running, or stopping
+
+- name: Run isolated real-host qualification
+  block:
+    - name: Stop the production supervisor
+      ansible.builtin.systemd_service:
+        name: "{{ fire_fuse_qualify_service_name }}"
+        state: stopped
+
+    - name: Execute the fire-fuse integration suite
+      ansible.builtin.command:
+        argv:
+          - "{{ fire_fuse_qualify_systemd_run }}"
+          - --quiet
+          - --wait
+          - --pipe
+          - --collect
+          - --service-type=exec
+          - --property=Delegate=yes
+          - --unit=fire-fuse-qualification
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION=1
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION_CONFIG={{
+            fire_fuse_qualify_config }}
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION_BUILD_ID={{
+            fire_fuse_qualify_build_id }}
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION_GUEST_TCP_PORT={{
+            fire_fuse_qualify_guest_tcp_port }}
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION_SSH_KEY={{
+            fire_fuse_qualify_ssh_key }}
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION_SYSTEMD_RUN={{
+            fire_fuse_qualify_systemd_run }}
+          - --setenv=FIRE_FUSE_INTEGRATION_STORAGE_OUTAGES=0
+          - >-
+            --setenv=FIRE_FUSE_INTEGRATION_UNMOUNT_HANG={{
+            fire_fuse_qualify_unmount_hang | ternary('1', '0') }}
+          - "{{ fire_fuse_qualify_integration_binary }}"
+          - -test.v
+      changed_when: true
+
+  always:
+    - name: Restore the production supervisor
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/systemctl
+          - start
+          - "{{ fire_fuse_qualify_service_name }}"
+      register: fire_fuse_qualify_service_restore
+      changed_when: fire_fuse_qualify_service_restore.rc == 0
+      failed_when: false
+
+    - name: Require fire-fuse readiness after qualification
+      ansible.builtin.uri:
+        url: >-
+          http://{{ fire_fuse_qualify_listen_address }}:{{
+          fire_fuse_qualify_listen_port }}/readyz
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      register: fire_fuse_qualify_readiness
+      retries: "{{ fire_fuse_qualify_readiness_attempts }}"
+      delay: "{{ fire_fuse_qualify_readiness_delay_seconds }}"
+      until: fire_fuse_qualify_readiness.status | default(0) == 200
+
+    - name: Restore dependent services that qualification stopped
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/systemctl
+          - start
+          - "{{ item }}"
+      loop: "{{ fire_fuse_qualify_active_dependents }}"
+      register: fire_fuse_qualify_dependent_restores
+      changed_when: true
+      failed_when: false
+
+    - name: Require successful service restoration
+      ansible.builtin.assert:
+        that:
+          - fire_fuse_qualify_service_restore.rc == 0
+          - >-
+            fire_fuse_qualify_dependent_restores.results
+            | rejectattr('rc', 'equalto', 0)
+            | list
+            | length == 0
+        fail_msg: >-
+          qualification cleanup attempted every selected service, but at least
+          one systemd start failed

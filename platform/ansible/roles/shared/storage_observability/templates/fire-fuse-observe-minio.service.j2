@@ -1,0 +1,22 @@
+[Unit]
+Description=Observe fire-fuse MinIO availability and capacity
+After={{ storage_observability_minio_service }}
+
+[Service]
+Type=oneshot
+ExecStart={{ storage_observability_minio_probe }}
+User=root
+Group=root
+UMask=0077
+SyslogIdentifier=fire-fuse-storage-observer
+RuntimeDirectory=fire-fuse-observability
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadOnlyPaths={{ storage_observability_minio_data_directory }}
+ReadWritePaths={{ storage_observability_state_directory }}

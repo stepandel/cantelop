@@ -1,0 +1,13 @@
+---
+storage_backup_plan_retention_restore_qualified_set_id: ""
+storage_backup_plan_retention_daily: 14
+storage_backup_plan_retention_weekly: 8
+storage_backup_plan_retention_monthly: 12
+storage_backup_plan_retention_program: >-
+  /usr/local/lib/fire-fuse/plan-storage-backup-retention.py
+storage_backup_plan_retention_auditor: >-
+  /usr/local/lib/fire-fuse/audit-storage-backups.py
+storage_backup_plan_retention_evidence_validator: >-
+  /usr/local/lib/fire-fuse/validate-storage-backup-restore-evidence.py
+storage_backup_plan_retention_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py

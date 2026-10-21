@@ -1,0 +1,12 @@
+---
+- name: Restart builder Docker
+  ansible.builtin.systemd_service:
+    name: docker.service
+    state: restarted
+  when: not ansible_check_mode
+
+- name: Restart control builder
+  ansible.builtin.systemd_service:
+    name: cantelop-build-materializer.service
+    state: restarted
+  when: not ansible_check_mode

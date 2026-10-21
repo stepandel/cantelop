@@ -1,0 +1,32 @@
+---
+- name: Require supported storage host
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '24.04'
+      - ansible_facts.architecture == 'x86_64'
+    fail_msg: storage requires Ubuntu 24.04 on x86-64
+
+- name: Install storage host packages
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, jq, procps, redis-tools]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Require the dedicated storage filesystem
+  ansible.builtin.command:
+    argv: [/usr/bin/findmnt, --mountpoint, /var/lib/fire-fuse, --noheadings]
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Create storage configuration and data parents
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /etc/fire-fuse, mode: '0750'}
+    - {path: /usr/local/lib/fire-fuse, mode: '0755'}

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Cantelop favicon: the mark's small cut (gap 6, heavier line) on a warm
+       rounded tile, so the deep phthalo line holds on dark browser chrome. -->
+  <rect width="100" height="100" rx="22" fill="#EBE8E1"/>
+  <g transform="translate(50 50) scale(0.84) translate(-50 -50)">
+    <g fill="none" stroke="#0B2E22" stroke-width="12" stroke-linejoin="round">
+      <path d="M59.00 17.21A34 34 0 0 1 78.40 31.31L64.22 35.92L59.00 32.12Z"/>
+      <path d="M83.96 48.43A34 34 0 0 1 76.55 71.24L67.79 59.17L69.78 53.04Z"/>
+      <path d="M61.99 81.82A34 34 0 0 1 38.01 81.82L46.77 69.75L53.23 69.75Z"/>
+      <path d="M23.45 71.24A34 34 0 0 1 16.04 48.43L30.22 53.04L32.21 59.17Z"/>
+      <path d="M21.60 31.31A34 34 0 0 1 41.00 17.21L41.00 32.12L35.78 35.92Z"/>
+    </g>
+    <g fill="#EBE8E1" stroke="#EBE8E1" stroke-width="3" stroke-linejoin="round">
+      <path d="M59.00 17.21A34 34 0 0 1 78.40 31.31L64.22 35.92L59.00 32.12Z"/>
+      <path d="M61.99 81.82A34 34 0 0 1 38.01 81.82L46.77 69.75L53.23 69.75Z"/>
+      <path d="M23.45 71.24A34 34 0 0 1 16.04 48.43L30.22 53.04L32.21 59.17Z"/>
+      <path d="M21.60 31.31A34 34 0 0 1 41.00 17.21L41.00 32.12L35.78 35.92Z"/>
+    </g>
+    <path d="M83.96 48.43A34 34 0 0 1 76.55 71.24L67.79 59.17L69.78 53.04Z" fill="#DF7A2E" stroke="#DF7A2E" stroke-width="3" stroke-linejoin="round"/>
+  </g>
+</svg>

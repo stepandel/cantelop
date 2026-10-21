@@ -1,0 +1,7 @@
+---
+- name: Restart Cantelop control worker
+  ansible.builtin.systemd_service:
+    name: cantelop-control-worker.service
+    state: restarted
+    enabled: true
+  when: not ansible_check_mode

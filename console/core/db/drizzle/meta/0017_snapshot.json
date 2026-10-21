@@ -1,0 +1,2599 @@
+{
+  "id": "6e713c50-468e-4006-9d80-0880d50de07e",
+  "prevId": "5dca09c1-90f1-425f-9641-8ad2c3c8d60e",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "cantelop_control.api_artifacts": {
+      "name": "api_artifacts",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "digest": {
+          "name": "digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manifest": {
+          "name": "manifest",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "api_artifacts_digest_unique": {
+          "name": "api_artifacts_digest_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "digest"
+          ]
+        },
+        "api_artifacts_object_key_unique": {
+          "name": "api_artifacts_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "api_artifacts_id_check": {
+          "name": "api_artifacts_id_check",
+          "value": "\"cantelop_control\".\"api_artifacts\".\"id\" ~ '^art_[0-9a-f]{32}$'"
+        },
+        "api_artifacts_digest_check": {
+          "name": "api_artifacts_digest_check",
+          "value": "\"cantelop_control\".\"api_artifacts\".\"digest\" ~ '^sha256:[0-9a-f]{64}$'"
+        },
+        "api_artifacts_object_key_check": {
+          "name": "api_artifacts_object_key_check",
+          "value": "\"cantelop_control\".\"api_artifacts\".\"object_key\" ~ '^deployment-uploads/[0-9a-f]{32}/api/worker\\.mjs$'"
+        },
+        "api_artifacts_size_bytes_check": {
+          "name": "api_artifacts_size_bytes_check",
+          "value": "\"cantelop_control\".\"api_artifacts\".\"size_bytes\" BETWEEN 1 AND 1048576"
+        },
+        "api_artifacts_manifest_check": {
+          "name": "api_artifacts_manifest_check",
+          "value": "jsonb_typeof(\"cantelop_control\".\"api_artifacts\".\"manifest\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.app_collaborators": {
+      "name": "app_collaborators",
+      "schema": "cantelop_control",
+      "columns": {
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "added_by_user_id": {
+          "name": "added_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "app_collaborators_user": {
+          "name": "app_collaborators_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "app_collaborators_app_id_apps_id_fk": {
+          "name": "app_collaborators_app_id_apps_id_fk",
+          "tableFrom": "app_collaborators",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "app_collaborators_user_id_users_id_fk": {
+          "name": "app_collaborators_user_id_users_id_fk",
+          "tableFrom": "app_collaborators",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "app_collaborators_added_by_user_id_users_id_fk": {
+          "name": "app_collaborators_added_by_user_id_users_id_fk",
+          "tableFrom": "app_collaborators",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "added_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "app_collaborators_app_id_user_id_pk": {
+          "name": "app_collaborators_app_id_user_id_pk",
+          "columns": [
+            "app_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "app_collaborators_role_check": {
+          "name": "app_collaborators_role_check",
+          "value": "\"cantelop_control\".\"app_collaborators\".\"role\" = 'admin'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.app_config_values": {
+      "name": "app_config_values",
+      "schema": "cantelop_control",
+      "columns": {
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value_text": {
+          "name": "value_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_nonce": {
+          "name": "secret_nonce",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_ciphertext": {
+          "name": "secret_ciphertext",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "value_bytes": {
+          "name": "value_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "app_config_values_app": {
+          "name": "app_config_values_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "app_config_values_app_id_apps_id_fk": {
+          "name": "app_config_values_app_id_apps_id_fk",
+          "tableFrom": "app_config_values",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "app_config_values_app_id_name_pk": {
+          "name": "app_config_values_app_id_name_pk",
+          "columns": [
+            "app_id",
+            "name"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "app_config_values_name_check": {
+          "name": "app_config_values_name_check",
+          "value": "\"cantelop_control\".\"app_config_values\".\"name\" ~ '^[A-Za-z_][A-Za-z0-9_]{0,127}$' AND \"cantelop_control\".\"app_config_values\".\"name\" !~ '^CANTELOP_'"
+        },
+        "app_config_values_kind_check": {
+          "name": "app_config_values_kind_check",
+          "value": "\"cantelop_control\".\"app_config_values\".\"kind\" IN ('variable', 'secret')"
+        },
+        "app_config_values_value_bytes_check": {
+          "name": "app_config_values_value_bytes_check",
+          "value": "\"cantelop_control\".\"app_config_values\".\"value_bytes\" BETWEEN 0 AND 65536"
+        },
+        "app_config_values_shape_check": {
+          "name": "app_config_values_shape_check",
+          "value": "(\"cantelop_control\".\"app_config_values\".\"kind\" = 'variable' AND \"cantelop_control\".\"app_config_values\".\"value_text\" IS NOT NULL AND \"cantelop_control\".\"app_config_values\".\"secret_nonce\" IS NULL AND \"cantelop_control\".\"app_config_values\".\"secret_ciphertext\" IS NULL) OR (\"cantelop_control\".\"app_config_values\".\"kind\" = 'secret' AND \"cantelop_control\".\"app_config_values\".\"value_text\" IS NULL AND octet_length(\"cantelop_control\".\"app_config_values\".\"secret_nonce\") = 12 AND octet_length(\"cantelop_control\".\"app_config_values\".\"secret_ciphertext\") >= 16)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.app_invitations": {
+      "name": "app_invitations",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invited_by_user_id": {
+          "name": "invited_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delivery": {
+          "name": "delivery",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_message_id": {
+          "name": "provider_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_by_user_id": {
+          "name": "accepted_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "app_invitations_token": {
+          "name": "app_invitations_token",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_invitations_pending_email": {
+          "name": "app_invitations_pending_email",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"cantelop_control\".\"app_invitations\".\"state\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_invitations_provider_message": {
+          "name": "app_invitations_provider_message",
+          "columns": [
+            {
+              "expression": "provider_message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_invitations_recipient_time": {
+          "name": "app_invitations_recipient_time",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_invitations_sender_time": {
+          "name": "app_invitations_sender_time",
+          "columns": [
+            {
+              "expression": "invited_by_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "app_invitations_app_id_apps_id_fk": {
+          "name": "app_invitations_app_id_apps_id_fk",
+          "tableFrom": "app_invitations",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "app_invitations_invited_by_user_id_users_id_fk": {
+          "name": "app_invitations_invited_by_user_id_users_id_fk",
+          "tableFrom": "app_invitations",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "invited_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "app_invitations_accepted_by_user_id_users_id_fk": {
+          "name": "app_invitations_accepted_by_user_id_users_id_fk",
+          "tableFrom": "app_invitations",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "accepted_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "app_invitations_state_check": {
+          "name": "app_invitations_state_check",
+          "value": "\"cantelop_control\".\"app_invitations\".\"state\" IN ('pending', 'accepted', 'revoked')"
+        },
+        "app_invitations_delivery_check": {
+          "name": "app_invitations_delivery_check",
+          "value": "\"cantelop_control\".\"app_invitations\".\"delivery\" IN ('sending', 'sent', 'failed', 'delivered', 'delayed', 'bounced', 'complained', 'suppressed')"
+        },
+        "app_invitations_email_check": {
+          "name": "app_invitations_email_check",
+          "value": "length(\"cantelop_control\".\"app_invitations\".\"email\") BETWEEN 3 AND 320 AND \"cantelop_control\".\"app_invitations\".\"email\" = lower(btrim(\"cantelop_control\".\"app_invitations\".\"email\") COLLATE \"C\")"
+        },
+        "app_invitations_token_check": {
+          "name": "app_invitations_token_check",
+          "value": "\"cantelop_control\".\"app_invitations\".\"token_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "app_invitations_expiry_check": {
+          "name": "app_invitations_expiry_check",
+          "value": "\"cantelop_control\".\"app_invitations\".\"expires_at\" > \"cantelop_control\".\"app_invitations\".\"created_at\""
+        },
+        "app_invitations_acceptance_check": {
+          "name": "app_invitations_acceptance_check",
+          "value": "(\"cantelop_control\".\"app_invitations\".\"state\" = 'accepted') = (\"cantelop_control\".\"app_invitations\".\"accepted_by_user_id\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.app_session_runtimes": {
+      "name": "app_session_runtimes",
+      "schema": "cantelop_control",
+      "columns": {
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "internal_port": {
+          "name": "internal_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "app_session_runtimes_app_id_apps_id_fk": {
+          "name": "app_session_runtimes_app_id_apps_id_fk",
+          "tableFrom": "app_session_runtimes",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "app_session_runtimes_internal_port_check": {
+          "name": "app_session_runtimes_internal_port_check",
+          "value": "\"cantelop_control\".\"app_session_runtimes\".\"internal_port\" BETWEEN 1 AND 65535"
+        },
+        "app_session_runtimes_updated_at_check": {
+          "name": "app_session_runtimes_updated_at_check",
+          "value": "\"cantelop_control\".\"app_session_runtimes\".\"updated_at\" >= \"cantelop_control\".\"app_session_runtimes\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.apps": {
+      "name": "apps",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compute_tenant_id": {
+          "name": "compute_tenant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_release_id": {
+          "name": "active_release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "config_revision": {
+          "name": "config_revision",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "apps_routable_slug": {
+          "name": "apps_routable_slug",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"cantelop_control\".\"apps\".\"status\" <> 'archived'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "apps_owner": {
+          "name": "apps_owner",
+          "columns": [
+            {
+              "expression": "owner_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "apps_owner_user_id_users_id_fk": {
+          "name": "apps_owner_user_id_users_id_fk",
+          "tableFrom": "apps",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "apps_active_release_id_releases_id_fk": {
+          "name": "apps_active_release_id_releases_id_fk",
+          "tableFrom": "apps",
+          "tableTo": "releases",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "active_release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "apps_compute_tenant_check": {
+          "name": "apps_compute_tenant_check",
+          "value": "\"cantelop_control\".\"apps\".\"compute_tenant_id\" IS NULL OR \"cantelop_control\".\"apps\".\"compute_tenant_id\" ~ '^usr_[0-9a-f]{32}$'"
+        },
+        "apps_id_check": {
+          "name": "apps_id_check",
+          "value": "\"cantelop_control\".\"apps\".\"id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "apps_slug_check": {
+          "name": "apps_slug_check",
+          "value": "\"cantelop_control\".\"apps\".\"slug\" ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$' AND position('--' IN \"cantelop_control\".\"apps\".\"slug\") = 0"
+        },
+        "apps_status_check": {
+          "name": "apps_status_check",
+          "value": "\"cantelop_control\".\"apps\".\"status\" IN ('provisioning', 'active', 'archived')"
+        },
+        "apps_updated_at_check": {
+          "name": "apps_updated_at_check",
+          "value": "\"cantelop_control\".\"apps\".\"updated_at\" >= \"cantelop_control\".\"apps\".\"created_at\""
+        },
+        "apps_archived_at_check": {
+          "name": "apps_archived_at_check",
+          "value": "(\"cantelop_control\".\"apps\".\"status\" = 'archived') = (\"cantelop_control\".\"apps\".\"archived_at\" IS NOT NULL)"
+        },
+        "apps_config_revision_check": {
+          "name": "apps_config_revision_check",
+          "value": "\"cantelop_control\".\"apps\".\"config_revision\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.demo_request_budgets": {
+      "name": "demo_request_budgets",
+      "schema": "cantelop_control",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "day_started_at": {
+          "name": "day_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day_count": {
+          "name": "day_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minute_started_at": {
+          "name": "minute_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minute_count": {
+          "name": "minute_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "demo_request_budgets_user_id_users_id_fk": {
+          "name": "demo_request_budgets_user_id_users_id_fk",
+          "tableFrom": "demo_request_budgets",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "demo_request_budgets_day_count_check": {
+          "name": "demo_request_budgets_day_count_check",
+          "value": "\"cantelop_control\".\"demo_request_budgets\".\"day_count\" BETWEEN 1 AND 50"
+        },
+        "demo_request_budgets_minute_count_check": {
+          "name": "demo_request_budgets_minute_count_check",
+          "value": "\"cantelop_control\".\"demo_request_budgets\".\"minute_count\" BETWEEN 1 AND 10"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.deployment_logs": {
+      "name": "deployment_logs",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "deployment_logs_id_seq",
+            "schema": "cantelop_control",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "clock_timestamp()"
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "level": {
+          "name": "level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "deployment_logs_release": {
+          "name": "deployment_logs_release",
+          "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deployment_logs_release_id_releases_id_fk": {
+          "name": "deployment_logs_release_id_releases_id_fk",
+          "tableFrom": "deployment_logs",
+          "tableTo": "releases",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "deployment_logs_source_check": {
+          "name": "deployment_logs_source_check",
+          "value": "\"cantelop_control\".\"deployment_logs\".\"source\" IN ('deployment', 'api', 'session_runtime')"
+        },
+        "deployment_logs_level_check": {
+          "name": "deployment_logs_level_check",
+          "value": "\"cantelop_control\".\"deployment_logs\".\"level\" IN ('info', 'warning', 'error')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.deployment_uploads": {
+      "name": "deployment_uploads",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api_digest": {
+          "name": "api_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api_object_key": {
+          "name": "api_object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api_size_bytes": {
+          "name": "api_size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api_manifest": {
+          "name": "api_manifest",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_runtime_digest": {
+          "name": "session_runtime_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_runtime_object_key": {
+          "name": "session_runtime_object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_runtime_size_bytes": {
+          "name": "session_runtime_size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_runtime_media_type": {
+          "name": "session_runtime_media_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_runtime_store_upload_id": {
+          "name": "session_runtime_store_upload_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_runtime_part_size_bytes": {
+          "name": "session_runtime_part_size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_runtime_part_count": {
+          "name": "session_runtime_part_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "deployment_uploads_expiry": {
+          "name": "deployment_uploads_expiry",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"cantelop_control\".\"deployment_uploads\".\"status\" = 'uploading'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deployment_uploads_pending_app": {
+          "name": "deployment_uploads_pending_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"cantelop_control\".\"deployment_uploads\".\"status\" IN ('preparing', 'uploading')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deployment_uploads_owner_user_id_users_id_fk": {
+          "name": "deployment_uploads_owner_user_id_users_id_fk",
+          "tableFrom": "deployment_uploads",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deployment_uploads_app_id_apps_id_fk": {
+          "name": "deployment_uploads_app_id_apps_id_fk",
+          "tableFrom": "deployment_uploads",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deployment_uploads_release_id_releases_id_fk": {
+          "name": "deployment_uploads_release_id_releases_id_fk",
+          "tableFrom": "deployment_uploads",
+          "tableTo": "releases",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deployment_uploads_release_id_unique": {
+          "name": "deployment_uploads_release_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "release_id"
+          ]
+        },
+        "deployment_uploads_owner_idempotency_unique": {
+          "name": "deployment_uploads_owner_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner_user_id",
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "deployment_uploads_id_check": {
+          "name": "deployment_uploads_id_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"id\" ~ '^upl_[0-9a-f]{32}$'"
+        },
+        "deployment_uploads_idempotency_key_check": {
+          "name": "deployment_uploads_idempotency_key_check",
+          "value": "length(\"cantelop_control\".\"deployment_uploads\".\"idempotency_key\") BETWEEN 16 AND 128 AND \"cantelop_control\".\"deployment_uploads\".\"idempotency_key\" ~ '^[A-Za-z0-9_.:-]+$'"
+        },
+        "deployment_uploads_status_check": {
+          "name": "deployment_uploads_status_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"status\" IN ('preparing', 'uploading', 'finalized', 'expired', 'cancelled')"
+        },
+        "deployment_uploads_api_digest_check": {
+          "name": "deployment_uploads_api_digest_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"api_digest\" ~ '^sha256:[0-9a-f]{64}$'"
+        },
+        "deployment_uploads_api_object_key_check": {
+          "name": "deployment_uploads_api_object_key_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"api_object_key\" ~ '^deployment-uploads/[0-9a-f]{32}/api/worker\\.mjs$'"
+        },
+        "deployment_uploads_api_size_bytes_check": {
+          "name": "deployment_uploads_api_size_bytes_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"api_size_bytes\" BETWEEN 1 AND 1048576"
+        },
+        "deployment_uploads_api_manifest_check": {
+          "name": "deployment_uploads_api_manifest_check",
+          "value": "jsonb_typeof(\"cantelop_control\".\"deployment_uploads\".\"api_manifest\") = 'object'"
+        },
+        "deployment_uploads_session_runtime_digest_check": {
+          "name": "deployment_uploads_session_runtime_digest_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_digest\" ~ '^sha256:[0-9a-f]{64}$'"
+        },
+        "deployment_uploads_session_runtime_object_key_check": {
+          "name": "deployment_uploads_session_runtime_object_key_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_object_key\" ~ '^deployment-uploads/[0-9a-f]{32}/session-runtime/image\\.tar\\.gz$'"
+        },
+        "deployment_uploads_session_runtime_size_bytes_check": {
+          "name": "deployment_uploads_session_runtime_size_bytes_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_size_bytes\" BETWEEN 1 AND 21474836480"
+        },
+        "deployment_uploads_session_runtime_media_type_check": {
+          "name": "deployment_uploads_session_runtime_media_type_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_media_type\" = 'application/vnd.cantelop.session-runtime.image.v1.tar+gzip'"
+        },
+        "deployment_uploads_session_runtime_store_upload_id_check": {
+          "name": "deployment_uploads_session_runtime_store_upload_id_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_store_upload_id\" IS NULL OR (length(\"cantelop_control\".\"deployment_uploads\".\"session_runtime_store_upload_id\") BETWEEN 1 AND 1024 AND \"cantelop_control\".\"deployment_uploads\".\"session_runtime_store_upload_id\" !~ '[\\x00\\r\\n]')"
+        },
+        "deployment_uploads_session_runtime_part_size_check": {
+          "name": "deployment_uploads_session_runtime_part_size_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_size_bytes\" IS NULL OR \"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_size_bytes\" BETWEEN 5242880 AND 536870912"
+        },
+        "deployment_uploads_session_runtime_part_count_check": {
+          "name": "deployment_uploads_session_runtime_part_count_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_count\" IS NULL OR \"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_count\" BETWEEN 1 AND 10000"
+        },
+        "deployment_uploads_preparing_check": {
+          "name": "deployment_uploads_preparing_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"status\" <> 'preparing' OR (\"cantelop_control\".\"deployment_uploads\".\"session_runtime_store_upload_id\" IS NULL AND \"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_size_bytes\" IS NULL AND \"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_count\" IS NULL)"
+        },
+        "deployment_uploads_uploaded_check": {
+          "name": "deployment_uploads_uploaded_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"status\" NOT IN ('uploading', 'finalized') OR (\"cantelop_control\".\"deployment_uploads\".\"session_runtime_store_upload_id\" IS NOT NULL AND \"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_size_bytes\" IS NOT NULL AND \"cantelop_control\".\"deployment_uploads\".\"session_runtime_part_count\" IS NOT NULL)"
+        },
+        "deployment_uploads_updated_at_check": {
+          "name": "deployment_uploads_updated_at_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"updated_at\" >= \"cantelop_control\".\"deployment_uploads\".\"created_at\""
+        },
+        "deployment_uploads_finalized_check": {
+          "name": "deployment_uploads_finalized_check",
+          "value": "(\"cantelop_control\".\"deployment_uploads\".\"status\" = 'finalized') = (\"cantelop_control\".\"deployment_uploads\".\"release_id\" IS NOT NULL)"
+        },
+        "deployment_uploads_expiry_check": {
+          "name": "deployment_uploads_expiry_check",
+          "value": "\"cantelop_control\".\"deployment_uploads\".\"expires_at\" > \"cantelop_control\".\"deployment_uploads\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.invitation_delivery_events": {
+      "name": "invitation_delivery_events",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "invitation_id": {
+          "name": "invitation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invitation_delivery_events_invitation_id_app_invitations_id_fk": {
+          "name": "invitation_delivery_events_invitation_id_app_invitations_id_fk",
+          "tableFrom": "invitation_delivery_events",
+          "tableTo": "app_invitations",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "invitation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "cantelop_control.invitation_suppressions": {
+      "name": "invitation_suppressions",
+      "schema": "cantelop_control",
+      "columns": {
+        "recipient_hash": {
+          "name": "recipient_hash",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "invitation_suppressions_recipient_hash_check": {
+          "name": "invitation_suppressions_recipient_hash_check",
+          "value": "\"cantelop_control\".\"invitation_suppressions\".\"recipient_hash\" ~ '^[a-f0-9]{64}$'"
+        },
+        "invitation_suppressions_reason_check": {
+          "name": "invitation_suppressions_reason_check",
+          "value": "\"cantelop_control\".\"invitation_suppressions\".\"reason\" IN ('opt_out', 'bounced', 'complained', 'suppressed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.operations": {
+      "name": "operations",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "progress": {
+          "name": "progress",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "input": {
+          "name": "input",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "output": {
+          "name": "output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "available_at": {
+          "name": "available_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locked_by": {
+          "name": "locked_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked_at": {
+          "name": "locked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "operations_ready": {
+          "name": "operations_ready",
+          "columns": [
+            {
+              "expression": "available_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"cantelop_control\".\"operations\".\"status\" = 'queued'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "operations_app": {
+          "name": "operations_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "operations_owner_user_id_users_id_fk": {
+          "name": "operations_owner_user_id_users_id_fk",
+          "tableFrom": "operations",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "operations_app_id_apps_id_fk": {
+          "name": "operations_app_id_apps_id_fk",
+          "tableFrom": "operations",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "operations_owner_idempotency_unique": {
+          "name": "operations_owner_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner_user_id",
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "operations_id_check": {
+          "name": "operations_id_check",
+          "value": "\"cantelop_control\".\"operations\".\"id\" ~ '^op_[0-9a-f]{32}$'"
+        },
+        "operations_kind_check": {
+          "name": "operations_kind_check",
+          "value": "\"cantelop_control\".\"operations\".\"kind\" IN ('register_app', 'register_workspace', 'archive_workspace', 'purge_workspace', 'sync_config', 'deploy_api', 'materialize_build', 'archive_app', 'cancel_release')"
+        },
+        "operations_status_check": {
+          "name": "operations_status_check",
+          "value": "\"cantelop_control\".\"operations\".\"status\" IN ('queued', 'running', 'succeeded', 'failed')"
+        },
+        "operations_idempotency_key_check": {
+          "name": "operations_idempotency_key_check",
+          "value": "length(\"cantelop_control\".\"operations\".\"idempotency_key\") BETWEEN 16 AND 128 AND \"cantelop_control\".\"operations\".\"idempotency_key\" ~ '^[A-Za-z0-9_.:-]+$'"
+        },
+        "operations_input_check": {
+          "name": "operations_input_check",
+          "value": "jsonb_typeof(\"cantelop_control\".\"operations\".\"input\") = 'object'"
+        },
+        "operations_output_check": {
+          "name": "operations_output_check",
+          "value": "\"cantelop_control\".\"operations\".\"output\" IS NULL OR jsonb_typeof(\"cantelop_control\".\"operations\".\"output\") = 'object'"
+        },
+        "operations_error_code_check": {
+          "name": "operations_error_code_check",
+          "value": "\"cantelop_control\".\"operations\".\"error_code\" IS NULL OR \"cantelop_control\".\"operations\".\"error_code\" ~ '^[a-z][a-z0-9_]{0,63}$'"
+        },
+        "operations_attempts_check": {
+          "name": "operations_attempts_check",
+          "value": "\"cantelop_control\".\"operations\".\"attempts\" >= 0 AND (\"cantelop_control\".\"operations\".\"kind\" = 'cancel_release' OR \"cantelop_control\".\"operations\".\"attempts\" <= 100)"
+        },
+        "operations_updated_at_check": {
+          "name": "operations_updated_at_check",
+          "value": "\"cantelop_control\".\"operations\".\"updated_at\" >= \"cantelop_control\".\"operations\".\"created_at\""
+        },
+        "operations_running_check": {
+          "name": "operations_running_check",
+          "value": "(\"cantelop_control\".\"operations\".\"status\" = 'running') = (\"cantelop_control\".\"operations\".\"locked_by\" IS NOT NULL AND \"cantelop_control\".\"operations\".\"locked_at\" IS NOT NULL)"
+        },
+        "operations_succeeded_check": {
+          "name": "operations_succeeded_check",
+          "value": "(\"cantelop_control\".\"operations\".\"status\" = 'succeeded') = (\"cantelop_control\".\"operations\".\"output\" IS NOT NULL)"
+        },
+        "operations_failed_check": {
+          "name": "operations_failed_check",
+          "value": "(\"cantelop_control\".\"operations\".\"status\" = 'failed') = (\"cantelop_control\".\"operations\".\"error_code\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.release_components": {
+      "name": "release_components",
+      "schema": "cantelop_control",
+      "columns": {
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "output": {
+          "name": "output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "release_components_status": {
+          "name": "release_components_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "release_components_release_id_releases_id_fk": {
+          "name": "release_components_release_id_releases_id_fk",
+          "tableFrom": "release_components",
+          "tableTo": "releases",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "release_components_operation_id_operations_id_fk": {
+          "name": "release_components_operation_id_operations_id_fk",
+          "tableFrom": "release_components",
+          "tableTo": "operations",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "operation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "release_components_release_id_kind_pk": {
+          "name": "release_components_release_id_kind_pk",
+          "columns": [
+            "release_id",
+            "kind"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "release_components_operation_id_unique": {
+          "name": "release_components_operation_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "operation_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "release_components_kind_check": {
+          "name": "release_components_kind_check",
+          "value": "\"cantelop_control\".\"release_components\".\"kind\" IN ('api', 'session_runtime')"
+        },
+        "release_components_status_check": {
+          "name": "release_components_status_check",
+          "value": "\"cantelop_control\".\"release_components\".\"status\" IN ('queued', 'running', 'succeeded', 'failed')"
+        },
+        "release_components_output_check": {
+          "name": "release_components_output_check",
+          "value": "\"cantelop_control\".\"release_components\".\"output\" IS NULL OR jsonb_typeof(\"cantelop_control\".\"release_components\".\"output\") = 'object'"
+        },
+        "release_components_error_code_check": {
+          "name": "release_components_error_code_check",
+          "value": "\"cantelop_control\".\"release_components\".\"error_code\" IS NULL OR \"cantelop_control\".\"release_components\".\"error_code\" ~ '^[a-z][a-z0-9_]{0,63}$'"
+        },
+        "release_components_updated_at_check": {
+          "name": "release_components_updated_at_check",
+          "value": "\"cantelop_control\".\"release_components\".\"updated_at\" >= \"cantelop_control\".\"release_components\".\"created_at\""
+        },
+        "release_components_succeeded_check": {
+          "name": "release_components_succeeded_check",
+          "value": "(\"cantelop_control\".\"release_components\".\"status\" = 'succeeded') = (\"cantelop_control\".\"release_components\".\"output\" IS NOT NULL)"
+        },
+        "release_components_failed_check": {
+          "name": "release_components_failed_check",
+          "value": "(\"cantelop_control\".\"release_components\".\"status\" = 'failed') = (\"cantelop_control\".\"release_components\".\"error_code\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.releases": {
+      "name": "releases",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api_artifact_id": {
+          "name": "api_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_runtime_artifact_id": {
+          "name": "session_runtime_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "releases_pending_app": {
+          "name": "releases_pending_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"cantelop_control\".\"releases\".\"status\" IN ('queued', 'provisioning', 'cancelling')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "releases_active_app": {
+          "name": "releases_active_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"cantelop_control\".\"releases\".\"status\" = 'active'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "releases_app": {
+          "name": "releases_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "releases_owner_user_id_users_id_fk": {
+          "name": "releases_owner_user_id_users_id_fk",
+          "tableFrom": "releases",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "releases_app_id_apps_id_fk": {
+          "name": "releases_app_id_apps_id_fk",
+          "tableFrom": "releases",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "releases_api_artifact_id_api_artifacts_id_fk": {
+          "name": "releases_api_artifact_id_api_artifacts_id_fk",
+          "tableFrom": "releases",
+          "tableTo": "api_artifacts",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "api_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "releases_session_runtime_artifact_id_session_runtime_artifacts_id_fk": {
+          "name": "releases_session_runtime_artifact_id_session_runtime_artifacts_id_fk",
+          "tableFrom": "releases",
+          "tableTo": "session_runtime_artifacts",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "session_runtime_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "releases_app_version_unique": {
+          "name": "releases_app_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "app_id",
+            "version"
+          ]
+        },
+        "releases_owner_idempotency_unique": {
+          "name": "releases_owner_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner_user_id",
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "releases_id_check": {
+          "name": "releases_id_check",
+          "value": "\"cantelop_control\".\"releases\".\"id\" ~ '^rel_[0-9a-f]{32}$'"
+        },
+        "releases_version_check": {
+          "name": "releases_version_check",
+          "value": "\"cantelop_control\".\"releases\".\"version\" > 0"
+        },
+        "releases_status_check": {
+          "name": "releases_status_check",
+          "value": "\"cantelop_control\".\"releases\".\"status\" IN ('queued', 'provisioning', 'cancelling', 'cancelled', 'active', 'failed', 'superseded')"
+        },
+        "releases_idempotency_key_check": {
+          "name": "releases_idempotency_key_check",
+          "value": "length(\"cantelop_control\".\"releases\".\"idempotency_key\") BETWEEN 16 AND 128 AND \"cantelop_control\".\"releases\".\"idempotency_key\" ~ '^[A-Za-z0-9_.:-]+$'"
+        },
+        "releases_error_code_check": {
+          "name": "releases_error_code_check",
+          "value": "\"cantelop_control\".\"releases\".\"error_code\" IS NULL OR \"cantelop_control\".\"releases\".\"error_code\" ~ '^[a-z][a-z0-9_]{0,63}$'"
+        },
+        "releases_updated_at_check": {
+          "name": "releases_updated_at_check",
+          "value": "\"cantelop_control\".\"releases\".\"updated_at\" >= \"cantelop_control\".\"releases\".\"created_at\""
+        },
+        "releases_failed_check": {
+          "name": "releases_failed_check",
+          "value": "(\"cantelop_control\".\"releases\".\"status\" = 'failed') = (\"cantelop_control\".\"releases\".\"error_code\" IS NOT NULL)"
+        },
+        "releases_activated_check": {
+          "name": "releases_activated_check",
+          "value": "(\"cantelop_control\".\"releases\".\"status\" IN ('active', 'superseded')) = (\"cantelop_control\".\"releases\".\"activated_at\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.session_runtime_artifacts": {
+      "name": "session_runtime_artifacts",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "digest": {
+          "name": "digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "media_type": {
+          "name": "media_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "session_runtime_artifacts_digest": {
+          "name": "session_runtime_artifacts_digest",
+          "columns": [
+            {
+              "expression": "digest",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "session_runtime_artifacts_object_key_unique": {
+          "name": "session_runtime_artifacts_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "session_runtime_artifacts_id_check": {
+          "name": "session_runtime_artifacts_id_check",
+          "value": "\"cantelop_control\".\"session_runtime_artifacts\".\"id\" ~ '^sra_[0-9a-f]{32}$'"
+        },
+        "session_runtime_artifacts_digest_check": {
+          "name": "session_runtime_artifacts_digest_check",
+          "value": "\"cantelop_control\".\"session_runtime_artifacts\".\"digest\" ~ '^sha256:[0-9a-f]{64}$'"
+        },
+        "session_runtime_artifacts_object_key_check": {
+          "name": "session_runtime_artifacts_object_key_check",
+          "value": "\"cantelop_control\".\"session_runtime_artifacts\".\"object_key\" ~ '^deployment-uploads/[0-9a-f]{32}/session-runtime/image\\.tar\\.gz$'"
+        },
+        "session_runtime_artifacts_size_bytes_check": {
+          "name": "session_runtime_artifacts_size_bytes_check",
+          "value": "\"cantelop_control\".\"session_runtime_artifacts\".\"size_bytes\" BETWEEN 1 AND 21474836480"
+        },
+        "session_runtime_artifacts_media_type_check": {
+          "name": "session_runtime_artifacts_media_type_check",
+          "value": "\"cantelop_control\".\"session_runtime_artifacts\".\"media_type\" = 'application/vnd.cantelop.session-runtime.image.v1.tar+gzip'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.user_aliases": {
+      "name": "user_aliases",
+      "schema": "cantelop_control",
+      "columns": {
+        "source_user_id": {
+          "name": "source_user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_aliases_user": {
+          "name": "user_aliases_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_aliases_user_id_users_id_fk": {
+          "name": "user_aliases_user_id_users_id_fk",
+          "tableFrom": "user_aliases",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_aliases_source_check": {
+          "name": "user_aliases_source_check",
+          "value": "\"cantelop_control\".\"user_aliases\".\"source_user_id\" ~ '^usr_[0-9a-f]{32}$'"
+        },
+        "user_aliases_distinct_check": {
+          "name": "user_aliases_distinct_check",
+          "value": "\"cantelop_control\".\"user_aliases\".\"source_user_id\" <> \"cantelop_control\".\"user_aliases\".\"user_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.user_identities": {
+      "name": "user_identities",
+      "schema": "cantelop_control",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_subject": {
+          "name": "provider_subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_identities_user": {
+          "name": "user_identities_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_identities_user_id_users_id_fk": {
+          "name": "user_identities_user_id_users_id_fk",
+          "tableFrom": "user_identities",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_identities_provider_provider_subject_pk": {
+          "name": "user_identities_provider_provider_subject_pk",
+          "columns": [
+            "provider",
+            "provider_subject"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_identities_provider_check": {
+          "name": "user_identities_provider_check",
+          "value": "\"cantelop_control\".\"user_identities\".\"provider\" ~ '^[a-z][a-z0-9_-]{0,31}$'"
+        },
+        "user_identities_provider_subject_check": {
+          "name": "user_identities_provider_subject_check",
+          "value": "\"cantelop_control\".\"user_identities\".\"provider_subject\" ~ '^[A-Za-z0-9][A-Za-z0-9:_-]{0,254}$'"
+        },
+        "user_identities_email_check": {
+          "name": "user_identities_email_check",
+          "value": "length(\"cantelop_control\".\"user_identities\".\"email\") <= 320 AND \"cantelop_control\".\"user_identities\".\"email\" = lower(btrim(\"cantelop_control\".\"user_identities\".\"email\") COLLATE \"C\")"
+        },
+        "user_identities_last_login_check": {
+          "name": "user_identities_last_login_check",
+          "value": "\"cantelop_control\".\"user_identities\".\"last_login_at\" >= \"cantelop_control\".\"user_identities\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.user_quotas": {
+      "name": "user_quotas",
+      "schema": "cantelop_control",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "max_apps": {
+          "name": "max_apps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_vcpus": {
+          "name": "max_vcpus",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_memory_mib": {
+          "name": "max_memory_mib",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_quotas_user_id_users_id_fk": {
+          "name": "user_quotas_user_id_users_id_fk",
+          "tableFrom": "user_quotas",
+          "tableTo": "users",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_quotas_max_apps_check": {
+          "name": "user_quotas_max_apps_check",
+          "value": "\"cantelop_control\".\"user_quotas\".\"max_apps\" BETWEEN 1 AND 10000"
+        },
+        "user_quotas_max_vcpus_check": {
+          "name": "user_quotas_max_vcpus_check",
+          "value": "\"cantelop_control\".\"user_quotas\".\"max_vcpus\" BETWEEN 1 AND 1000000"
+        },
+        "user_quotas_max_memory_mib_check": {
+          "name": "user_quotas_max_memory_mib_check",
+          "value": "\"cantelop_control\".\"user_quotas\".\"max_memory_mib\" BETWEEN 1 AND 1073741824"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.users": {
+      "name": "users",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "users_id_check": {
+          "name": "users_id_check",
+          "value": "\"cantelop_control\".\"users\".\"id\" ~ '^usr_[0-9a-f]{32}$'"
+        },
+        "users_email_check": {
+          "name": "users_email_check",
+          "value": "length(\"cantelop_control\".\"users\".\"email\") <= 320 AND \"cantelop_control\".\"users\".\"email\" = lower(btrim(\"cantelop_control\".\"users\".\"email\") COLLATE \"C\")"
+        },
+        "users_status_check": {
+          "name": "users_status_check",
+          "value": "\"cantelop_control\".\"users\".\"status\" IN ('active', 'suspended')"
+        },
+        "users_last_login_check": {
+          "name": "users_last_login_check",
+          "value": "\"cantelop_control\".\"users\".\"last_login_at\" >= \"cantelop_control\".\"users\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_control.workspaces": {
+      "name": "workspaces",
+      "schema": "cantelop_control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "workspaces_routable_slug": {
+          "name": "workspaces_routable_slug",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"cantelop_control\".\"workspaces\".\"archived_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspaces_app": {
+          "name": "workspaces_app",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspaces_app_id_apps_id_fk": {
+          "name": "workspaces_app_id_apps_id_fk",
+          "tableFrom": "workspaces",
+          "tableTo": "apps",
+          "schemaTo": "cantelop_control",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspaces_id_check": {
+          "name": "workspaces_id_check",
+          "value": "\"cantelop_control\".\"workspaces\".\"id\" ~ '^wsp_[0-9a-f]{32}$'"
+        },
+        "workspaces_slug_check": {
+          "name": "workspaces_slug_check",
+          "value": "\"cantelop_control\".\"workspaces\".\"slug\" ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$' AND position('--' IN \"cantelop_control\".\"workspaces\".\"slug\") = 0"
+        },
+        "workspaces_updated_at_check": {
+          "name": "workspaces_updated_at_check",
+          "value": "\"cantelop_control\".\"workspaces\".\"updated_at\" >= \"cantelop_control\".\"workspaces\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -1,0 +1,8 @@
+ALTER TABLE "cantelop_control"."operations" DROP CONSTRAINT "operations_kind_check";--> statement-breakpoint
+ALTER TABLE "cantelop_control"."operations" DROP CONSTRAINT "operations_attempts_check";--> statement-breakpoint
+ALTER TABLE "cantelop_control"."releases" DROP CONSTRAINT "releases_status_check";--> statement-breakpoint
+DROP INDEX "cantelop_control"."releases_pending_app";--> statement-breakpoint
+CREATE UNIQUE INDEX "releases_pending_app" ON "cantelop_control"."releases" USING btree ("app_id") WHERE "cantelop_control"."releases"."status" IN ('queued', 'provisioning', 'cancelling');--> statement-breakpoint
+ALTER TABLE "cantelop_control"."operations" ADD CONSTRAINT "operations_kind_check" CHECK ("cantelop_control"."operations"."kind" IN ('register_app', 'register_workspace', 'sync_config', 'deploy_api', 'materialize_build', 'archive_app', 'cancel_release'));--> statement-breakpoint
+ALTER TABLE "cantelop_control"."operations" ADD CONSTRAINT "operations_attempts_check" CHECK ("cantelop_control"."operations"."attempts" >= 0 AND ("cantelop_control"."operations"."kind" = 'cancel_release' OR "cantelop_control"."operations"."attempts" <= 100));--> statement-breakpoint
+ALTER TABLE "cantelop_control"."releases" ADD CONSTRAINT "releases_status_check" CHECK ("cantelop_control"."releases"."status" IN ('queued', 'provisioning', 'cancelling', 'cancelled', 'active', 'failed', 'superseded'));

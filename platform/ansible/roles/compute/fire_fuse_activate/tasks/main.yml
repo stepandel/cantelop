@@ -1,0 +1,201 @@
+---
+- name: Validate fire-fuse activation inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        fire_fuse_activate_service_name
+        is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+      - >-
+        fire_fuse_activate_unit
+        == '/etc/systemd/system/' ~ fire_fuse_activate_service_name
+      - fire_fuse_activate_binary == '/usr/local/bin/fire-fuse'
+      - fire_fuse_activate_config == '/etc/fire-fuse/config.json'
+      - fire_fuse_activate_listen_address == '127.0.0.1'
+      - fire_fuse_activate_listen_port | int == 8080
+      - fire_fuse_activate_readiness_attempts | int >= 1
+      - fire_fuse_activate_readiness_attempts | int <= 120
+      - fire_fuse_activate_readiness_delay_seconds | int >= 1
+      - fire_fuse_activate_readiness_delay_seconds | int <= 10
+      - fire_fuse_activate_dependent_services is sequence
+      - fire_fuse_activate_dependent_services is not string
+      - fire_fuse_activate_dependent_services | length <= 16
+      - >-
+        fire_fuse_activate_dependent_services | unique | length
+        == fire_fuse_activate_dependent_services | length
+    fail_msg: >-
+      activation requires a normal Ansible run, fixed trusted paths, the
+      loopback-only API endpoint, and bounded readiness retries
+
+- name: Validate dependent service names
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item != fire_fuse_activate_service_name
+      - item is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+    fail_msg: activation dependent service names must be safe systemd units
+  loop: "{{ fire_fuse_activate_dependent_services }}"
+
+- name: Inspect activation files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  register: fire_fuse_activate_file_stats
+  loop: "{{ fire_fuse_activate_trusted_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted activation files
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) > 0
+      - >-
+        not item.item.executable
+        or item.stat.executable | default(false)
+    fail_msg: activation file {{ item.item.name }} failed trust checks
+  loop: "{{ fire_fuse_activate_file_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Read service state before activation
+  ansible.builtin.service_facts:
+
+- name: Require a supported service state before activation
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          ansible_facts.services.get(
+            fire_fuse_activate_service_name, {}
+          ).get('state', 'not-found') == 'stopped'
+          and ansible_facts.services.get(
+            fire_fuse_activate_service_name, {}
+          ).get('status', 'not-found') == 'disabled'
+        )
+        or
+        (
+          ansible_facts.services.get(
+            fire_fuse_activate_service_name, {}
+          ).get('state', 'not-found') == 'running'
+          and ansible_facts.services.get(
+            fire_fuse_activate_service_name, {}
+          ).get('status', 'not-found') == 'enabled'
+        )
+    fail_msg: >-
+      activation requires fire-fuse to be either stopped and disabled before
+      first activation, or running and enabled for an idempotent repeat
+
+- name: Record service state before activation
+  ansible.builtin.set_fact:
+    fire_fuse_activate_was_running: >-
+      {{ ansible_facts.services[fire_fuse_activate_service_name].state
+      == 'running' }}
+    fire_fuse_activate_was_enabled: >-
+      {{ ansible_facts.services[fire_fuse_activate_service_name].status
+      == 'enabled' }}
+    fire_fuse_activate_state_changed: false
+
+- name: Initialize the enabled dependent service inventory
+  ansible.builtin.set_fact:
+    fire_fuse_activate_enabled_dependents: []
+  changed_when: false
+
+- name: Record enabled dependent services before activation
+  ansible.builtin.set_fact:
+    fire_fuse_activate_enabled_dependents: >-
+      {{ fire_fuse_activate_enabled_dependents + [item] }}
+  loop: "{{ fire_fuse_activate_dependent_services }}"
+  when:
+    - >-
+      ansible_facts.services.get(item, {}).get('status', 'not-found')
+      == 'enabled'
+  changed_when: false
+
+- name: Activate the preflighted fire-fuse service
+  block:
+    - name: Validate lifecycle state before activation
+      ansible.builtin.command:
+        argv:
+          - "{{ fire_fuse_activate_binary }}"
+          - -config
+          - "{{ fire_fuse_activate_config }}"
+          - -check-state-only
+      changed_when: false
+      when: not fire_fuse_activate_was_running
+
+    - name: Verify the installed fire-fuse systemd unit
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/systemd-analyze
+          - verify
+          - "{{ fire_fuse_activate_unit }}"
+      changed_when: false
+
+    - name: Mark service activation as started
+      ansible.builtin.set_fact:
+        fire_fuse_activate_state_changed: true
+
+    - name: Enable and start fire-fuse
+      ansible.builtin.systemd_service:
+        name: "{{ fire_fuse_activate_service_name }}"
+        state: started
+        enabled: true
+
+    - name: Wait for fire-fuse readiness
+      ansible.builtin.uri:
+        url: >-
+          http://{{ fire_fuse_activate_listen_address }}:{{
+          fire_fuse_activate_listen_port }}/readyz
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      register: fire_fuse_activate_readiness
+      retries: "{{ fire_fuse_activate_readiness_attempts }}"
+      delay: "{{ fire_fuse_activate_readiness_delay_seconds }}"
+      until: fire_fuse_activate_readiness.status | default(0) == 200
+
+    - name: Start enabled services that depend on fire-fuse
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: started
+      loop: "{{ fire_fuse_activate_enabled_dependents }}"
+
+    - name: Read activated service state
+      ansible.builtin.service_facts:
+
+    - name: Require dependent services to be running after activation
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[item].state == 'running'
+          - ansible_facts.services[item].status == 'enabled'
+        fail_msg: "{{ item }} did not recover after fire-fuse activation"
+      loop: "{{ fire_fuse_activate_enabled_dependents }}"
+
+    - name: Require fire-fuse to be running and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services[fire_fuse_activate_service_name].state
+            == 'running'
+          - >-
+            ansible_facts.services[fire_fuse_activate_service_name].status
+            == 'enabled'
+        fail_msg: fire-fuse did not remain running and enabled after readiness
+
+  rescue:
+    - name: Restore service state after failed activation
+      ansible.builtin.systemd_service:
+        name: "{{ fire_fuse_activate_service_name }}"
+        state: >-
+          {{ 'started' if fire_fuse_activate_was_running else 'stopped' }}
+        enabled: "{{ fire_fuse_activate_was_enabled }}"
+      when: fire_fuse_activate_state_changed
+
+    - name: Report activation failure
+      ansible.builtin.fail:
+        msg: >-
+          fire-fuse activation failed and its prior service state was restored:
+          {{ ansible_failed_result.msg | default('unknown failure') }}

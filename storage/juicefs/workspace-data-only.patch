@@ -1,0 +1,797 @@
+--- a/pkg/vfs/vfs.go
++++ b/pkg/vfs/vfs.go
+@@ -140,6 +140,8 @@
+ 	Subdir               string `json:",omitempty"`
+ 	PrefixInternal       bool
+ 	HideInternal         bool
++	WorkspaceDataOnly    bool
++	RootOnly             bool
+ 	RootSquash           *AnonymousAccount `json:",omitempty"`
+ 	AllSquash            *AnonymousAccount `json:",omitempty"`
+ 	NonDefaultPermission bool              `json:",omitempty"`
+@@ -174,6 +175,14 @@
+ )
+ 
+ func (v *VFS) Lookup(ctx Context, parent Ino, name string) (entry *meta.Entry, err syscall.Errno) {
++	if v.Conf.WorkspaceDataOnly && workspaceInternalName(parent, name) {
++		return nil, syscall.ENOENT
++	}
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	var inode Ino
+ 	var attr = &Attr{}
+ 	if parent == rootID || name == internalNodes[0].name { // 0 is the control file
+@@ -204,6 +213,11 @@
+ }
+ 
+ func (v *VFS) GetAttr(ctx Context, ino Ino, opened uint8) (entry *meta.Entry, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	if IsSpecialNode(ino) && getInternalNode(ino) != nil {
+ 		n := getInternalNode(ino)
+ 		entry = &meta.Entry{Inode: n.inode, Attr: n.attr}
+@@ -239,6 +253,11 @@
+ }
+ 
+ func (v *VFS) Mknod(ctx Context, parent Ino, name string, mode uint16, cumask uint16, rdev uint32) (entry *meta.Entry, err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "mknod", err, "(%d,%s,%s:0%04o,0x%08X):%s", parent, name, smode(mode), mode, rdev, (*Entry)(entry))
+ 	}()
+@@ -267,10 +286,20 @@
+ }
+ 
+ func (v *VFS) Unlink(ctx Context, parent Ino, name string) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	return v.doUnlink(ctx, parent, name, false)
+ }
+ 
+ func (v *VFS) doUnlink(ctx Context, parent Ino, name string, skipTrash bool) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "unlink", err, "(%d,%s)", parent, name) }()
+ 	if parent == rootID && IsSpecialName(name) {
+ 		err = syscall.EPERM
+@@ -288,6 +317,11 @@
+ }
+ 
+ func (v *VFS) Mkdir(ctx Context, parent Ino, name string, mode uint16, cumask uint16) (entry *meta.Entry, err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "mkdir", err, "(%d,%s,%s:0%04o):%s", parent, name, smode(mode), mode, (*Entry)(entry))
+ 	}()
+@@ -311,6 +345,11 @@
+ }
+ 
+ func (v *VFS) Rmdir(ctx Context, parent Ino, name string) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "rmdir", err, "(%d,%s)", parent, name) }()
+ 	if len(name) > maxName {
+ 		err = syscall.ENAMETOOLONG
+@@ -324,6 +363,11 @@
+ }
+ 
+ func (v *VFS) Symlink(ctx Context, path string, parent Ino, name string) (entry *meta.Entry, err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "symlink", err, "(%d,%s,%s):%s", parent, name, path, (*Entry)(entry))
+ 	}()
+@@ -347,12 +391,22 @@
+ }
+ 
+ func (v *VFS) Readlink(ctx Context, ino Ino) (path []byte, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "readlink", err, "(%d): (%s)", ino, string(path)) }()
+ 	err = v.Meta.ReadLink(ctx, ino, &path)
+ 	return
+ }
+ 
+ func (v *VFS) Rename(ctx Context, parent Ino, name string, newparent Ino, newname string, flags uint32) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent, newparent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "rename", err, "(%d,%s,%d,%s,%d)", parent, name, newparent, newname, flags)
+ 	}()
+@@ -381,6 +435,11 @@
+ }
+ 
+ func (v *VFS) Link(ctx Context, ino Ino, newparent Ino, newname string) (entry *meta.Entry, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino, newparent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "link", err, "(%d,%d,%s):%s", ino, newparent, newname, (*Entry)(entry))
+ 	}()
+@@ -407,6 +466,11 @@
+ }
+ 
+ func (v *VFS) Opendir(ctx Context, ino Ino, flags uint32) (fh uint64, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "opendir", err, "(%d) [fh:%d]", ino, fh) }()
+ 	if ctx.CheckPermission() {
+ 		var mmask uint8 = 0
+@@ -437,6 +501,11 @@
+ }
+ 
+ func (v *VFS) Readdir(ctx Context, ino Ino, size uint32, off int, fh uint64, plus bool) (entries []*meta.Entry, readAt time.Time, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "readdir", err, "(%d,%d,%d,%t): (%d)", ino, size, off, plus, len(entries)) }()
+ 	h := v.findHandle(ino, fh)
+ 	if h == nil {
+@@ -452,7 +521,7 @@
+ 			h.dirHandler = nil
+ 		}
+ 		var initEntries []*meta.Entry
+-		if ino == rootID && !v.Conf.HideInternal {
++		if ino == rootID && !v.Conf.HideInternal && !v.Conf.WorkspaceDataOnly {
+ 			for _, node := range internalNodes[1:] {
+ 				initEntries = append(initEntries, &meta.Entry{
+ 					Inode: node.inode,
+@@ -504,6 +573,11 @@
+ const O_TMPFILE = 020000000
+ 
+ func (v *VFS) Create(ctx Context, parent Ino, name string, mode uint16, cumask uint16, flags uint32) (entry *meta.Entry, fh uint64, err syscall.Errno) {
++	if v.deniesWorkspaceInode(parent) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "create", err, "(%d,%s,%s:0%04o):%s [fh:%d]", parent, name, smode(mode), mode, (*Entry)(entry), fh)
+ 	}()
+@@ -547,6 +621,11 @@
+ }
+ 
+ func (v *VFS) Open(ctx Context, ino Ino, flags uint32) (entry *meta.Entry, fh uint64, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		if entry != nil {
+ 			logit(ctx, "open", err, "(%d,%#x) [fh:%d]", ino, flags, fh)
+@@ -594,6 +673,11 @@
+ }
+ 
+ func (v *VFS) Truncate(ctx Context, ino Ino, size int64, fh uint64, attr *Attr) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	// defer func() { logit(ctx, "truncate (%d,%d): %s", ino, size, strerr(err)) }()
+ 	if IsSpecialNode(ino) {
+ 		err = syscall.EPERM
+@@ -691,6 +775,11 @@
+ }
+ 
+ func (v *VFS) Read(ctx Context, ino Ino, buf []byte, off uint64, fh uint64) (n int, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	size := uint32(len(buf))
+ 	if IsSpecialNode(ino) {
+ 		if ino == controlInode && runtime.GOOS == "darwin" {
+@@ -799,6 +888,11 @@
+ }
+ 
+ func (v *VFS) Write(ctx Context, ino Ino, buf []byte, off, fh uint64) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	size := uint64(len(buf))
+ 	if ino == controlInode && runtime.GOOS == "darwin" {
+ 		fh = v.getControlHandle(ctx.Pid())
+@@ -863,6 +957,11 @@
+ }
+ 
+ func (v *VFS) Fallocate(ctx Context, ino Ino, mode uint8, off, size int64, fh uint64) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "fallocate", err, "(%d,%d,%d,%d)", ino, mode, off, size) }()
+ 	if off < 0 || size <= 0 {
+ 		err = syscall.EINVAL
+@@ -913,6 +1012,11 @@
+ }
+ 
+ func (v *VFS) CopyFileRange(ctx Context, nodeIn Ino, fhIn, offIn uint64, nodeOut Ino, fhOut, offOut, size uint64, flags uint32) (copied uint64, err syscall.Errno) {
++	if v.deniesWorkspaceInode(nodeIn, nodeOut) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "copy_file_range", err, "(%d,%d,%d,%d,%d,%d)", nodeIn, offIn, nodeOut, offOut, size, flags)
+ 	}()
+@@ -989,6 +1093,11 @@
+ }
+ 
+ func (v *VFS) Flush(ctx Context, ino Ino, fh uint64, lockOwner uint64) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	if ino == controlInode && runtime.GOOS == "darwin" {
+ 		fh = v.getControlHandle(ctx.Pid())
+ 		defer v.releaseControlHandle(ctx.Pid())
+@@ -1034,6 +1143,11 @@
+ }
+ 
+ func (v *VFS) Fsync(ctx Context, ino Ino, datasync int, fh uint64) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "fsync", err, "(%d,%d)", ino, datasync) }()
+ 	if IsSpecialNode(ino) {
+ 		return
+@@ -1085,6 +1199,11 @@
+ }
+ 
+ func (v *VFS) SetXattr(ctx Context, ino Ino, name string, value []byte, flags uint32) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "setxattr", err, "(%d,%s,%d,%d)", ino, name, len(value), flags) }()
+ 	if IsSpecialNode(ino) {
+ 		err = syscall.EPERM
+@@ -1135,6 +1254,11 @@
+ }
+ 
+ func (v *VFS) GetXattr(ctx Context, ino Ino, name string, size uint32) (value []byte, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	if !isXattrEnabled(v.Conf, name) {
+ 		err = syscall.ENODATA
+ 		return
+@@ -1174,6 +1298,11 @@
+ }
+ 
+ func (v *VFS) ListXattr(ctx Context, ino Ino, size int) (data []byte, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "listxattr", err, "(%d,%d): (%d)", ino, size, len(data)) }()
+ 	if IsSpecialNode(ino) {
+ 		err = meta.ENOATTR
+@@ -1187,6 +1316,11 @@
+ }
+ 
+ func (v *VFS) RemoveXattr(ctx Context, ino Ino, name string) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "removexattr", err, "(%d,%s)", ino, name) }()
+ 	if IsSpecialNode(ino) {
+ 		err = syscall.EPERM
+--- a/pkg/vfs/vfs_unix.go
++++ b/pkg/vfs/vfs_unix.go
+@@ -43,6 +43,11 @@
+ }
+ 
+ func (v *VFS) StatFS(ctx Context, ino Ino) (st *Statfs, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	var totalspace, availspace, iused, iavail uint64
+ 	_ = v.Meta.StatFS(ctx, ino, &totalspace, &availspace, &iused, &iavail)
+ 	st = new(Statfs)
+@@ -75,6 +80,11 @@
+ }
+ 
+ func (v *VFS) Access(ctx Context, ino Ino, mask int) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() { logit(ctx, "access", err, "(%d,0x%X)", ino, mask) }()
+ 	var mmask uint16
+ 	if mask&unix.R_OK != 0 {
+@@ -142,6 +152,11 @@
+ }
+ 
+ func (v *VFS) SetAttr(ctx Context, ino Ino, set int, fh uint64, mode, uid, gid uint32, atime, mtime int64, atimensec, mtimensec uint32, size uint64) (entry *meta.Entry, err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	str := setattrStr(set, mode, uid, gid, atime, mtime, size)
+ 	defer func() {
+ 		logit(ctx, "setattr", err, "(%d[%d],0x%X,[%s]):%s", ino, fh, set, str, (*Entry)(entry))
+@@ -222,6 +237,11 @@
+ }
+ 
+ func (v *VFS) Getlk(ctx Context, ino Ino, fh uint64, owner uint64, start, len *uint64, typ *uint32, pid *uint32) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "getlk", err, "(%d,%d,%016X): (%d,%d,%s,%d)", ino, fh, owner, *start, *len, lockType(*typ), *pid)
+ 	}()
+@@ -241,6 +261,11 @@
+ }
+ 
+ func (v *VFS) Setlk(ctx Context, ino Ino, fh uint64, owner uint64, start, end uint64, typ uint32, pid uint32, block bool) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	defer func() {
+ 		logit(ctx, "setlk", err, "(%d,%d,%016X,%d,%d,%s,%t,%d)", ino, fh, owner, start, end, lockType(typ), block, pid)
+ 	}()
+@@ -274,6 +299,11 @@
+ }
+ 
+ func (v *VFS) Flock(ctx Context, ino Ino, fh uint64, owner uint64, typ uint32, block bool) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	var name string
+ 	defer func() { logit(ctx, "flock", err, "(%d,%d,%016X,%s,%t)", ino, fh, owner, name, block) }()
+ 	switch typ {
+@@ -314,6 +344,11 @@
+ }
+ 
+ func (v *VFS) Ioctl(ctx Context, ino Ino, cmd uint32, arg uint64, bufIn, bufOut []byte) (err syscall.Errno) {
++	if v.deniesWorkspaceInode(ino) {
++		err = syscall.EPERM
++		return
++	}
++
+ 	const (
+ 		FS_IOC_GETFLAGS    = 0x80086601
+ 		FS_IOC_SETFLAGS    = 0x40086602
+--- /dev/null
++++ b/pkg/vfs/workspace_policy.go
+@@ -0,0 +1,36 @@
++package vfs
++
++import "github.com/juicedata/juicefs/pkg/meta"
++
++// WorkspaceDataOnly is a mount-lifetime policy, not a listing preference.
++// Handle lookup cannot confer access to synthetic management nodes or trash.
++func (v *VFS) deniesWorkspaceInode(inodes ...Ino) bool {
++	if !v.Conf.WorkspaceDataOnly {
++		return false
++	}
++	for _, ino := range inodes {
++		if IsSpecialNode(ino) || ino == meta.TrashInode {
++			return true
++		}
++	}
++	return false
++}
++
++func workspaceInternalName(parent Ino, name string) bool {
++	if name == ".control" || name == ".jfs.control" {
++		return true
++	}
++	if parent != rootID {
++		return false
++	}
++	if len(name) == 0 {
++		return false
++	}
++	// Cover both spellings regardless of prefix-internal/global initialization.
++	switch name {
++	case ".control", ".accesslog", ".stats", ".config", ".trash",
++		".jfs.control", ".jfs.accesslog", ".jfs.stats", ".jfs.config", ".jfs.trash":
++		return true
++	}
++	return IsSpecialName(name)
++}
+--- /dev/null
++++ b/pkg/vfs/workspace_policy_test.go
+@@ -0,0 +1,132 @@
++//go:build !windows
++
++package vfs
++
++import (
++	"github.com/juicedata/juicefs/pkg/meta"
++	"syscall"
++	"testing"
++)
++
++func TestWorkspacePolicyRejectsInternalNamesAndInodes(t *testing.T) {
++	// Deliberately no backend: denied operations must return before resolution.
++	v := &VFS{Conf: &Config{WorkspaceDataOnly: true}}
++	ctx := NewLogContext(meta.NewContext(1, 10001, []uint32{10001}))
++	for _, parent := range []Ino{1, 42} {
++		for _, name := range []string{".control", ".stats", ".config", ".accesslog", ".trash", ".jfs.control", ".jfs.trash"} {
++			if parent != 1 && name != ".control" && name != ".jfs.control" {
++				continue
++			}
++			if _, err := v.Lookup(ctx, parent, name); err != syscall.ENOENT {
++				t.Fatalf("lookup %d/%s: %v", parent, name, err)
++			}
++		}
++	}
++	for _, ino := range []Ino{controlInode, StatsInode, ConfigInode, logInode, meta.TrashInode, minInternalNode + 99} {
++		if _, e := v.GetAttr(ctx, ino, 0); e != syscall.EPERM {
++			t.Fatalf("getattr %d: %v", ino, e)
++		}
++		if _, _, e := v.Open(ctx, ino, syscall.O_RDWR); e != syscall.EPERM {
++			t.Fatalf("open %d: %v", ino, e)
++		}
++		if _, e := v.Read(ctx, ino, make([]byte, 32), 0, 1); e != syscall.EPERM {
++			t.Fatalf("read %d: %v", ino, e)
++		}
++		if e := v.Write(ctx, ino, []byte("not a command"), 0, 1); e != syscall.EPERM {
++			t.Fatalf("write %d: %v", ino, e)
++		}
++		if _, e := v.Opendir(ctx, ino, 0); e != syscall.EPERM {
++			t.Fatalf("opendir %d: %v", ino, e)
++		}
++		if _, _, e := v.Readdir(ctx, ino, 4096, 0, 1, true); e != syscall.EPERM {
++			t.Fatalf("readdir %d: %v", ino, e)
++		}
++		if _, e := v.Link(ctx, ino, 1, "alias"); e != syscall.EPERM {
++			t.Fatalf("link %d: %v", ino, e)
++		}
++		if _, e := v.CopyFileRange(ctx, 1, 1, 0, ino, 1, 0, 32, 0); e != syscall.EPERM {
++			t.Fatalf("copy output %d: %v", ino, e)
++		}
++		if _, e := v.CopyFileRange(ctx, ino, 1, 0, 1, 1, 0, 32, 0); e != syscall.EPERM {
++			t.Fatalf("copy input %d: %v", ino, e)
++		}
++		if e := v.SetXattr(ctx, ino, "user.test", nil, 0); e != syscall.EPERM {
++			t.Fatalf("xattr %d: %v", ino, e)
++		}
++	}
++}
++
++func TestWorkspacePolicyPreservesOrdinaryFiles(t *testing.T) {
++	v, _ := createTestVFS(nil, "")
++	v.Conf.WorkspaceDataOnly = true
++	rootctx := NewLogContext(meta.NewContext(1, 0, []uint32{0}))
++	if _, err := v.SetAttr(rootctx, 1, meta.SetAttrUID|meta.SetAttrGID, 0, 0, 10001, 10001, 0, 0, 0, 0, 0); err != 0 {
++		t.Fatal(err)
++	}
++	ctx := NewLogContext(meta.NewContext(1, 10001, []uint32{10001}))
++	for _, name := range []string{".env", "file"} {
++		e, fh, err := v.Create(ctx, 1, name, 0600, 0, syscall.O_RDWR)
++		if err != 0 {
++			t.Fatal(err)
++		}
++		if e.Attr.Uid != 10001 || e.Attr.Gid != 10001 {
++			t.Fatalf("ownership changed: %+v", e.Attr)
++		}
++		if err = v.Write(ctx, e.Inode, []byte("hello"), 0, fh); err != 0 {
++			t.Fatal(err)
++		}
++		b := make([]byte, 5)
++		if n, err := v.Read(ctx, e.Inode, b, 0, fh); err != 0 || n != 5 || string(b) != "hello" {
++			t.Fatalf("read %q: %v", b, err)
++		}
++		if _, err := v.SetAttr(ctx, e.Inode, meta.SetAttrMode, 0, 0700, 0, 0, 0, 0, 0, 0, 0); err != 0 {
++			t.Fatal(err)
++		}
++		if err = v.Rename(ctx, 1, name, 1, name+".renamed", 0); err != 0 {
++			t.Fatal(err)
++		}
++		if _, err = v.Link(ctx, e.Inode, 1, name+".link"); err != 0 {
++			t.Fatal(err)
++		}
++		v.Release(ctx, e.Inode, fh)
++	}
++	dir, e := v.Mkdir(ctx, 1, "workspace", 0700, 0)
++	if e != 0 {
++		t.Fatal(e)
++	}
++	for _, name := range []string{".git", ".config"} {
++		if _, e := v.Mkdir(ctx, dir.Inode, name, 0700, 0); e != 0 {
++			t.Fatal(e)
++		}
++		if _, e := v.Lookup(ctx, dir.Inode, name); e != 0 {
++			t.Fatal(e)
++		}
++	}
++	if _, e := v.Lookup(ctx, 1, ".."); e != 0 {
++		t.Fatal(e)
++	}
++	fh, e := v.Opendir(ctx, 1, 0)
++	if e != 0 {
++		t.Fatal(e)
++	}
++	entries, _, e := v.Readdir(ctx, 1, 4096, 0, fh, true)
++	if e != 0 {
++		t.Fatal(e)
++	}
++	for _, entry := range entries {
++		if v.deniesWorkspaceInode(entry.Inode) {
++			t.Fatalf("internal entry: %s", entry.Name)
++		}
++	}
++	v.Releasedir(ctx, 1, fh)
++}
++
++func TestWorkspacePolicyDoesNotChangeAdministrativeMount(t *testing.T) {
++	v := &VFS{Conf: &Config{}}
++	ctx := NewLogContext(meta.NewContext(1, 0, []uint32{0}))
++	for _, name := range []string{".control", ".config"} {
++		if _, e := v.Lookup(ctx, 1, name); e != 0 {
++			t.Fatal(e)
++		}
++	}
++}
+--- a/pkg/fuse/fuse.go
++++ b/pkg/fuse/fuse.go
+@@ -469,6 +469,9 @@
+ 	var opt fuse.MountOptions
+ 	opt.FsName = "JuiceFS:" + conf.Format.Name
+ 	opt.Name = "juicefs"
++	if conf.WorkspaceDataOnly {
++		opt.Name = "juicefs-workspace-v1"
++	}
+ 	opt.SingleThreaded = false
+ 	opt.MaxBackground = 50
+ 	opt.EnableLocks = true
+@@ -480,8 +483,8 @@
+ 	opt.EnableIoctl = ioctl
+ 	opt.MaxWrite = conf.FuseOpts.MaxWrite
+ 	opt.MaxReadAhead = 1 << 20
+ 	opt.DirectMount = true
+-	opt.AllowOther = os.Getuid() == 0
++	opt.AllowOther = os.Getuid() == 0 && !conf.RootOnly
+ 	opt.Timeout = conf.FuseOpts.Timeout
+ 	opt.EnableReadDirPlusAuto = conf.FuseOpts.EnableReadDirPlusAuto
+ 
+@@ -495,7 +498,7 @@
+ 	opt.IgnoreSecurityLabels = false
+ 
+ 	for _, n := range strings.Split(options, ",") {
+-		if n == "allow_other" || n == "allow_root" {
++		if (n == "allow_other" || n == "allow_root") && !conf.RootOnly {
+ 			opt.AllowOther = true
+ 		} else if n == "nonempty" || n == "ro" {
+ 		} else if n == "debug" {
+@@ -548,6 +551,9 @@
+ 	var opt fuse.MountOptions
+ 	opt.FsName = "JuiceFS:" + conf.Format.Name
+ 	opt.Name = "juicefs"
++	if conf.WorkspaceDataOnly {
++		opt.Name = "juicefs-workspace-v1"
++	}
+ 	opt.SingleThreaded = mt == 0
+ 	opt.MaxBackground = 200
+ 	opt.EnableLocks = true
+@@ -572,6 +578,9 @@
+ 			opt.Options = append(opt.Options, strings.TrimSpace(n))
+ 		}
+ 	}
++	if conf.RootOnly {
++		opt.AllowOther = false
++	}
+ 	opt.Options = append(opt.Options, "default_permissions")
+ 	if runtime.GOOS == "darwin" {
+ 		opt.Options = append(opt.Options, "fssubtype=juicefs", "volname="+conf.Format.Name)
+--- /dev/null
++++ b/pkg/fuse/workspace_policy_test.go
+@@ -0,0 +1,23 @@
++//go:build linux
++
++package fuse
++
++import (
++	"github.com/juicedata/juicefs/pkg/vfs"
++	"testing"
++)
++
++func TestWorkspaceMountSubtype(t *testing.T) {
++	conf := &vfs.Config{}
++	if got := GenFuseOpt(conf, "", 0, false, false, 128*1024).Name; got != "juicefs" {
++		t.Fatal(got)
++	}
++	conf.WorkspaceDataOnly = true
++	if got := GenFuseOpt(conf, "", 0, false, false, 128*1024).Name; got != "juicefs-workspace-v1" {
++		t.Fatal(got)
++	}
++	conf.RootOnly = true
++	if GenFuseOpt(conf, "allow_other", 0, false, false, 128*1024).AllowOther {
++		t.Fatal("root-only mount accepted allow_other")
++	}
++}
+--- a/cmd/mount.go
++++ b/cmd/mount.go
+@@ -288,16 +288,18 @@
+ 			EnableCap:     c.Bool("enable-cap"),
+ 			EnableSELinux: c.Bool("enable-selinux"),
+ 		},
+-		Version:         version.Version(),
+-		Chunk:           chunkConf,
+-		BackupMeta:      utils.Duration(c.String("backup-meta")),
+-		BackupSkipTrash: c.Bool("backup-skip-trash"),
+-		Port:            &vfs.Port{DebugAgent: debugAgent, PyroscopeAddr: c.String("pyroscope")},
+-		PrefixInternal:  c.Bool("prefix-internal"),
+-		Pid:             os.Getpid(),
+-		PPid:            os.Getppid(),
+-		UMask:           0xFFFF,
+-		HideInternal:    c.Bool("hide-internal"),
++		Version:           version.Version(),
++		Chunk:             chunkConf,
++		BackupMeta:        utils.Duration(c.String("backup-meta")),
++		BackupSkipTrash:   c.Bool("backup-skip-trash"),
++		Port:              &vfs.Port{DebugAgent: debugAgent, PyroscopeAddr: c.String("pyroscope")},
++		PrefixInternal:    c.Bool("prefix-internal"),
++		Pid:               os.Getpid(),
++		PPid:              os.Getppid(),
++		UMask:             0xFFFF,
++		HideInternal:      c.Bool("hide-internal"),
++		WorkspaceDataOnly: c.Bool("workspace-data-only"),
++		RootOnly:          c.Bool("root-only"),
+ 	}
+ 
+ 	if c.IsSet("umask") {
+--- a/cmd/mount_unix.go
++++ b/cmd/mount_unix.go
+@@ -480,6 +480,14 @@
+ 		&cli.BoolFlag{
+ 			Name:  "force",
+ 			Usage: "force to mount even if the mount point is already mounted by the same filesystem",
++		},
++		&cli.BoolFlag{
++			Name:  "workspace-data-only",
++			Usage: "deny internal management interfaces on guest Workspace mounts",
++		},
++		&cli.BoolFlag{
++			Name:  "root-only",
++			Usage: "deny FUSE access to every user except root",
+ 		},
+ 		&cli.BoolFlag{
+ 			Name:  "hide-internal",
+@@ -570,8 +578,8 @@ func genFuseOpt(c *cli.Context, name string) string {
+ 	if prefix == "" {
+ 		prefix = "JuiceFS:"
+ 	}
+ 	fuseOpt += ",fsname=" + prefix + name
+-	if c.Bool("allow-other") || os.Getuid() == 0 && !strings.Contains(fuseOpt, "allow_other") {
++	if !c.Bool("root-only") && (c.Bool("allow-other") || os.Getuid() == 0 && !strings.Contains(fuseOpt, "allow_other")) {
+ 		fuseOpt += ",allow_other"
+ 	}
+ 	switch runtime.GOOS {
+--- a/cmd/config.go
++++ b/cmd/config.go
+@@ -129,6 +129,14 @@
+ func configFlags() []cli.Flag {
+ 	return []cli.Flag{
+ 		&cli.BoolFlag{
++			Name:  "access-key-env",
++			Usage: "update the object storage access key from ACCESS_KEY instead of process arguments",
++		},
++		&cli.BoolFlag{
++			Name:  "secret-key-env",
++			Usage: "update the object storage secret key from SECRET_KEY instead of process arguments",
++		},
++		&cli.BoolFlag{
+ 			Name:    "yes",
+ 			Aliases: []string{"y"},
+ 			Usage:   "automatically answer 'yes' to all prompts and run non-interactively",
+@@ -161,6 +169,12 @@
+ 
+ func config(ctx *cli.Context) error {
+ 	setup(ctx, 1)
++	if ctx.IsSet("access-key-env") && ctx.IsSet("access-key") {
++		return fmt.Errorf("access-key-env cannot be combined with access-key")
++	}
++	if ctx.IsSet("secret-key-env") && ctx.IsSet("secret-key") {
++		return fmt.Errorf("secret-key-env cannot be combined with secret-key")
++	}
+ 	removePassword(ctx.Args().Get(0))
+ 	m := meta.NewClient(ctx.Args().Get(0), nil)
+ 
+@@ -232,6 +246,19 @@
+ 				format.AccessKey = new
+ 				storage = true
+ 			}
++		case "access-key-env":
++			if ctx.IsSet("tier") {
++				return fmt.Errorf("access-key-env cannot be used with tier")
++			}
++			new, ok := os.LookupEnv("ACCESS_KEY")
++			if !ctx.Bool(flag) || !ok || new == "" {
++				return fmt.Errorf("access-key-env requires a nonempty ACCESS_KEY")
++			}
++			if new != format.AccessKey {
++				msg.WriteString(fmt.Sprintf("%10s: updated\n", "access-key"))
++				format.AccessKey = new
++				storage = true
++			}
+ 		case "secret-key": // always update
+ 			if ctx.IsSet("tier") {
+ 				continue
+@@ -241,6 +268,20 @@
+ 				logger.Warnf("decrypt secrets: %s", err)
+ 			}
+ 			format.SecretKey = ctx.String(flag)
++			storage = true
++		case "secret-key-env": // always update, without exposing the key in argv
++			if ctx.IsSet("tier") {
++				return fmt.Errorf("secret-key-env cannot be used with tier")
++			}
++			new, ok := os.LookupEnv("SECRET_KEY")
++			if !ctx.Bool(flag) || !ok || new == "" {
++				return fmt.Errorf("secret-key-env requires a nonempty SECRET_KEY")
++			}
++			msg.WriteString(fmt.Sprintf("%10s: updated\n", "secret-key"))
++			if err := format.Decrypt(); err != nil && strings.Contains(err.Error(), "secret was removed") {
++				logger.Warnf("decrypt secrets: %s", err)
++			}
++			format.SecretKey = new
+ 			storage = true
+ 		case "session-token": // always update
+ 			if ctx.IsSet("tier") {

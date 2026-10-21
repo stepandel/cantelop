@@ -1,0 +1,7 @@
+---
+- name: Connect compute and storage hosts
+  hosts: fire_fuse_hosts:storage_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: storage_wireguard

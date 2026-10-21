@@ -1,0 +1,7 @@
+---
+- name: Restore and qualify isolated Redis persistence snapshot
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_restore_redis_snapshot

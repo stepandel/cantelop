@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fire-fuse benchmark dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>fire-fuse benchmarks</h1>
+    <p id="history-source" class="subtitle">Loading history…</p>
+  </header>
+  <main id="dashboard">
+    <p id="load-status">Loading benchmark history…</p>
+    <section id="overview" hidden>
+      <div id="kpi-row" class="kpi-row"></div>
+      <div class="card">
+        <h2>VM warmup latency by series</h2>
+        <p class="card-note">
+          Host-local wall time of the synchronous <code>POST /v1/sandboxes</code> request.
+          The shaded band spans the observed min–max; p95 is nearest-rank and
+          directional at small trial counts.
+        </p>
+        <div id="trend-chart" class="chart"></div>
+        <details class="table-view">
+          <summary>Table view</summary>
+          <div id="trend-table"></div>
+        </details>
+      </div>
+    </section>
+    <section id="detail" hidden>
+      <div class="filter-row">
+        <label for="series-select">Series detail</label>
+        <select id="series-select"></select>
+        <span id="detail-meta" class="filter-meta"></span>
+      </div>
+      <div class="card">
+        <h2>Where warmup time goes — host step timeline</h2>
+        <p class="card-note">
+          Every traced host step of the warmup request, in start order. A bar
+          spans the step's median start offset to its median end. Umbrella steps
+          (for example <code>supervisor.start</code>) overlap the steps they
+          wrap; repeated steps are aggregated per trial.
+        </p>
+        <div id="timeline-chart" class="chart"></div>
+        <p id="timeline-empty" class="card-note" hidden>
+          This series predates detailed trace retention, so it has no
+          per-step breakdown.
+        </p>
+        <details class="table-view">
+          <summary>Table view — steps by median duration</summary>
+          <div id="steps-table"></div>
+        </details>
+      </div>
+      <div class="card" id="milestones-card">
+        <h2>Guest boot milestones</h2>
+        <p class="card-note">
+          Milestones reported by the guest against its own boot uptime clock
+          (not the host request clock). The dot marks the median; the whisker
+          extends to the nearest-rank p95.
+        </p>
+        <div id="milestones-chart" class="chart"></div>
+        <p id="milestones-empty" class="card-note" hidden>
+          This series has no guest milestone trace.
+        </p>
+        <details class="table-view">
+          <summary>Table view</summary>
+          <div id="milestones-table"></div>
+        </details>
+      </div>
+      <div class="card" id="workloads-card">
+        <h2>Storage workload metrics</h2>
+        <p class="card-note">
+          Median results per workload and cache state for the selected series.
+        </p>
+        <div id="workloads-table"></div>
+      </div>
+    </section>
+  </main>
+  <div id="tooltip" class="tooltip" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

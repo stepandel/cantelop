@@ -1,0 +1,140 @@
+---
+- name: Validate Cloudflare edge Tunnel inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+      - cloudflare_edge_tunnel_binary_artifact.startswith('/')
+      - cloudflare_edge_tunnel_binary_checksum is match('^[0-9a-f]{64}$')
+      - cloudflare_edge_tunnel_binary == '/usr/local/bin/cloudflared'
+      - cloudflare_edge_tunnel_config_directory == '/etc/cloudflared'
+      - cloudflare_edge_tunnel_token_file == '/etc/cloudflared/cantelop-edge.token'
+      - >-
+        cloudflare_edge_tunnel_unit
+        == '/etc/systemd/system/cloudflared-cantelop-edge.service'
+      - cloudflare_edge_tunnel_metrics_address == '127.0.0.1:20241'
+    fail_msg: >-
+      the edge Tunnel requires fixed private paths, a loopback metrics listener,
+      and a checksum-pinned cloudflared artifact
+
+- name: Validate the private Tunnel token
+  ansible.builtin.assert:
+    that:
+      - cloudflare_edge_tunnel_token | length >= 100
+      - cloudflare_edge_tunnel_token is match('^[A-Za-z0-9_.-]+={0,2}$')
+    fail_msg: the edge Tunnel requires a valid remotely managed Tunnel token
+  no_log: true
+
+- name: Inspect the cloudflared artifact on the controller
+  ansible.builtin.stat:
+    path: "{{ cloudflare_edge_tunnel_binary_artifact }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: cloudflare_edge_tunnel_controller_artifact
+
+- name: Require a regular checksum-pinned cloudflared artifact
+  ansible.builtin.assert:
+    that:
+      - cloudflare_edge_tunnel_controller_artifact.stat is trusted_file
+      - >-
+        cloudflare_edge_tunnel_controller_artifact.stat.checksum | default('')
+        == cloudflare_edge_tunnel_binary_checksum
+    fail_msg: >-
+      cloudflared must be a regular controller file with the declared SHA-256
+      checksum
+
+- name: Create the restricted cloudflared group
+  ansible.builtin.group:
+    name: "{{ cloudflare_edge_tunnel_group }}"
+    system: true
+    state: present
+
+- name: Create the restricted cloudflared user
+  ansible.builtin.user:
+    name: "{{ cloudflare_edge_tunnel_user }}"
+    group: "{{ cloudflare_edge_tunnel_group }}"
+    groups: []
+    append: false
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Create the private cloudflared configuration directory
+  ansible.builtin.file:
+    path: "{{ cloudflare_edge_tunnel_config_directory }}"
+    state: directory
+    owner: root
+    group: "{{ cloudflare_edge_tunnel_group }}"
+    mode: "0750"
+
+- name: Install the checksum-pinned cloudflared binary
+  ansible.builtin.copy:
+    src: "{{ cloudflare_edge_tunnel_binary_artifact }}"
+    dest: "{{ cloudflare_edge_tunnel_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart Cantelop edge Tunnel
+
+- name: Install the private Tunnel token
+  ansible.builtin.copy:
+    content: "{{ cloudflare_edge_tunnel_token }}\n"
+    dest: "{{ cloudflare_edge_tunnel_token_file }}"
+    owner: root
+    group: "{{ cloudflare_edge_tunnel_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart Cantelop edge Tunnel
+
+- name: Install the Cantelop cloudflared service
+  ansible.builtin.template:
+    src: cloudflared-cantelop-edge.service.j2
+    dest: "{{ cloudflare_edge_tunnel_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Cantelop edge Tunnel
+
+- name: Reload systemd for cloudflared validation
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Validate the cloudflared systemd unit
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemd-analyze
+      - verify
+      - "{{ cloudflare_edge_tunnel_unit }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Apply cloudflared configuration changes
+  ansible.builtin.meta: flush_handlers
+  when: not ansible_check_mode
+
+- name: Enable and start the Cantelop edge Tunnel
+  ansible.builtin.systemd_service:
+    name: cloudflared-cantelop-edge.service
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Require the edge Tunnel connector to be ready
+  ansible.builtin.uri:
+    url: "http://{{ cloudflare_edge_tunnel_metrics_address }}/ready"
+    method: GET
+    status_code: 200
+    use_proxy: false
+  register: cloudflare_edge_tunnel_readiness
+  retries: 30
+  delay: 2
+  until: cloudflare_edge_tunnel_readiness.status == 200
+  when: not ansible_check_mode

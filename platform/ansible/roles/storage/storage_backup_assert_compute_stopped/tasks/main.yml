@@ -1,0 +1,13 @@
+---
+- name: Require compute to stay stopped throughout storage capture
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-active, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_backup_compute_status
+  changed_when: false
+  failed_when: storage_backup_compute_status.rc != 3 or storage_backup_compute_status.stdout != 'inactive'
+  check_mode: false
+
+- name: Record the verified compute maintenance boundary
+  ansible.builtin.set_fact:
+    storage_backup_compute_stopped: true

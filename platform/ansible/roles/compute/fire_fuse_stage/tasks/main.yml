@@ -1,0 +1,671 @@
+---
+- name: Validate the fire-fuse release staging inputs
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_stage_directory.startswith('/')
+      - fire_fuse_stage_config_destination.startswith('/')
+      - >-
+        fire_fuse_stage_image_catalog_destination
+        == '/etc/fire-fuse/image-catalog.json'
+      - >-
+        fire_fuse_stage_config_encryption_key_destination
+        == '/etc/fire-fuse/config-encryption.key'
+      - fire_fuse_stage_runtime_directory.startswith('/')
+      - fire_fuse_stage_state_database.startswith('/')
+      - >-
+        fire_fuse_stage_address_pool
+        is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
+      - fire_fuse_stage_workspace_exportfs_bin.startswith('/')
+      - fire_fuse_stage_workspace_juicefs_bin.startswith('/')
+      - fire_fuse_stage_workspace_mountpoint_bin.startswith('/')
+      - fire_fuse_stage_workspace_root.startswith('/var/lib/fire-fuse/')
+      - fire_fuse_stage_workspace_admin_root.startswith('/var/lib/fire-fuse/')
+      - fire_fuse_stage_workspace_admin_root != fire_fuse_stage_workspace_root
+      - fire_fuse_stage_profile_name is match('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+      - fire_fuse_stage_profile_boot_args | trim | length > 0
+      - fire_fuse_release_images is sequence
+      - fire_fuse_release_images is not string
+      - fire_fuse_release_images | length >= 1
+      - fire_fuse_release_images | length <= 16
+      - >-
+        fire_fuse_stage_snapshot_bundle
+        is match('^/var/lib/fire-fuse/snapshots/[A-Za-z0-9._-]+$')
+      - >-
+        fire_fuse_stage_profile_boot_args.split()
+        | select('match', '^ip=') | list | length == 0
+      - >-
+        fire_fuse_stage_profile_boot_args.split()
+        | select('match', '^fire-fuse\.workspace=') | list | length == 0
+    fail_msg: >-
+      release staging requires absolute deployment paths, a valid address-pool
+      value, safe workspace settings, safe profile boot args, and 1-16 images
+
+- name: Validate the configuration encryption key
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_stage_config_encryption_key
+        is match('^[0-9a-f]{64}$')
+    fail_msg: configuration encryption requires one 256-bit lowercase-hex Vault key
+  no_log: true
+
+- name: Validate the image release declarations
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.keys() | sort == [
+          'name',
+          'process_artifact',
+          'process_checksum',
+          'rootfs_artifact',
+          'rootfs_checksum'
+        ]
+      - item.name is match('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+      - item.rootfs_artifact.startswith('/')
+      - item.rootfs_checksum is match('^[0-9a-f]{64}$')
+      - item.process_artifact.startswith('/')
+      - item.process_checksum is match('^[0-9a-f]{64}$')
+    fail_msg: every image requires an exact, trusted release declaration
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name | default('invalid image') }}"
+
+- name: Require unique image release declarations
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_release_images | map(attribute='name') | unique | length
+        == fire_fuse_release_images | length
+    fail_msg: image names must be unique
+
+- name: Inspect the current trusted image catalog
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_stage_image_catalog_destination }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_stage_existing_catalog_stat
+
+- name: Require a trusted current image catalog when present
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (fire_fuse_stage_existing_catalog_stat.stat.exists | default(false))
+        or (
+          fire_fuse_stage_existing_catalog_stat.stat is trusted_file(
+            owner='root', group='root', mode='0640'
+          )
+        )
+    fail_msg: the current image catalog is not a trusted root-owned 0640 file
+
+- name: Initialize the current image catalog snapshot
+  ansible.builtin.set_fact:
+    fire_fuse_stage_existing_catalog:
+      schema_version: 1
+      images: {}
+    fire_fuse_stage_existing_catalog_sha256: absent
+
+- name: Read the current trusted image catalog
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_stage_image_catalog_destination }}"
+  register: fire_fuse_stage_existing_catalog_contents
+  when: fire_fuse_stage_existing_catalog_stat.stat.exists | default(false)
+
+- name: Decode the current trusted image catalog
+  ansible.builtin.set_fact:
+    fire_fuse_stage_existing_catalog: >-
+      {{ fire_fuse_stage_existing_catalog_contents.content
+      | b64decode | from_json }}
+    fire_fuse_stage_existing_catalog_sha256: >-
+      {{ fire_fuse_stage_existing_catalog_contents.content
+      | b64decode | hash('sha256') }}
+  when: fire_fuse_stage_existing_catalog_stat.stat.exists | default(false)
+
+- name: Require the current image catalog schema
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_stage_existing_catalog.keys() | sort
+        == ['images', 'schema_version']
+      - fire_fuse_stage_existing_catalog.schema_version | type_debug == 'int'
+      - fire_fuse_stage_existing_catalog.schema_version | int == 1
+      - fire_fuse_stage_existing_catalog.images is mapping
+      - >-
+        not (fire_fuse_stage_existing_catalog_stat.stat.exists | default(false))
+        or fire_fuse_stage_existing_catalog_stat.stat.checksum
+          == fire_fuse_stage_existing_catalog_sha256
+    fail_msg: the current image catalog has an unsupported shape or schema
+
+- name: Initialize the complete release artifact set
+  ansible.builtin.set_fact:
+    fire_fuse_stage_artifacts: "{{ fire_fuse_stage_base_artifacts }}"
+    fire_fuse_stage_images: "{{ fire_fuse_stage_existing_catalog.images }}"
+
+- name: Add image root filesystems to the release artifact set
+  ansible.builtin.set_fact:
+    fire_fuse_stage_artifacts: >-
+      {{ fire_fuse_stage_artifacts + [{
+        'name': 'container image ' ~ item.name,
+        'source': item.rootfs_artifact,
+        'checksum': item.rootfs_checksum,
+        'staged_name': 'sha256-' ~ item.rootfs_checksum ~ '.ext4',
+        'destination': '/var/lib/fire-fuse/images/sha256-'
+          ~ item.rootfs_checksum ~ '.ext4',
+        'mode': '0644'
+      }] }}
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Validate the fire-fuse resource limits
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_stage_limits.max_vms | int >= 1
+      - fire_fuse_stage_limits.max_total_memory_mib | int >= 1
+      - fire_fuse_stage_limits.max_concurrent_starts | int >= 1
+      - fire_fuse_stage_host_pool.slots_per_profile | int >= 0
+      - >-
+        fire_fuse_stage_host_pool.slots_per_profile | int
+        <= fire_fuse_stage_limits.max_vms | int
+      - >-
+        fire_fuse_stage_limits.max_concurrent_starts | int
+        <= fire_fuse_stage_limits.max_vms | int
+    fail_msg: fire-fuse staging limits and host pool must be internally consistent
+
+- name: Require the single default sandbox profile
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_stage_profile_name == 'default'
+    fail_msg: fire-fuse staging supports only the default sandbox profile
+
+- name: Require a nonconflicting guest address pool
+  ansible.builtin.script:
+    cmd: >-
+      check-address-pool.py {{ fire_fuse_stage_address_pool | quote }}
+    executable: /usr/bin/python3
+  changed_when: false
+  check_mode: false
+
+- name: Validate the release artifact declarations
+  ansible.builtin.assert:
+    that:
+      - item.source.startswith('/')
+      - item.checksum is match('^[0-9a-f]{64}$')
+      - item.staged_name is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - item.destination.startswith('/')
+      - item.mode in ['0644', '0755']
+    fail_msg: >-
+      every release artifact requires an absolute source, lowercase
+      SHA-256, safe staged name, absolute destination, and supported mode
+  loop: "{{ fire_fuse_stage_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require unique staged names and destinations
+  ansible.builtin.assert:
+    that:
+      - >-
+        (fire_fuse_stage_artifacts | map(attribute='staged_name') | unique
+        | length) == (fire_fuse_stage_artifacts | length)
+      - >-
+        (fire_fuse_stage_artifacts | map(attribute='destination') | unique
+        | length) == (fire_fuse_stage_artifacts | length)
+    fail_msg: release artifact staged names and destinations must be unique
+
+- name: Validate host-local artifact selection
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_stage_host_artifact_names is sequence
+      - fire_fuse_stage_host_artifact_names is not string
+      - >-
+        fire_fuse_stage_host_artifact_names | unique | length
+        == fire_fuse_stage_host_artifact_names | length
+      - >-
+        fire_fuse_stage_host_artifact_names
+        | difference(fire_fuse_stage_artifacts | map(attribute='name') | list)
+        | length == 0
+    fail_msg: host-local artifact names must be unique release artifact names
+
+- name: Verify controller-local release artifacts at their source
+  ansible.builtin.stat:
+    path: "{{ item.source }}"
+    checksum_algorithm: sha256
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_stage_controller_source_artifacts
+  loop: >-
+    {{ fire_fuse_stage_artifacts
+    | rejectattr('name', 'in', fire_fuse_stage_host_artifact_names) | list }}
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Verify host-local release artifacts at their source
+  ansible.builtin.stat:
+    path: "{{ item.source }}"
+    checksum_algorithm: sha256
+    follow: false
+  become: true
+  register: fire_fuse_stage_host_source_artifacts
+  loop: >-
+    {{ fire_fuse_stage_artifacts
+    | selectattr('name', 'in', fire_fuse_stage_host_artifact_names) | list }}
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Combine verified source artifact identities
+  ansible.builtin.set_fact:
+    fire_fuse_stage_source_artifacts:
+      results: >-
+        {{ fire_fuse_stage_controller_source_artifacts.results
+        + fire_fuse_stage_host_source_artifacts.results }}
+
+- name: Require declared source artifact checksums
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file
+      - item.stat.size | default(0) | int > 0
+      - item.stat.checksum | default('') == item.item.checksum
+    fail_msg: >-
+      source artifact {{ item.item.name }} is missing or has the wrong
+      SHA-256
+  loop: "{{ fire_fuse_stage_source_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Verify image process artifacts on the controller
+  ansible.builtin.stat:
+    path: "{{ item.process_artifact }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_stage_process_artifacts
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require declared image process artifact checksums
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file
+      - item.stat.size | default(0) <= 1048576
+      - >-
+        item.stat.checksum | default('') == item.item.process_checksum
+    fail_msg: >-
+      controller image process artifact is missing or has the wrong
+      SHA-256
+  loop: "{{ fire_fuse_stage_process_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Require jq on the Ansible controller
+  ansible.builtin.command:
+    argv:
+      - jq
+      - --version
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  check_mode: false
+
+- name: Validate image process contracts on the controller
+  ansible.builtin.command:
+    argv:
+      - jq
+      - -e
+      - -s
+      - -f
+      - "{{ role_path }}/../../../../hetzner/validate-container-process.jq"
+      - "{{ item.process_artifact }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  check_mode: false
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Build content-addressed image catalog entries
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/build-image-catalog.py"
+      - --rootfs-size-bytes
+      - >-
+        {{ (fire_fuse_stage_source_artifacts.results
+        | selectattr('item.name', 'equalto', 'container image ' ~ item.name)
+        | first).stat.size | string }}
+      - --rootfs-sha256
+      - "{{ item.rootfs_checksum }}"
+      - --process
+      - "{{ item.process_artifact }}"
+      - --installed-rootfs
+      - >-
+        /var/lib/fire-fuse/images/sha256-{{ item.rootfs_checksum }}.ext4
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  check_mode: false
+  register: fire_fuse_stage_catalog_builders
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Decode content-addressed image catalog entries
+  ansible.builtin.set_fact:
+    fire_fuse_stage_catalog_entries: >-
+      {{ fire_fuse_stage_catalog_builders.results
+      | map(attribute='stdout') | map('from_json') | list }}
+
+- name: Require canonical image catalog shapes
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.0.keys() | sort == ['build_id', 'image']
+      - >-
+        item.0.build_id is match('^sha256:[0-9a-f]{64}$')
+      - >-
+        item.0.image.keys() | sort
+        == [
+          'process',
+          'rootfs_image',
+          'rootfs_sha256',
+          'rootfs_size_bytes'
+        ]
+      - >-
+        item.0.image.rootfs_sha256 == item.1.rootfs_checksum
+      - >-
+        item.0.image.rootfs_image
+        == '/var/lib/fire-fuse/images/sha256-'
+          ~ item.1.rootfs_checksum ~ '.ext4'
+      - item.0.image.rootfs_size_bytes | int > 0
+    fail_msg: the generated image catalog entry is incomplete or inconsistent
+  loop: >-
+    {{ fire_fuse_stage_catalog_entries | zip(fire_fuse_release_images) | list }}
+  loop_control:
+    label: "{{ item.1.name }}"
+
+- name: Reject conflicts with previously published image identities
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.build_id not in fire_fuse_stage_existing_catalog.images
+        or fire_fuse_stage_existing_catalog.images[item.build_id] == item.image
+    fail_msg: >-
+      Build {{ item.build_id }} conflicts with its previously published metadata
+  loop: "{{ fire_fuse_stage_catalog_entries }}"
+  loop_control:
+    label: "{{ item.build_id }}"
+
+- name: Record trusted image catalog entries
+  ansible.builtin.set_fact:
+    fire_fuse_stage_images: >-
+      {{ fire_fuse_stage_images | combine({
+        item.build_id: item.image
+      }) }}
+  loop: "{{ fire_fuse_stage_catalog_entries }}"
+  loop_control:
+    label: "{{ item.build_id }}"
+
+- name: Require unique content-addressed image identities
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_stage_catalog_entries | map(attribute='build_id')
+        | unique | length == fire_fuse_release_images | length
+    fail_msg: release images must have unique content-addressed identities
+
+- name: Load the jailer account
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ fire_fuse_stage_jailer_user }}"
+    fail_key: true
+
+- name: Record the non-root jailer identity
+  ansible.builtin.set_fact:
+    fire_fuse_stage_jailer_uid: >-
+      {{ ansible_facts.getent_passwd[fire_fuse_stage_jailer_user][1] | int }}
+    fire_fuse_stage_jailer_gid: >-
+      {{ ansible_facts.getent_passwd[fire_fuse_stage_jailer_user][2] | int }}
+
+- name: Require a non-root jailer identity
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_stage_jailer_uid | int > 0
+      - fire_fuse_stage_jailer_gid | int > 0
+    fail_msg: the staged release requires a non-root jailer UID and GID
+
+- name: Inspect the existing configuration encryption key
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_stage_config_encryption_key_destination }}"
+  register: fire_fuse_stage_existing_config_encryption_key
+
+- name: Require a trusted existing configuration encryption key
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_stage_existing_config_encryption_key.stat.exists | default(false)
+      - >-
+        fire_fuse_stage_existing_config_encryption_key.stat is trusted_file(
+          owner='root', group='root', mode='0600'
+        )
+    fail_msg: prepare-service must install a trusted root-owned 0600 configuration encryption key before staging
+
+- name: Read the existing configuration encryption key
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_stage_config_encryption_key_destination }}"
+  register: fire_fuse_stage_existing_config_encryption_key_contents
+  no_log: true
+
+- name: Refuse configuration encryption key rotation
+  ansible.builtin.assert:
+    that:
+      - >-
+        (fire_fuse_stage_existing_config_encryption_key_contents.content
+        | b64decode | trim) == fire_fuse_stage_config_encryption_key
+    fail_msg: the supplied configuration encryption key differs from the installed key
+  no_log: true
+
+- name: Create the isolated release staging directory
+  ansible.builtin.file:
+    path: "{{ fire_fuse_stage_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Copy verified artifacts into the isolated release
+  ansible.builtin.copy:
+    src: "{{ item.source }}"
+    dest: "{{ fire_fuse_stage_directory }}/{{ item.staged_name }}"
+    remote_src: "{{ item.name in fire_fuse_stage_host_artifact_names }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: "{{ fire_fuse_stage_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Render the proposed fire-fuse configuration in memory
+  ansible.builtin.set_fact:
+    fire_fuse_stage_config_document: >-
+      {{ lookup('ansible.builtin.template', 'config.json.j2') }}
+    fire_fuse_stage_image_catalog_document: >-
+      {{ lookup('ansible.builtin.template', 'image-catalog.json.j2') }}
+
+- name: Record the proposed configuration identity
+  ansible.builtin.set_fact:
+    fire_fuse_stage_config_sha256: >-
+      {{ fire_fuse_stage_config_document | hash('sha256') }}
+    fire_fuse_stage_image_catalog_sha256: >-
+      {{ fire_fuse_stage_image_catalog_document | hash('sha256') }}
+
+- name: Write the proposed image catalog
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_stage_image_catalog_document }}"
+    dest: "{{ fire_fuse_stage_directory }}/image-catalog.json"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Write the proposed fire-fuse configuration
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_stage_config_document }}"
+    dest: "{{ fire_fuse_stage_directory }}/config.json"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Render the staged release manifest
+  ansible.builtin.template:
+    src: release.json.j2
+    dest: "{{ fire_fuse_stage_directory }}/release.json"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Inspect staged release metadata
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_stage_release_metadata
+  loop:
+    - path: "{{ fire_fuse_stage_directory }}/image-catalog.json"
+      mode: "0640"
+    - path: "{{ fire_fuse_stage_directory }}/config.json"
+      mode: "0640"
+    - path: "{{ fire_fuse_stage_directory }}/release.json"
+      mode: "0640"
+  loop_control:
+    label: "{{ item.path }}"
+  when: not ansible_check_mode
+
+- name: Require trusted staged release metadata
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) > 0
+      - >-
+        item.item.path != fire_fuse_stage_directory ~ '/image-catalog.json'
+        or item.stat.checksum | default('')
+          == fire_fuse_stage_image_catalog_sha256
+      - >-
+        item.item.path != fire_fuse_stage_directory ~ '/config.json'
+        or item.stat.checksum | default('') == fire_fuse_stage_config_sha256
+    fail_msg: staged release metadata {{ item.item.path }} is not trusted
+  loop: "{{ fire_fuse_stage_release_metadata.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when: not ansible_check_mode
+
+- name: Read staged release metadata
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  register: fire_fuse_stage_release_documents
+  loop:
+    - "{{ fire_fuse_stage_directory }}/image-catalog.json"
+    - "{{ fire_fuse_stage_directory }}/config.json"
+    - "{{ fire_fuse_stage_directory }}/release.json"
+  when: not ansible_check_mode
+
+- name: Decode staged release metadata
+  ansible.builtin.set_fact:
+    fire_fuse_stage_rendered_image_catalog: >-
+      {{ fire_fuse_stage_release_documents.results[0].content
+      | b64decode | from_json }}
+    fire_fuse_stage_rendered_config: >-
+      {{ fire_fuse_stage_release_documents.results[1].content
+      | b64decode | from_json }}
+    fire_fuse_stage_rendered_manifest: >-
+      {{ fire_fuse_stage_release_documents.results[2].content
+      | b64decode | from_json }}
+  when: not ansible_check_mode
+
+- name: Require internally consistent staged release metadata
+  ansible.builtin.assert:
+    that:
+      - >-
+        (fire_fuse_stage_rendered_config.jailer_uid | int)
+        == (fire_fuse_stage_jailer_uid | int)
+      - >-
+        (fire_fuse_stage_rendered_config.jailer_gid | int)
+        == (fire_fuse_stage_jailer_gid | int)
+      - >-
+        fire_fuse_stage_rendered_config.workspace.exportfs_bin
+        == fire_fuse_stage_workspace_exportfs_bin
+      - >-
+        fire_fuse_stage_rendered_config.workspace.juicefs_bin
+        == fire_fuse_stage_workspace_juicefs_bin
+      - >-
+        fire_fuse_stage_rendered_config.workspace.mountpoint_bin
+        == fire_fuse_stage_workspace_mountpoint_bin
+      - >-
+        fire_fuse_stage_rendered_config.workspace.root
+        == fire_fuse_stage_workspace_root
+      - >-
+        fire_fuse_stage_rendered_config.workspace.admin_root
+        == fire_fuse_stage_workspace_admin_root
+      - >-
+        fire_fuse_stage_rendered_config.profiles[
+          fire_fuse_stage_profile_name
+        ].get('snapshot_bundle', '') == fire_fuse_stage_snapshot_bundle
+      - >-
+        fire_fuse_stage_rendered_config.image_catalog
+        == fire_fuse_stage_image_catalog_destination
+      - >-
+        fire_fuse_stage_rendered_config.config_encryption_key_file
+        == fire_fuse_stage_config_encryption_key_destination
+      - >-
+        fire_fuse_stage_rendered_image_catalog.keys() | sort
+        == ['images', 'schema_version']
+      - >-
+        fire_fuse_stage_rendered_image_catalog.schema_version | int == 1
+      - fire_fuse_stage_rendered_image_catalog.images == fire_fuse_stage_images
+      - fire_fuse_stage_rendered_manifest is fire_fuse_release_manifest
+      - >-
+        (fire_fuse_stage_rendered_manifest.artifacts | length)
+        == (fire_fuse_stage_artifacts | length)
+      - >-
+        fire_fuse_stage_rendered_manifest.artifacts
+        | map(attribute='name') | sort
+        == fire_fuse_stage_artifacts | map(attribute='name') | sort
+      - >-
+        fire_fuse_stage_rendered_manifest.config.destination
+        == fire_fuse_stage_config_destination
+      - >-
+        fire_fuse_stage_rendered_manifest.config.sha256
+        == fire_fuse_stage_config_sha256
+      - >-
+        fire_fuse_stage_rendered_manifest.image_catalog.destination
+        == fire_fuse_stage_image_catalog_destination
+      - >-
+        fire_fuse_stage_rendered_manifest.image_catalog.sha256
+        == fire_fuse_stage_image_catalog_sha256
+      - >-
+        fire_fuse_stage_rendered_manifest.image_catalog.base_sha256
+        == fire_fuse_stage_existing_catalog_sha256
+    fail_msg: staged release metadata is not internally consistent
+  when: not ansible_check_mode
+
+- name: Inspect staged release artifacts
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_stage_directory }}/{{ item.staged_name }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_stage_remote_artifacts
+  loop: "{{ fire_fuse_stage_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
+
+- name: Require staged artifact integrity
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.checksum | default('') == item.item.checksum
+      - item.stat.size | int > 0
+    fail_msg: staged artifact {{ item.item.name }} failed integrity verification
+  loop: "{{ fire_fuse_stage_remote_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not ansible_check_mode

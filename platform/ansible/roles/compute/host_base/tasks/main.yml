@@ -1,0 +1,74 @@
+---
+- name: Require the supported staging host
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == host_base_supported_distribution
+      - ansible_facts.distribution_version == host_base_supported_distribution_version
+      - ansible_facts.architecture == host_base_supported_architecture
+    fail_msg: >-
+      fire-fuse staging requires
+      {{ host_base_supported_distribution }}
+      {{ host_base_supported_distribution_version }}
+      on {{ host_base_supported_architecture }}
+
+- name: Install host baseline packages
+  ansible.builtin.apt:
+    name: "{{ host_base_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the jailer group
+  ansible.builtin.group:
+    name: "{{ host_base_jailer_group }}"
+    system: true
+    state: present
+
+- name: Create the jailer user
+  ansible.builtin.user:
+    name: "{{ host_base_jailer_user }}"
+    group: "{{ host_base_jailer_group }}"
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Create host directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group | default(omit) }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ host_base_directories }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Persist required host sysctls
+  ansible.builtin.copy:
+    src: 99-fire-fuse.conf
+    dest: /etc/sysctl.d/99-fire-fuse.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply host sysctl configuration
+
+- name: Load the KVM module
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/modprobe
+      - kvm
+  changed_when: false
+
+- name: Inspect the KVM device
+  ansible.builtin.stat:
+    path: /dev/kvm
+  register: host_base_kvm_device
+
+- name: Require the KVM character device
+  ansible.builtin.assert:
+    that:
+      - host_base_kvm_device.stat.exists | default(false)
+      - host_base_kvm_device.stat.ischr | default(false)
+    fail_msg: /dev/kvm is not available after loading the KVM module

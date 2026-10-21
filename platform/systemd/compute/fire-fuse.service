@@ -1,0 +1,79 @@
+[Unit]
+Description=fire-fuse Firecracker microVM orchestrator
+Documentation=file:/usr/local/share/doc/fire-fuse/operations.md
+Wants=network-online.target
+Requires=wg-quick@wg0.service
+After=network-online.target wg-quick@wg0.service
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/fire-fuse/artifact-store.env
+ExecStart=/usr/local/bin/fire-fuse -config /etc/fire-fuse/config.json -operator-token-file /etc/fire-fuse/control-clients/operator.token -gateway-token-file /etc/fire-fuse/control-clients/gateway.token -dispatcher-token-file /etc/fire-fuse/control-clients/dispatcher.token -observer-token-file /etc/fire-fuse/control-clients/observer.token -compute-token-file /etc/fire-fuse/control-clients/compute.token -listen 127.0.0.1:8080 -provider-ingress-listen 10.77.0.1:8084 -image-directory /var/lib/fire-fuse/images
+Restart=on-failure
+RestartSec=5s
+
+# SIGTERM reaches only fire-fuse so it can checkpoint process and resource
+# cleanup. If it exceeds TimeoutStopSec, systemd kills every remaining process
+# in the unit, including a stuck jailer or Firecracker child.
+KillMode=mixed
+KillSignal=SIGTERM
+SendSIGKILL=yes
+FinalKillSignal=SIGKILL
+TimeoutStopSec=2min
+
+# systemd creates these root-owned directories before ExecStart. The operator
+# must install config.json and boot images before starting the service.
+ConfigurationDirectory=fire-fuse
+ConfigurationDirectoryMode=0750
+# Never make the common parent a StateDirectory: systemd recursively binds it
+# into the service namespace, duplicating the JuiceFS workspace child mount.
+StateDirectory=fire-fuse/state fire-fuse/runtime
+StateDirectoryMode=0750
+UMask=0077
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fire-fuse
+
+# The jailer requires real root, mount namespaces, chroot/pivot_root, mknod,
+# ownership changes, and KVM/TUN access. Do not enable PrivateUsers,
+# PrivateDevices, RestrictNamespaces, ProtectControlGroups, or an unverified
+# CapabilityBoundingSet without testing real jailer startup and recovery.
+# Jailer must perform its final UID/GID transition and exec Firecracker after
+# constructing the chroot. NoNewPrivileges=yes makes that exec fail with EPERM.
+NoNewPrivileges=no
+PrivateUsers=no
+PrivateDevices=no
+RestrictNamespaces=no
+ProtectControlGroups=no
+Delegate=yes
+
+DevicePolicy=closed
+DeviceAllow=/dev/kvm rwm
+DeviceAllow=/dev/net/tun rwm
+DeviceAllow=/dev/userfaultfd rwm
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+ProtectSystem=strict
+# Keep writable paths disjoint. A writable /var/lib/fire-fuse parent clones
+# its workspace submount, violating the single-mount workspace policy.
+# The optional workspace path permits installations without workspace storage.
+ReadWritePaths=/var/lib/fire-fuse/images -/var/lib/fire-fuse/workspaces -/var/lib/fire-fuse/workspace-admin /var/lib/nfs /sys/fs/cgroup
+ProtectHome=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+KeyringMode=private
+
+[Install]
+WantedBy=multi-user.target

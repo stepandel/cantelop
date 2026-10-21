@@ -1,0 +1,119 @@
+---
+- name: Require a real controlled-write qualification run
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_write_minimum_retention_days
+        | type_debug == 'int'
+      - storage_backup_write_minimum_retention_days >= 14
+      - storage_backup_write_minimum_retention_days <= 3650
+    fail_msg: >-
+      controlled-write qualification requires a normal Ansible run and a
+      retention period from 14 through 3650 days
+
+- name: Inspect controlled-write qualification inputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+  loop:
+    - path: "{{ storage_backup_write_config_file }}"
+      mode: "0644"
+      executable: false
+      checksum: ""
+    - path: "{{ storage_backup_write_credentials_file }}"
+      mode: "0600"
+      executable: false
+      checksum: ""
+    - path: "{{ storage_backup_write_validator }}"
+      mode: "0755"
+      executable: true
+      checksum: ""
+    - path: "{{ storage_backup_write_read_qualifier }}"
+      mode: "0755"
+      executable: true
+      checksum: ""
+    - path: "{{ storage_backup_write_qualifier }}"
+      mode: "0755"
+      executable: true
+      checksum: ""
+    - path: "{{ storage_backup_write_mc_binary }}"
+      mode: "0755"
+      executable: true
+      checksum: "{{ storage_backup_write_mc_checksum }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: storage_backup_write_input_stats
+
+- name: Require trusted controlled-write qualification inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - >-
+        not item.item.executable
+        or item.stat.executable | default(false)
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: >-
+      {{ item.item.path }} must be a trusted root-owned regular file with mode
+      {{ item.item.mode }} and the declared checksum
+  loop: "{{ storage_backup_write_input_stats.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Qualify an immutable backup destination write
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_write_qualifier }}"
+      - "{{ storage_backup_write_config_file }}"
+      - --mc
+      - "{{ storage_backup_write_mc_binary }}"
+      - --minimum-retention-days
+      - "{{ storage_backup_write_minimum_retention_days | string }}"
+  register: storage_backup_write_command
+  changed_when: true
+
+- name: Decode controlled-write qualification evidence
+  ansible.builtin.set_fact:
+    storage_backup_write_evidence: >-
+      {{ storage_backup_write_command.stdout | from_json }}
+
+- name: Require complete redacted controlled-write evidence
+  ansible.builtin.assert:
+    that:
+      - >-
+        (storage_backup_write_evidence.keys() | list | sort)
+        ==
+        [
+          'bucket',
+          'created_at',
+          'endpoint_url',
+          'object_key',
+          'retained_until',
+          'sha256',
+          'status',
+          'version_delete',
+          'version_id'
+        ]
+      - storage_backup_write_evidence.status == 'qualified-write'
+      - storage_backup_write_evidence.endpoint_url.startswith('https://')
+      - storage_backup_write_evidence.bucket | length > 0
+      - >-
+        storage_backup_write_evidence.object_key
+        is search('/.qualification/write-[0-9a-f]{32}\.json$')
+      - >-
+        storage_backup_write_evidence.version_id | length > 0
+      - >-
+        storage_backup_write_evidence.sha256
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_write_evidence.created_at.endswith('Z')
+      - storage_backup_write_evidence.retained_until.endswith('Z')
+      - storage_backup_write_evidence.version_delete == 'denied'
+    fail_msg: controlled-write qualification evidence is incomplete
+
+- name: Report retained controlled-write qualification evidence
+  ansible.builtin.debug:
+    var: storage_backup_write_evidence

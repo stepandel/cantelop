@@ -1,0 +1,218 @@
+---
+- name: Validate inactive fire-fuse service inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_service_name
+        is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+      - fire_fuse_service_unit_source.startswith('/')
+      - >-
+        fire_fuse_service_unit_destination
+        == '/etc/systemd/system/' ~ fire_fuse_service_name
+      - fire_fuse_control_client_directory == '/etc/fire-fuse/control-clients'
+      - fire_fuse_operator_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_dispatcher_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_compute_ingress_token is match('^[0-9a-f]{64}$')
+      - >-
+        [fire_fuse_operator_token, fire_fuse_gateway_runtime_token,
+         fire_fuse_dispatcher_runtime_token, fire_fuse_observer_runtime_token,
+         fire_fuse_compute_ingress_token] | unique | length == 5
+      - >-
+        fire_fuse_artifact_download_origin
+        is match('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$')
+      - fire_fuse_artifact_environment_file == '/etc/fire-fuse/artifact-store.env'
+      - fire_fuse_service_config_encryption_key is match('^[0-9a-f]{64}$')
+      - fire_fuse_service_config_encryption_key_file == '/etc/fire-fuse/config-encryption.key'
+      - fire_fuse_workspace_database_credentials_url is match('^https://[A-Za-z0-9.-]+/internal/v1/runtime/database/credentials$')
+      - fire_fuse_workspace_database_capability_key is match('^[0-9a-f]{64}$')
+      - fire_fuse_workspace_database_capability_key not in [fire_fuse_operator_token, fire_fuse_gateway_runtime_token, fire_fuse_dispatcher_runtime_token, fire_fuse_observer_runtime_token, fire_fuse_compute_ingress_token, fire_fuse_service_config_encryption_key]
+    fail_msg: >-
+      the inactive service gate requires a safe service name, an absolute
+      controller source, its exact /etc/systemd/system destination, and a
+      five distinct 64-character Vault control-plane tokens
+
+- name: Create the private fire-fuse configuration directory
+  ansible.builtin.file:
+    path: /etc/fire-fuse
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create the root-only scoped control credential directory
+  ansible.builtin.file:
+    path: "{{ fire_fuse_control_client_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install root-only scoped control-plane credentials
+  ansible.builtin.copy:
+    content: "{{ item.token }}\n"
+    dest: "{{ fire_fuse_control_client_directory }}/{{ item.role }}.token"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - role: operator
+      token: "{{ fire_fuse_operator_token }}"
+    - role: gateway
+      token: "{{ fire_fuse_gateway_runtime_token }}"
+    - role: dispatcher
+      token: "{{ fire_fuse_dispatcher_runtime_token }}"
+    - role: observer
+      token: "{{ fire_fuse_observer_runtime_token }}"
+    - role: compute
+      token: "{{ fire_fuse_compute_ingress_token }}"
+  loop_control:
+    label: "{{ item.role }}"
+  diff: false
+  no_log: true
+
+- name: Install the trusted artifact download origin
+  ansible.builtin.copy:
+    content: |
+      CANTELOP_ARTIFACT_DOWNLOAD_ORIGIN={{ fire_fuse_artifact_download_origin }}
+      CANTELOP_WORKSPACE_DATABASE_CREDENTIALS_URL={{ fire_fuse_workspace_database_credentials_url }}
+      CANTELOP_WORKSPACE_DATABASE_CAPABILITY_KEY={{ fire_fuse_workspace_database_capability_key }}
+    dest: "{{ fire_fuse_artifact_environment_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  diff: false
+
+- name: Inspect the packaged service unit on the controller
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_service_unit_source }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_service_controller_unit
+
+- name: Require the packaged service unit
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_service_controller_unit.stat is trusted_file
+      - fire_fuse_service_controller_unit.stat.size | default(0) > 0
+      - >-
+        fire_fuse_service_controller_unit.stat.checksum | default('')
+        is match('^[0-9a-f]{64}$')
+    fail_msg: the packaged fire-fuse systemd unit is missing or invalid
+
+- name: Read current service state
+  ansible.builtin.service_facts:
+
+- name: Refuse to replace an active fire-fuse service
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get(fire_fuse_service_name, {}).get(
+          'state', 'not-found'
+        ) != 'running'
+    fail_msg: >-
+      {{ fire_fuse_service_name }} is running; drain and stop it before
+      installing the Ansible-managed inactive unit
+
+- name: Inspect the installed configuration encryption key
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_service_config_encryption_key_file }}"
+    follow: false
+  register: fire_fuse_service_existing_encryption_key
+
+- name: Require a trusted installed configuration encryption key
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (fire_fuse_service_existing_encryption_key.stat.exists | default(false))
+        or (
+          fire_fuse_service_existing_encryption_key.stat is trusted_file(
+            owner='root', group='root', mode='0600'
+          )
+        )
+    fail_msg: the existing configuration encryption key is not a trusted root-owned 0600 file
+
+- name: Read the installed configuration encryption key
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_service_config_encryption_key_file }}"
+  register: fire_fuse_service_existing_encryption_key_contents
+  when: fire_fuse_service_existing_encryption_key.stat.exists | default(false)
+  no_log: true
+
+- name: Refuse configuration encryption key rotation
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (fire_fuse_service_existing_encryption_key.stat.exists | default(false))
+        or (fire_fuse_service_existing_encryption_key_contents.content
+          | b64decode | trim) == fire_fuse_service_config_encryption_key
+    fail_msg: the supplied configuration encryption key differs from the installed key
+  no_log: true
+
+- name: Install the configuration encryption key during inactive service preparation
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_service_config_encryption_key }}\n"
+    dest: "{{ fire_fuse_service_config_encryption_key_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install the inactive fire-fuse service unit
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_service_unit_source }}"
+    dest: "{{ fire_fuse_service_unit_destination }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: fire_fuse_service_unit_copy
+
+- name: Reload systemd after installing the service unit
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - not ansible_check_mode
+    - fire_fuse_service_unit_copy.changed
+
+- name: Keep fire-fuse stopped and disabled
+  ansible.builtin.systemd_service:
+    name: "{{ fire_fuse_service_name }}"
+    state: stopped
+    enabled: false
+  when: not ansible_check_mode
+
+- name: Inspect the installed service unit
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_service_unit_destination }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_service_installed_unit
+  when: not ansible_check_mode
+
+- name: Require the exact trusted service unit
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_service_installed_unit.stat
+        is trusted_file(owner='root', group='root', mode='0644')
+      - >-
+        fire_fuse_service_installed_unit.stat.checksum | default('')
+        == fire_fuse_service_controller_unit.stat.checksum
+    fail_msg: the installed fire-fuse service unit failed integrity checks
+  when: not ansible_check_mode
+
+- name: Refresh inactive service state
+  ansible.builtin.service_facts:
+  when: not ansible_check_mode
+
+- name: Require fire-fuse to remain inactive
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services[fire_fuse_service_name].state
+        in ['stopped', 'unknown']
+      - ansible_facts.services[fire_fuse_service_name].status == 'disabled'
+    fail_msg: the prepared fire-fuse service must be stopped and disabled
+  when: not ansible_check_mode

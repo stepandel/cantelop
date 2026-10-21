@@ -1,0 +1,1484 @@
+openapi: 3.1.0
+info:
+  title: Cantelop console tenant API
+  version: 1.0.0
+  description: |
+    Public tenant API served by the Cantelop console (Next.js route handlers
+    under `console/web/app/v1` and `console/web/app/api/cli`). The `cantelop`
+    CLI is its primary client; `schemas/cli-api-contract.json` maps every
+    route to the CLI code that calls it and is enforced by
+    `scripts/check-cli-api-contract.py`.
+
+    Every `/v1` route requires a short-lived tenant access token obtained from
+    `POST /api/cli/token`. Errors are `{"error": "<code>"}`.
+
+    This API never proxies fire-fuse's private host API, which is described
+    separately in [openapi.yaml](openapi.yaml).
+servers:
+  - url: https://cantelop.com
+    description: >-
+      Production console origin (the CLI's default `-console`). The tenant
+      `/v1` origin is the `control_url` returned by `GET /api/cli/config`.
+security:
+  - bearerAuth: []
+tags:
+  - name: cli-auth
+    description: CLI login and tenant token exchange.
+  - name: apps
+  - name: configuration
+  - name: deployments
+  - name: workspaces
+  - name: sessions
+  - name: monitoring
+paths:
+  /api/cli/authorize:
+    get:
+      tags: [cli-auth]
+      operationId: authorizeCLI
+      summary: Browser step of `cantelop login`
+      description: >-
+        Requires a console browser session (redirects to sign-in otherwise).
+        Returns an HTML page whose Authorize link hands a 30-day CLI refresh
+        credential and the echoed state to the loopback callback in its URL
+        fragment.
+      security: []
+      parameters:
+        - name: callback
+          in: query
+          required: true
+          description: Loopback URL `http://127.0.0.1:<port>/callback` or `http://[::1]:<port>/callback` with no query or fragment.
+          schema: {type: string, format: uri}
+        - name: state
+          in: query
+          required: true
+          schema: {type: string, pattern: "^[A-Za-z0-9_-]{32,128}$"}
+      responses:
+        "200":
+          description: Authorization page.
+          content:
+            text/html: {}
+        "307": {description: No console session; redirect to sign-in.}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+  /api/cli/config:
+    get:
+      tags: [cli-auth]
+      operationId: getCLIConfiguration
+      summary: Discover the tenant API origin
+      security: []
+      responses:
+        "200":
+          description: Public CLI configuration. Cacheable for 300 seconds.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [control_url]
+                properties:
+                  control_url: {type: string, format: uri}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /api/cli/token:
+    post:
+      tags: [cli-auth]
+      operationId: exchangeCLIToken
+      summary: Exchange a CLI refresh credential for a tenant access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+      responses:
+        "200":
+          description: A 60-second tenant access token carrying tenant:read and tenant:write.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, control_url]
+                properties:
+                  access_token: {type: string}
+                  token_type: {type: string, enum: [Bearer]}
+                  expires_in: {type: integer, enum: [60]}
+                  control_url: {type: string, format: uri}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+  /v1/apps:
+    get:
+      tags: [apps]
+      operationId: listApps
+      summary: List Apps owned by the authenticated user
+      responses:
+        "200":
+          description: Apps in stable ID order.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppList"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+    post:
+      tags: [apps]
+      operationId: createTenantApp
+      summary: Create a provisioning App for the authenticated tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateTenantAppRequest"}
+      responses:
+        "201":
+          description: The App was created without materializing a Workspace.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/App"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "429": {$ref: "#/components/responses/TenantError"}
+        "502": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/by-slug/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/AppSlug"}
+    get:
+      tags: [apps]
+      operationId: getAppBySlug
+      summary: Resolve an App owned by the authenticated user by its exact slug
+      responses:
+        "200":
+          description: The exact unarchived App with this slug.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/App"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+    get:
+      tags: [apps]
+      operationId: getApp
+      summary: Read an App owned by the authenticated user
+      responses:
+        "200":
+          description: The App Session runtime and immutable Build history.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/App"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+    delete:
+      tags: [apps]
+      operationId: archiveTenantApp
+      summary: Archive an App and its product routing resources
+      responses:
+        "202": {description: App archival was accepted; product routing resources are released asynchronously.}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{id}/config:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+    get:
+      tags: [configuration]
+      operationId: listAppConfiguration
+      summary: List variables and redacted secrets for an owned App
+      responses:
+        "200":
+          description: Configuration values in ascending name order. Secret values are omitted.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConfigValueList"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{id}/config/{kind}/{name}:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+      - name: kind
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [variables, secrets]
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^(?!CANTELOP_)[A-Za-z_][A-Za-z0-9_]{0,127}$"
+    put:
+      tags: [configuration]
+      operationId: setAppConfigurationValue
+      summary: Create or replace one App variable or secret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetConfigValueRequest"}
+      responses:
+        "200":
+          description: The stored value. Secret values are omitted.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConfigValue"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "429": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+    delete:
+      tags: [configuration]
+      operationId: deleteAppConfigurationValue
+      summary: Delete one App variable or secret if it exists
+      responses:
+        "204": {description: The value was absent or was deleted.}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{id}/integration:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+    get:
+      tags: [configuration]
+      operationId: getAppIntegrationCredentials
+      summary: Read the credentials a backend uses to call the App's Edge
+      description: >-
+        Returns the App's integration token without creating one. A credential
+        exists once the App's first deployment was prepared; before that the
+        response is 404 `integration_not_configured`. The token authorizes every
+        Workspace and Session of the App, so keep it on the backend.
+      responses:
+        "200":
+          description: Current credentials.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/IntegrationCredentials"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{id}/integration/rotate:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+    post:
+      tags: [configuration]
+      operationId: rotateAppIntegrationToken
+      summary: Replace the App's integration token
+      description: >-
+        Issues a new token. The previous token keeps authenticating until
+        `previous_token_expires_at` (24 hours by default, at most 7 days), or
+        stops as soon as the new configuration reaches the Edge when
+        `grace_seconds` is 0. A grace period requires a live Edge release built
+        with a rotation-aware SDK; otherwise the request fails with 409
+        `integration_rotation_unsupported`. Rotating again during a grace period
+        replaces the previous token after the prior rotation reaches Edge.
+        Pending or failed rotations reject new tokens with 409
+        `integration_rotation_unresolved`; send `{"retry":true}` to resend the
+        existing token and preserve the original grace-period expiry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RotateIntegrationRequest"}
+      responses:
+        "200":
+          description: The new credentials. `rotation.status` is `pending` until the Edge has the new token.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/IntegrationCredentials"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [deployments]
+      operationId: listDeployments
+      summary: List unified API and Session runtime releases for an owned App
+      responses:
+        "200":
+          description: Releases in ascending server-assigned version order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/DeploymentRelease"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments/{release_id}:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+      - name: release_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/ReleaseID"}
+    get:
+      tags: [deployments]
+      operationId: getDeployment
+      summary: Read one unified release for an owned App
+      responses:
+        "200":
+          description: The release and both component states.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentRelease"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments/rollback:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    post:
+      tags: [deployments]
+      operationId: rollbackDeployment
+      summary: Reactivate the most recent superseded release
+      description: >-
+        Refuses to race a queued or provisioning deployment. Returns 410
+        `target_build_missing` when the host no longer stores the target
+        release's Build; deploy that version again instead.
+      responses:
+        "202":
+          description: Reactivation of the selected release was accepted.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentRelease"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "410": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/sessions:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [sessions]
+      operationId: listAppSessions
+      summary: List current Sessions across an owned App's Workspaces
+      responses:
+        "200":
+          description: Sessions ordered by descending creation time.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/CustomerSession"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/sessions/{session_id}:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+      - name: session_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/SessionID"}
+    get:
+      tags: [sessions]
+      operationId: getAppSession
+      summary: Inspect a current Session owned by an App
+      responses:
+        "200":
+          description: Current Session state.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerSession"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+    delete:
+      tags: [sessions]
+      operationId: terminateAppSession
+      summary: Release a Session's current Sandbox
+      responses:
+        "200":
+          description: The reusable Session is now idle.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerSession"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/routes:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [apps]
+      operationId: listAppRoutes
+      summary: List an owned App's declared API routes beside their observed traffic
+      responses:
+        "200":
+          description: The active release's route table joined with request traffic over the retention window.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppRouteOverview"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/routes/detail:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+      - name: method
+        in: query
+        required: true
+        schema: {type: string, pattern: '^[A-Z]{1,32}$'}
+      - name: path
+        in: query
+        required: true
+        schema: {type: string, pattern: '^/', maxLength: 2048}
+    get:
+      tags: [apps]
+      operationId: getAppRoute
+      summary: One route's HTTP outcomes and the Session work its requests started
+      responses:
+        "200":
+          description: The route over the retention window, whether or not the live release declares it.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppRouteDetail"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/logs:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [logs]
+      operationId: listAppLogs
+      summary: Read durable request logs across an owned App's Workspaces
+      parameters:
+        - name: before_sequence
+          in: query
+          description: Read the page of events older than this sequence. Mutually exclusive with after_sequence.
+          schema: {type: integer, minimum: 1}
+        - name: after_sequence
+          in: query
+          description: >-
+            Read forward: the page holds the oldest events newer than this
+            sequence, so a follower that passes its last seen sequence misses
+            nothing. A full page means more events follow. Mutually exclusive
+            with before_sequence.
+          schema: {type: integer, minimum: 1}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 100}
+      responses:
+        "200":
+          description: A bounded newest-first page of durable request events.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RequestEventList"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments/uploads:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [deployments]
+      operationId: listPendingDeploymentUploads
+      summary: Find the App's pending upload without rebuilding artifacts
+      description: Returns only owned preparing or uploading records, including records awaiting lazy expiry. Requires tenant:read. Does not include signed URLs or storage handles.
+      responses:
+        "200":
+          description: Pending uploads, or an empty list for an App with no owned pending uploads.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/PendingDeploymentUpload"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+    post:
+      tags: [deployments]
+      operationId: beginDeploymentUpload
+      summary: Create short-lived direct upload targets for one complete bundle
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: {type: string, pattern: "^[A-Za-z0-9_.:-]{16,128}$"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DeploymentBundleManifest"}
+      responses:
+        "200":
+          description: Idempotent replay of an already finalized upload.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentUpload"}
+        "201":
+          description: Direct upload targets were created. Treat every URL as a bearer credential.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentUpload"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments/uploads/{upload_id}:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+      - name: upload_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/DeploymentUploadID"}
+    delete:
+      tags: [deployments]
+      operationId: cancelDeploymentUpload
+      summary: Cancel a pending deployment upload and release its App lock
+      description: Requires tenant:write. Cancellation is idempotent, owner-scoped, and serialized with release creation. Preparing, uploading, and expired uploads may be cancelled. Finalized uploads or uploads already associated with a release return 409. The App lock is released even if multipart cleanup fails; repeat this exact request to retry cleanup. Session runtime staging objects are deleted when possible; repeat the request if cleanup is pending. Previously signed API URLs are not revoked, but cancelled uploads cannot finalize. Queued and active releases are unchanged.
+      responses:
+        "200":
+          description: Upload cancelled; use a new idempotency key for the next deployment.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CancelledDeploymentUpload"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments/uploads/{upload_id}/complete:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+      - name: upload_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/DeploymentUploadID"}
+    post:
+      tags: [deployments]
+      operationId: completeDeploymentUpload
+      summary: Complete the Session runtime multipart upload and queue both release children
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CompleteDeploymentUpload"}
+      responses:
+        "200":
+          description: Idempotent replay of an already active release.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentRelease"}
+        "202":
+          description: Both child operations were durably queued.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentRelease"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/workspaces:
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaces
+      summary: List Workspaces owned by the authenticated user
+      description: app_id is the only accepted query parameter; without it every owned Workspace is returned.
+      parameters:
+        - name: app_id
+          in: query
+          required: false
+          schema: {$ref: "#/components/schemas/CustomerAppID"}
+      responses:
+        "200":
+          description: Owned Workspaces, optionally limited to one App.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Workspace"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+    post:
+      tags: [workspaces]
+      operationId: createTenantWorkspace
+      summary: Create a Workspace for an owned App
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateTenantWorkspaceRequest"}
+      responses:
+        "201":
+          description: The Workspace was created immediately.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Workspace"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "429": {$ref: "#/components/responses/TenantError"}
+        "502": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/deployments/{release_id}/{action}:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+      - name: release_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/ReleaseID"}
+      - name: action
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [cancel, restart]
+    post:
+      tags: [deployments]
+      operationId: recoverDeployment
+      summary: Cancel or restart an unfinished release
+      description: Requires tenant:write. Any other action segment returns 404.
+      responses:
+        "200":
+          description: The release after the recovery request.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentRelease"}
+        "202":
+          description: Cancellation was requested and is waiting for the provider (status cancelling).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeploymentRelease"}
+        "400": {$ref: "#/components/responses/TenantError"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "409": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/sandboxes:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [monitoring]
+      operationId: getAppRuntimeSnapshot
+      summary: Read an owned App's current Workspaces, Sessions, and Sandboxes
+      description: Requires tenant:read. Backs `cantelop monitoring`.
+      responses:
+        "200":
+          description: Observer snapshot filtered to the App's Workspaces.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RuntimeSnapshot"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+  /v1/apps/{app_id}/traces:
+    parameters:
+      - name: app_id
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/CustomerAppID"}
+    get:
+      tags: [monitoring]
+      operationId: getAppTraceTree
+      summary: Read recent request and Message traces for an owned App
+      description: Requires tenant:read. Returns at most 100 root requests. Backs `cantelop monitoring`.
+      responses:
+        "200":
+          description: Requests with their Messages, attempts, spans, and logs, plus Messages with no recorded request.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppTraceTree"}
+        "401": {$ref: "#/components/responses/TenantError"}
+        "404": {$ref: "#/components/responses/TenantError"}
+        "503": {$ref: "#/components/responses/TenantError"}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived tenant access token from POST /api/cli/token, carrying tenant:read and tenant:write scopes.
+  parameters:
+    AppID:
+      name: id
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/CustomerAppID"}
+  responses:
+    TenantError:
+      description: Tenant API error response.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/TenantErrorResponse"}
+  schemas:
+    App:
+      type: object
+      required: [id, slug, hostname, role, admin_count, created_at, updated_at]
+      properties:
+        id: {$ref: "#/components/schemas/CustomerAppID"}
+        slug: {$ref: "#/components/schemas/AppSlug"}
+        hostname: {type: string}
+        role: {type: string, enum: [owner, admin]}
+        owner:
+          description: The account that owns the App. Fleet installations are covered by their Fleet's quota slot. Present on reads scoped to the caller.
+          type: object
+          required: [email]
+          properties:
+            email: {type: string}
+        admin_count:
+          description: How many admin collaborators the owner has added.
+          type: integer
+          minimum: 0
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    CreateTenantAppRequest:
+      type: object
+      additionalProperties: false
+      required: [slug, session_runtime]
+      properties:
+        slug: {$ref: "#/components/schemas/AppSlug"}
+        session_runtime: {$ref: "#/components/schemas/CreateAppSessionRuntime"}
+    Workspace:
+      type: object
+      required: [id, app_id, slug, created_at, updated_at]
+      properties:
+        id: {$ref: "#/components/schemas/WorkspaceID"}
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        slug: {$ref: "#/components/schemas/AppSlug"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        archived_at: {type: string, format: date-time}
+    DeploymentReleaseComponent:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [queued, running, succeeded, failed]}
+        error_code: {type: string}
+        attempts: {type: integer, minimum: 0}
+        progress: {type: string}
+        updated_at: {type: string, format: date-time}
+        next_attempt_at: {type: string, format: date-time}
+    DeploymentRelease:
+      type: object
+      required:
+        - id
+        - app_id
+        - version
+        - status
+        - api_artifact_digest
+        - session_runtime_artifact_digest
+        - components
+        - created_at
+        - updated_at
+      properties:
+        id: {$ref: "#/components/schemas/ReleaseID"}
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        version: {type: integer, minimum: 1}
+        status: {type: string, enum: [queued, provisioning, active, failed, superseded, cancelling, cancelled]}
+        api_artifact_digest: {$ref: "#/components/schemas/SHA256Digest"}
+        session_runtime_artifact_digest: {$ref: "#/components/schemas/SHA256Digest"}
+        components:
+          type: object
+          required: [api, session_runtime]
+          properties:
+            api: {$ref: "#/components/schemas/DeploymentReleaseComponent"}
+            session_runtime: {$ref: "#/components/schemas/DeploymentReleaseComponent"}
+        error_code: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        activated_at: {type: string, format: date-time}
+        definition: {$ref: "#/components/schemas/AppDefinitionSummary"}
+    AppDefinitionSummary:
+      description: What the release's App definition declared. Absent only for releases that predate SDK 1.0.
+      type: object
+      required: [app_name, session_runtime_id, webhooks, homepage, native_auth, token_rotation, capabilities]
+      properties:
+        app_name: {type: string}
+        session_runtime_id: {type: string}
+        webhooks:
+          type: array
+          items:
+            type: object
+            required: [path, method]
+            properties:
+              path: {type: string}
+              method: {type: string, enum: [GET, POST]}
+        homepage: {type: boolean}
+        native_auth: {type: boolean}
+        token_rotation: {type: boolean}
+        dockerfile: {type: string}
+        capabilities:
+          description: Null when the Session runtime manifest was not recorded.
+          type: [object, "null"]
+          required: [steering, message_cancellation, durable_view]
+          properties:
+            steering: {type: boolean}
+            message_cancellation: {type: boolean}
+            durable_view: {type: boolean}
+    RequestEvent:
+      type: object
+      required: [sequence, event_id, workspace_id, received_at, status_code, duration_ms]
+      properties:
+        sequence: {type: integer, minimum: 1}
+        event_id: {type: string}
+        request_id: {type: string}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        session_id: {$ref: "#/components/schemas/SessionID"}
+        received_at: {type: string, format: date-time}
+        status_code: {type: integer, minimum: 100, maximum: 599}
+        duration_ms: {type: number, minimum: 0}
+    RequestEventList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/RequestEvent"}
+        next_before_sequence: {type: integer, minimum: 1}
+    RuntimeSnapshot:
+      type: object
+      required: [ready, observed_at, workspaces, sessions, sandboxes]
+      properties:
+        ready: {type: boolean, description: Whether the host observer could read fire-fuse.}
+        observed_at: {type: string, format: date-time}
+        workspaces:
+          type: array
+          items: {$ref: "#/components/schemas/Workspace"}
+        sessions:
+          type: array
+          items: {$ref: "#/components/schemas/CustomerSession"}
+        sandboxes:
+          type: array
+          items: {$ref: "#/components/schemas/Sandbox"}
+    Sandbox:
+      type: object
+      required: [id, workspace_id, app_id, profile, build_id, vcpus, memory_mib, state, created_at, updated_at]
+      properties:
+        id: {type: string}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        profile: {type: string}
+        build_id: {$ref: "#/components/schemas/BuildID"}
+        vcpus: {type: integer, minimum: 1}
+        memory_mib: {type: integer, minimum: 1}
+        memory_max_mib: {type: integer, minimum: 1}
+        state: {type: string, enum: [starting, running, stopping, terminated, failed]}
+        runtime_timing:
+          type: object
+          required: [status]
+          properties:
+            status: {type: string, enum: [pending, running, stopped, not_started, unknown]}
+            started_at: {type: string, format: date-time}
+            stopped_at: {type: string, format: date-time}
+        failure:
+          type: object
+          properties:
+            reason: {type: string}
+        startup:
+          type: object
+          required: [completed_at, duration_ms]
+          properties:
+            completed_at: {type: string, format: date-time}
+            duration_ms: {type: number}
+        usage:
+          type: object
+          required: [observed_at, cpu_usage_us, memory_current_bytes]
+          properties:
+            observed_at: {type: string, format: date-time}
+            cpu_usage_us: {type: integer, minimum: 0}
+            memory_current_bytes: {type: integer, minimum: 0}
+            guest_memory_used_bytes: {type: integer, minimum: 0}
+            guest_memory_mib: {type: integer, minimum: 0}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    TraceLog:
+      type: object
+      required: [id, severity, body, occurred_at, attributes]
+      properties:
+        id: {type: string}
+        span_id: {type: string}
+        severity: {type: string}
+        body: {type: string}
+        occurred_at: {type: string, format: date-time}
+        attributes: {type: object}
+    TraceSpan:
+      type: object
+      required: [id, name, kind, status, started_at, attributes]
+      properties:
+        id: {type: string}
+        parent_span_id: {type: string}
+        name: {type: string}
+        kind: {type: string}
+        status: {type: string}
+        started_at: {type: string, format: date-time}
+        finished_at: {type: string, format: date-time}
+        attributes: {type: object}
+    TraceMessage:
+      type: object
+      required: [id, accepted_at, session, attempts]
+      properties:
+        id: {type: string}
+        accepted_at: {type: string, format: date-time}
+        session:
+          type: object
+          required: [id, workspace_id, logical_session_id, first_seen_at, last_seen_at]
+          properties:
+            id: {type: string}
+            workspace_id: {type: string}
+            logical_session_id: {type: string}
+            first_seen_at: {type: string, format: date-time}
+            last_seen_at: {type: string, format: date-time}
+        attempts:
+          type: array
+          items:
+            type: object
+            required: [id, number, trace_id, span_id, outcome, queued_at, spans, logs]
+            properties:
+              id: {type: string}
+              number: {type: integer, minimum: 1}
+              trace_id: {type: string}
+              span_id: {type: string}
+              outcome: {type: string}
+              error_code: {type: string}
+              queued_at: {type: string, format: date-time}
+              routed_at: {type: string, format: date-time}
+              finished_at: {type: string, format: date-time}
+              sandbox:
+                type: object
+                required: [id, allocated_at, logs]
+                properties:
+                  id: {type: string}
+                  concrete_session_id: {type: string}
+                  build_id: {type: string}
+                  allocated_at: {type: string, format: date-time}
+                  logs:
+                    type: array
+                    items: {$ref: "#/components/schemas/TraceLog"}
+              spans:
+                type: array
+                items: {$ref: "#/components/schemas/TraceSpan"}
+              logs:
+                type: array
+                items: {$ref: "#/components/schemas/TraceLog"}
+    AppTraceTree:
+      type: object
+      required: [app_id, requests, unlinked_messages]
+      properties:
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        requests:
+          type: array
+          items:
+            type: object
+            required: [id, received_at, logs, messages]
+            properties:
+              id: {type: string}
+              method: {type: string}
+              path: {type: string}
+              status_code: {type: integer}
+              duration_us: {type: integer, minimum: 0}
+              outcome: {type: string}
+              received_at: {type: string, format: date-time}
+              completed_at: {type: string, format: date-time}
+              logs:
+                type: array
+                items: {$ref: "#/components/schemas/TraceLog"}
+              messages:
+                type: array
+                items: {$ref: "#/components/schemas/TraceMessage"}
+        unlinked_messages:
+          type: array
+          items: {$ref: "#/components/schemas/TraceMessage"}
+    AppSlug:
+      type: string
+      pattern: "^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    CustomerAppID:
+      type: string
+      pattern: "^app_[0-9a-f]{32}$"
+    WorkspaceID:
+      type: string
+      pattern: "^wsp_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$"
+    SessionID:
+      type: string
+      pattern: "^ses_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$"
+    BuildID:
+      type: string
+      pattern: "^sha256:[0-9a-f]{64}$"
+    DeploymentUploadID:
+      type: string
+      pattern: "^upl_[0-9a-f]{32}$"
+    ReleaseID:
+      type: string
+      pattern: "^rel_[0-9a-f]{32}$"
+    SHA256Digest:
+      type: string
+      pattern: "^sha256:[0-9a-f]{64}$"
+    ConfigValue:
+      type: object
+      required: [name, kind, updated_at]
+      properties:
+        name:
+          type: string
+          pattern: "^(?!CANTELOP_)[A-Za-z_][A-Za-z0-9_]{0,127}$"
+        kind:
+          type: string
+          enum: [variable, secret]
+        value:
+          type: string
+          description: Present for variables and omitted for secrets.
+        updated_at: {type: string, format: date-time}
+    ConfigValueList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/ConfigValue"}
+    SetConfigValueRequest:
+      type: object
+      additionalProperties: false
+      required: [value]
+      properties:
+        value:
+          type: string
+          description: UTF-8 value of at most 65,536 bytes; NUL is rejected.
+    IntegrationCredentials:
+      type: object
+      additionalProperties: false
+      required: [app_id, slug, edge_url, token, previous_token_expires_at, rotation]
+      properties:
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        slug: {$ref: "#/components/schemas/AppSlug"}
+        edge_url:
+          type: string
+          format: uri
+          description: Origin of the App's generated Edge; the SDK posts each command to `/commands/{type}`.
+        token:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: Bearer token for `CANTELOP_INTEGRATION_TOKEN`.
+        previous_token_expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the rotated-out token stops authenticating; null when none is valid.
+        rotation:
+          oneOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [revision, rotated_at, status]
+              properties:
+                revision: {type: integer, minimum: 1}
+                rotated_at: {type: string, format: date-time}
+                status:
+                  type: string
+                  enum: [pending, applied, failed]
+                  description: Whether Edge accepted the configuration revision carrying the new token, independently of compute synchronization.
+    RotateIntegrationRequest:
+      type: object
+      additionalProperties: false
+      not:
+        required: [retry, grace_seconds]
+      properties:
+        retry:
+          type: boolean
+          const: true
+          description: Resend the existing rotation without issuing a new token or changing its grace-period expiry; cannot be combined with grace_seconds.
+        grace_seconds:
+          type: integer
+          minimum: 0
+          maximum: 604800
+          default: 86400
+          description: How long the previous token keeps working; 0 revokes it immediately.
+    DeploymentBundleManifest:
+      type: object
+      additionalProperties: false
+      required: [api, session_runtime]
+      properties:
+        api:
+          type: object
+          additionalProperties: false
+          required: [digest, size_bytes, manifest]
+          properties:
+            digest: {$ref: "#/components/schemas/SHA256Digest"}
+            size_bytes: {type: integer, minimum: 1, maximum: 1048576}
+            manifest: {$ref: "#/components/schemas/APIArtifactManifest"}
+        session_runtime:
+          type: object
+          additionalProperties: false
+          required: [digest, size_bytes, media_type]
+          properties:
+            digest: {$ref: "#/components/schemas/SHA256Digest"}
+            size_bytes: {type: integer, minimum: 1, maximum: 21474836480}
+            media_type:
+              type: string
+              enum: [application/vnd.cantelop.session-runtime.image.v1.tar+gzip]
+    DeploymentUploadTarget:
+      type: object
+      required: [method, url, headers]
+      properties:
+        method: {type: string, enum: [PUT]}
+        url:
+          type: string
+          format: uri
+          description: Short-lived bearer credential for exactly one object operation.
+        headers:
+          type: object
+          additionalProperties: {type: string}
+    DeploymentUpload:
+      type: object
+      required: [id, app_id, status, expires_at]
+      properties:
+        id: {$ref: "#/components/schemas/DeploymentUploadID"}
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        status: {type: string, enum: [uploading, finalized]}
+        expires_at: {type: string, format: date-time}
+        release_id: {$ref: "#/components/schemas/ReleaseID"}
+        api: {$ref: "#/components/schemas/DeploymentUploadTarget"}
+        session_runtime:
+          type: object
+          required: [part_size_bytes, parts]
+          properties:
+            part_size_bytes: {type: integer, minimum: 5242880, maximum: 536870912}
+            parts:
+              type: array
+              minItems: 1
+              maxItems: 10000
+              items:
+                allOf:
+                  - {$ref: "#/components/schemas/DeploymentUploadTarget"}
+                  - type: object
+                    required: [part_number]
+                    properties:
+                      part_number: {type: integer, minimum: 1, maximum: 10000}
+    PendingDeploymentUpload:
+      type: object
+      required: [id, app_id, status, expires_at]
+      properties:
+        id: {$ref: "#/components/schemas/DeploymentUploadID"}
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        status: {type: string, enum: [preparing, uploading]}
+        expires_at: {type: string, format: date-time}
+    CancelledDeploymentUpload:
+      type: object
+      required: [id, app_id, status, expires_at, cleanup_pending, idempotency_key]
+      properties:
+        id: {$ref: "#/components/schemas/DeploymentUploadID"}
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        status: {type: string, enum: [cancelled]}
+        expires_at: {type: string, format: date-time}
+        cleanup_pending:
+          type: boolean
+          description: If true, retry this exact cancellation to abort multipart storage; the App is already unlocked.
+        idempotency_key:
+          type: string
+          description: Original request identity, allowing the CLI to discard only matching local retry state. This is not an authorization credential.
+    CompleteDeploymentUpload:
+      type: object
+      additionalProperties: false
+      required: [session_runtime_parts]
+      properties:
+        session_runtime_parts:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items:
+            type: object
+            additionalProperties: false
+            required: [part_number, etag]
+            properties:
+              part_number: {type: integer, minimum: 1, maximum: 10000}
+              etag: {type: string, minLength: 1, maxLength: 130}
+    AppRoute:
+      type: object
+      additionalProperties: false
+      required: [method, path]
+      properties:
+        method: {type: string}
+        path: {type: string}
+        traffic:
+          type: object
+          description: Absent when no request reached the route within the window.
+          additionalProperties: false
+          required: [requests, client_errors, server_errors, last_seen_at, messages, failed_attempts]
+          properties:
+            requests: {type: integer, minimum: 1}
+            client_errors: {type: integer, minimum: 0}
+            server_errors: {type: integer, minimum: 0}
+            median_duration_us: {type: integer, minimum: 0}
+            last_seen_at: {type: string, format: date-time}
+            messages: {type: integer, minimum: 0, description: Messages the route's requests dispatched to Sessions.}
+            failed_attempts: {type: integer, minimum: 0}
+    AppRouteDetail:
+      type: object
+      additionalProperties: false
+      required: [method, path, declared, http, downstream, recent_requests, recent_failures, traffic_window_hours]
+      properties:
+        method: {type: string}
+        path: {type: string}
+        declared: {type: boolean}
+        http:
+          type: object
+          additionalProperties: false
+          required: [requests, status_counts]
+          properties:
+            requests: {type: integer, minimum: 0}
+            status_counts:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [status, requests]
+                properties:
+                  status: {type: integer}
+                  requests: {type: integer, minimum: 1}
+            p50_duration_us: {type: integer, minimum: 0}
+            p95_duration_us: {type: integer, minimum: 0}
+            first_seen_at: {type: string, format: date-time}
+            last_seen_at: {type: string, format: date-time}
+        downstream:
+          type: object
+          additionalProperties: false
+          required: [messages, attempts, completed, failed, pending, error_codes]
+          properties:
+            messages: {type: integer, minimum: 0}
+            attempts: {type: integer, minimum: 0}
+            completed: {type: integer, minimum: 0}
+            failed: {type: integer, minimum: 0}
+            pending: {type: integer, minimum: 0}
+            p50_time_to_start_us: {type: integer, minimum: 0}
+            p50_time_to_finish_us: {type: integer, minimum: 0}
+            error_codes:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [code, attempts]
+                properties:
+                  code: {type: string}
+                  attempts: {type: integer, minimum: 1}
+        recent_requests:
+          type: array
+          description: The latest requests whatever their outcome, newest first, at most 20.
+          items: {$ref: '#/components/schemas/AppRouteRecentRequest'}
+        recent_failures:
+          type: array
+          description: Requests that failed at the edge or whose work failed, newest first, at most 20.
+          items: {$ref: '#/components/schemas/AppRouteRecentRequest'}
+        traffic_window_hours: {type: integer, minimum: 1}
+    AppRouteRecentRequest:
+      type: object
+      additionalProperties: false
+      required: [id, trace_id, received_at]
+      properties:
+        id: {type: string}
+        trace_id: {type: string}
+        workspace_id: {type: string}
+        status_code: {type: integer}
+        duration_us: {type: integer, minimum: 0}
+        received_at: {type: string, format: date-time}
+        attempt_outcome: {type: string, enum: [completed, failed, pending]}
+        attempt_error_code: {type: string}
+        session_id: {type: string, description: The App-scoped Session the request delivered a message to.}
+        message_id: {type: string, description: The message the request delivered.}
+    AppRouteOverview:
+      type: object
+      additionalProperties: false
+      required: [origin, declaration, routes, observed_only]
+      properties:
+        origin: {type: string, format: uri, description: Public origin the routes are served from.}
+        release:
+          type: object
+          additionalProperties: false
+          required: [id, version]
+          properties:
+            id: {type: string}
+            version: {type: integer, minimum: 1}
+        declaration:
+          type: string
+          enum: [declared, unpublished, undiscovered, none]
+          description: >-
+            declared lists what the active release registers; unpublished means
+            it predates route publication; undiscovered means its build could
+            not list them; none means nothing is live. Only declared fills routes.
+        routes:
+          type: array
+          items: {$ref: "#/components/schemas/AppRoute"}
+        observed_only:
+          type: array
+          description: Paths that received requests without being declared, busiest first.
+          items: {$ref: "#/components/schemas/AppRoute"}
+        traffic_window_hours:
+          type: integer
+          description: Absent when the observability store could not be read.
+    APIArtifactManifest:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [schema_version, kind, main_module]
+          properties:
+            schema_version: {type: integer, enum: [2]}
+            kind: {type: string, enum: [cantelop-edge-api]}
+            main_module: {type: string, enum: [worker.mjs]}
+        - type: object
+          description: Publishes the API's route table for the console.
+          additionalProperties: false
+          required: [schema_version, kind, main_module, routes]
+          properties:
+            schema_version: {type: integer, enum: [3]}
+            kind: {type: string, enum: [cantelop-edge-api]}
+            main_module: {type: string, enum: [worker.mjs]}
+            routes:
+              description: >-
+                Routes registered without environment, sorted by path then
+                method. Null when the build could not discover them.
+              type: [array, "null"]
+              maxItems: 100
+              items:
+                type: object
+                additionalProperties: false
+                required: [method, path]
+                properties:
+                  method: {type: string, enum: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]}
+                  path: {type: string, pattern: '^/[\x21-\x7e]{0,127}$'}
+    AppList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/App"}
+    CreateAppSessionRuntime:
+      type: object
+      additionalProperties: false
+      required: [runtime]
+      properties:
+        runtime:
+          type: object
+          additionalProperties: false
+          required: [profile]
+          properties:
+            profile: {type: string, enum: [default]}
+    CreateTenantWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [app_id, slug]
+      properties:
+        app_id: {$ref: "#/components/schemas/CustomerAppID"}
+        slug: {$ref: "#/components/schemas/AppSlug"}
+    Session:
+      type: object
+      required: [id, workspace_id, build_id, keep_alive_seconds, state, created_at, updated_at]
+      properties:
+        id: {$ref: "#/components/schemas/SessionID"}
+        workspace_id: {$ref: "#/components/schemas/WorkspaceID"}
+        build_id: {$ref: "#/components/schemas/BuildID"}
+        keep_alive_seconds: {type: integer, minimum: 0, maximum: 604800}
+        state:
+          type: string
+          enum: [active, idle]
+          description: Derived from whether the Session currently has an allocated Sandbox; never terminal.
+        startup:
+          type: object
+          description: Recorded once the Session finished booting; absent until then.
+          required: [completed_at, duration_ms]
+          properties:
+            completed_at: {type: string, format: date-time}
+            duration_ms: {type: number}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    CustomerSession:
+      allOf:
+        - {$ref: "#/components/schemas/Session"}
+        - type: object
+          required: [app_id]
+          properties:
+            app_id: {$ref: "#/components/schemas/CustomerAppID"}
+    TenantErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code: {type: string}
+                message: {type: string}

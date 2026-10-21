@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "cantelop-backend-client",
+  "apps": [
+    {
+      "name": "cantelop-claude-api",
+      "session_runtime_id": "rt_22c8705c073991522fd7fe8c99042ff1af5fb1f90e5895463bb11f09814ddd11"
+    }
+  ],
+  "main_module": "client.mjs"
+}

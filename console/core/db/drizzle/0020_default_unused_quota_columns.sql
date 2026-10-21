@@ -1,0 +1,2 @@
+ALTER TABLE "cantelop_control"."user_quotas" ALTER COLUMN "max_vcpus" SET DEFAULT 16;--> statement-breakpoint
+ALTER TABLE "cantelop_control"."user_quotas" ALTER COLUMN "max_memory_mib" SET DEFAULT 16384;

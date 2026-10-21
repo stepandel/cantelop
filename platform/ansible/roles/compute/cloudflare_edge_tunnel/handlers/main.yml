@@ -1,0 +1,7 @@
+---
+- name: Restart Cantelop edge Tunnel
+  ansible.builtin.systemd_service:
+    name: cloudflared-cantelop-edge.service
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode

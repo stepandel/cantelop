@@ -1,0 +1,476 @@
+---
+- name: Validate isolated Redis snapshot inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_restore_redis_snapshot_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_restore_redis_snapshot_server == '/usr/bin/redis-server'
+      - >-
+        storage_backup_restore_redis_snapshot_server_target
+        == '/usr/bin/redis-check-rdb'
+      - storage_backup_restore_redis_snapshot_cli == '/usr/bin/redis-cli'
+      - storage_backup_restore_redis_snapshot_user == 'redis'
+      - storage_backup_restore_redis_snapshot_group == 'redis'
+      - storage_backup_restore_redis_snapshot_port | type_debug == 'int'
+      - storage_backup_restore_redis_snapshot_port >= 1024
+      - storage_backup_restore_redis_snapshot_port <= 65535
+      - storage_backup_restore_redis_snapshot_port != 6379
+      - storage_backup_restore_redis_snapshot_database == 1
+      - >-
+        storage_backup_restore_redis_snapshot_maxmemory
+        is match('^[1-9][0-9]*(mb|gb)$')
+      - >-
+        storage_backup_restore_redis_snapshot_maximum_members
+        | type_debug == 'int'
+      - storage_backup_restore_redis_snapshot_maximum_members >= 3
+      - storage_backup_restore_redis_snapshot_maximum_members <= 10000000
+      - >-
+        storage_backup_restore_redis_snapshot_maximum_expanded_bytes
+        | type_debug == 'int'
+      - >-
+        storage_backup_restore_redis_snapshot_maximum_expanded_bytes
+        >= 1048576
+      - >-
+        storage_backup_restore_redis_snapshot_maximum_expanded_bytes
+        <= 1099511627776
+      - >-
+        storage_backup_restore_redis_snapshot_production_service
+        == 'fire-fuse-redis.service'
+    fail_msg: isolated Redis restore requires fixed trusted paths and safe bounds
+
+- name: Install exact Redis restore validation programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - extract-redis-storage-restore.py
+      - extract-minio-storage-restore.py
+      - verify-storage-backup.py
+
+- name: Record isolated Redis paths
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_workspace: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_redis_snapshot_rehearsal_id }}
+    storage_backup_restore_redis_snapshot_service_root: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_redis_snapshot_rehearsal_id }}/services/redis
+    storage_backup_restore_redis_snapshot_data_directory: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_redis_snapshot_rehearsal_id
+      }}/services/redis/data
+    storage_backup_restore_redis_snapshot_config_file: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_redis_snapshot_rehearsal_id
+      }}/services/redis/redis.conf
+    storage_backup_restore_redis_snapshot_runtime_record: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_restore_redis_snapshot_rehearsal_id
+      }}/redis-runtime.json
+    storage_backup_restore_redis_snapshot_service: >-
+      fire-fuse-restore-redis-{{
+      storage_backup_restore_redis_snapshot_rehearsal_id }}.service
+    storage_backup_restore_redis_snapshot_runtime_directory: >-
+      fire-fuse-restore-redis-{{
+      storage_backup_restore_redis_snapshot_rehearsal_id }}
+
+- name: Record isolated Redis unit path
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_unit_file: >-
+      /etc/systemd/system/{{ storage_backup_restore_redis_snapshot_service }}
+
+- name: Extract the materialized Redis persistence snapshot
+  ansible.builtin.command:
+    argv:
+      - /usr/local/lib/fire-fuse/extract-redis-storage-restore.py
+      - "{{ storage_backup_restore_redis_snapshot_rehearsal_id }}"
+      - --restore-root
+      - "{{ storage_backup_restore_root }}"
+      - --maximum-members
+      - "{{ storage_backup_restore_redis_snapshot_maximum_members | string }}"
+      - --maximum-expanded-bytes
+      - >-
+        {{ storage_backup_restore_redis_snapshot_maximum_expanded_bytes
+        | string }}
+  register: storage_backup_restore_redis_snapshot_extraction_command
+  changed_when: true
+
+- name: Decode Redis extraction evidence
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_extraction: >-
+      {{ storage_backup_restore_redis_snapshot_extraction_command.stdout
+      | from_json }}
+
+- name: Require complete Redis extraction evidence
+  ansible.builtin.assert:
+    that:
+      - storage_backup_restore_redis_snapshot_extraction.schema_version == 1
+      - >-
+        storage_backup_restore_redis_snapshot_extraction.status
+        == 'redis-snapshot-extracted'
+      - >-
+        storage_backup_restore_redis_snapshot_extraction.rehearsal_id
+        == storage_backup_restore_redis_snapshot_rehearsal_id
+      - >-
+        storage_backup_restore_redis_snapshot_extraction.target.data_directory
+        == storage_backup_restore_redis_snapshot_data_directory
+      - >-
+        storage_backup_restore_redis_snapshot_extraction.target.aof_file_count
+        | int >= 2
+      - >-
+        storage_backup_restore_redis_snapshot_extraction.target.tree_sha256
+        is match('^[0-9a-f]{64}$')
+    fail_msg: Redis extraction evidence is incomplete
+
+- name: Reverify extracted Redis persistence before startup
+  ansible.builtin.command:
+    argv:
+      - /usr/local/lib/fire-fuse/extract-redis-storage-restore.py
+      - "{{ storage_backup_restore_redis_snapshot_rehearsal_id }}"
+      - --restore-root
+      - "{{ storage_backup_restore_root }}"
+      - --verify-existing
+  register: storage_backup_restore_redis_snapshot_verification_command
+  changed_when: false
+
+- name: Decode Redis tree verification
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_verification: >-
+      {{ storage_backup_restore_redis_snapshot_verification_command.stdout
+      | from_json }}
+
+- name: Require unchanged extracted Redis persistence
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_restore_redis_snapshot_verification.status
+        == 'redis-extraction-verified'
+      - >-
+        storage_backup_restore_redis_snapshot_verification.tree_sha256
+        == storage_backup_restore_redis_snapshot_extraction.target.tree_sha256
+    fail_msg: extracted Redis persistence changed before startup
+
+- name: Inspect isolated Redis runtime inputs and outputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+  loop:
+    - path: "{{ storage_backup_restore_redis_snapshot_server }}"
+      expected: redis_server
+      mode: "0777"
+    - path: "{{ storage_backup_restore_redis_snapshot_server_target }}"
+      expected: file
+      mode: "0755"
+    - path: "{{ storage_backup_restore_redis_snapshot_cli }}"
+      expected: file
+      mode: "0755"
+    - path: "{{ storage_backup_restore_redis_snapshot_data_directory }}"
+      expected: directory
+      mode: "0700"
+    - path: "{{ storage_backup_restore_redis_snapshot_config_file }}"
+      expected: absent
+      mode: ""
+    - path: "{{ storage_backup_restore_redis_snapshot_runtime_record }}"
+      expected: absent
+      mode: ""
+    - path: "{{ storage_backup_restore_redis_snapshot_unit_file }}"
+      expected: absent
+      mode: ""
+  register: storage_backup_restore_redis_snapshot_paths
+
+- name: Require trusted Redis inputs and new outputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.expected == 'absent'
+          and not (item.stat.exists | default(false))
+        )
+        or
+        (
+          item.item.expected == 'redis_server'
+          and item.stat.exists | default(false)
+          and item.stat.islnk | default(false)
+          and item.stat.lnk_source
+            == storage_backup_restore_redis_snapshot_server_target
+          and item.stat.pw_name == 'root'
+          and item.stat.gr_name == 'root'
+          and item.stat.mode == item.item.mode
+        )
+        or
+        (
+          item.item.expected == 'file'
+          and item.stat is trusted_file(owner='root', group='root', mode=item.item.mode)
+        )
+        or
+        (
+          item.item.expected == 'directory'
+          and item.stat is trusted_directory(owner='root', group='root', mode=item.item.mode)
+        )
+    fail_msg: isolated Redis path {{ item.item.path }} failed trust checks
+  loop: "{{ storage_backup_restore_redis_snapshot_paths.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Read installed Redis server version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_restore_redis_snapshot_server }}"
+      - --version
+  register: storage_backup_restore_redis_snapshot_version_command
+  changed_when: false
+
+- name: Extract installed Redis server version
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_version: >-
+      {{
+        storage_backup_restore_redis_snapshot_version_command.stdout
+        | regex_search('v=([0-9]+\.[0-9]+\.[0-9]+[^ ]*)', '\1')
+        | first
+      }}
+
+- name: Require the captured Redis server version
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_restore_redis_snapshot_version
+        == storage_backup_restore_redis_snapshot_extraction.source.redis_version
+    fail_msg: installed Redis version does not match the captured snapshot
+
+- name: Read production Redis state before isolated startup
+  ansible.builtin.service_facts:
+
+- name: Record production Redis state before isolated startup
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_production_state_before: >-
+      {{ ansible_facts.services.get(
+      storage_backup_restore_redis_snapshot_production_service, {}
+      ).get('state', 'not-found') }}
+
+- name: Generate an ephemeral isolated Redis password
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/openssl
+      - rand
+      - -hex
+      - "32"
+  register: storage_backup_restore_redis_snapshot_password_command
+  changed_when: true
+  no_log: true
+
+- name: Record the ephemeral isolated Redis password
+  ansible.builtin.set_fact:
+    storage_backup_restore_redis_snapshot_password: >-
+      {{ storage_backup_restore_redis_snapshot_password_command.stdout }}
+  no_log: true
+
+- name: Require a valid ephemeral isolated Redis password
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_restore_redis_snapshot_password
+        is match('^[0-9a-f]{64}$')
+  no_log: true
+
+- name: Give Redis ownership of only its extracted persistence
+  ansible.builtin.file:
+    path: "{{ storage_backup_restore_redis_snapshot_data_directory }}"
+    state: directory
+    owner: "{{ storage_backup_restore_redis_snapshot_user }}"
+    group: "{{ storage_backup_restore_redis_snapshot_group }}"
+    recurse: true
+
+- name: Write isolated Redis configuration
+  ansible.builtin.template:
+    src: redis-restore.conf.j2
+    dest: "{{ storage_backup_restore_redis_snapshot_config_file }}"
+    owner: "{{ storage_backup_restore_redis_snapshot_user }}"
+    group: "{{ storage_backup_restore_redis_snapshot_group }}"
+    mode: "0600"
+  diff: false
+  no_log: true
+
+- name: Install isolated Redis systemd unit
+  ansible.builtin.template:
+    src: fire-fuse-restore-redis.service.j2
+    dest: "{{ storage_backup_restore_redis_snapshot_unit_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Start and qualify isolated Redis snapshot
+  block:
+    - name: Start isolated Redis snapshot service
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_restore_redis_snapshot_service }}"
+        daemon_reload: true
+        enabled: false
+        state: started
+
+    - name: Wait for isolated Redis PONG
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_redis_snapshot_cli }}"
+          - --no-auth-warning
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ storage_backup_restore_redis_snapshot_port | string }}"
+          - PING
+      environment:
+        REDISCLI_AUTH: "{{ storage_backup_restore_redis_snapshot_password }}"
+      register: storage_backup_restore_redis_snapshot_ping
+      changed_when: false
+      retries: 30
+      delay: 1
+      until: storage_backup_restore_redis_snapshot_ping.stdout == 'PONG'
+      no_log: true
+
+    - name: Read isolated Redis persistence state
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_redis_snapshot_cli }}"
+          - --no-auth-warning
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ storage_backup_restore_redis_snapshot_port | string }}"
+          - INFO
+          - persistence
+      environment:
+        REDISCLI_AUTH: "{{ storage_backup_restore_redis_snapshot_password }}"
+      register: storage_backup_restore_redis_snapshot_persistence
+      changed_when: false
+      no_log: true
+
+    - name: Require healthy loaded Redis persistence
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_restore_redis_snapshot_persistence.stdout
+            is search('(?m)^loading:0\r?$')
+          - >-
+            storage_backup_restore_redis_snapshot_persistence.stdout
+            is search('(?m)^aof_enabled:1\r?$')
+          - >-
+            storage_backup_restore_redis_snapshot_persistence.stdout
+            is search('(?m)^aof_last_write_status:ok\r?$')
+        fail_msg: isolated Redis did not load healthy persistence
+
+    - name: Count restored JuiceFS metadata keys
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_restore_redis_snapshot_cli }}"
+          - --no-auth-warning
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ storage_backup_restore_redis_snapshot_port | string }}"
+          - -n
+          - "{{ storage_backup_restore_redis_snapshot_database | string }}"
+          - DBSIZE
+      environment:
+        REDISCLI_AUTH: "{{ storage_backup_restore_redis_snapshot_password }}"
+      register: storage_backup_restore_redis_snapshot_dbsize
+      changed_when: false
+      no_log: true
+
+    - name: Require restored metadata keys
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_restore_redis_snapshot_dbsize.stdout
+            is match('^[0-9]+$')
+          - storage_backup_restore_redis_snapshot_dbsize.stdout | int > 0
+        fail_msg: isolated Redis database 1 contains no restored metadata keys
+  rescue:
+    - name: Stop isolated Redis after qualification failure
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_restore_redis_snapshot_service }}"
+        state: stopped
+      failed_when: false
+
+    - name: Fail isolated Redis qualification
+      ansible.builtin.fail:
+        msg: >-
+          isolated Redis snapshot did not qualify; it was stopped and its
+          rehearsal files were retained for inspection
+
+- name: Verify production Redis remained unchanged
+  block:
+    - name: Read production Redis state after isolated startup
+      ansible.builtin.service_facts:
+
+    - name: Require unchanged production Redis service state
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services.get(
+              storage_backup_restore_redis_snapshot_production_service, {}
+            ).get('state', 'not-found')
+            == storage_backup_restore_redis_snapshot_production_state_before
+        fail_msg: production Redis service state changed during rehearsal
+  rescue:
+    - name: Stop isolated Redis after production guard failure
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_restore_redis_snapshot_service }}"
+        state: stopped
+      failed_when: false
+
+    - name: Fail production Redis state guard
+      ansible.builtin.fail:
+        msg: production Redis state changed; isolated Redis was stopped
+
+- name: Publish isolated Redis runtime evidence
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schema_version': 1,
+          'status': 'isolated-redis-snapshot-qualified',
+          'rehearsal_id': storage_backup_restore_redis_snapshot_rehearsal_id,
+          'set_id': storage_backup_restore_redis_snapshot_extraction.set_id,
+          'service': storage_backup_restore_redis_snapshot_service,
+          'endpoint': (
+            'redis://127.0.0.1:'
+            ~ storage_backup_restore_redis_snapshot_port
+          ),
+          'database': storage_backup_restore_redis_snapshot_database,
+          'redis_version': storage_backup_restore_redis_snapshot_version,
+          'tree_sha256': (
+            storage_backup_restore_redis_snapshot_extraction.target.tree_sha256
+          ),
+          'key_count': (
+            storage_backup_restore_redis_snapshot_dbsize.stdout | int
+          ),
+          'production_service_state_before': (
+            storage_backup_restore_redis_snapshot_production_state_before
+          ),
+          'production_service_state_after': (
+            ansible_facts.services.get(
+              storage_backup_restore_redis_snapshot_production_service, {}
+            ).get('state', 'not-found')
+          )
+        }
+        | to_nice_json
+      }}
+    dest: "{{ storage_backup_restore_redis_snapshot_runtime_record }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Report redacted isolated Redis snapshot evidence
+  ansible.builtin.debug:
+    msg:
+      status: isolated-redis-snapshot-qualified
+      rehearsal_id: "{{ storage_backup_restore_redis_snapshot_rehearsal_id }}"
+      set_id: "{{ storage_backup_restore_redis_snapshot_extraction.set_id }}"
+      service: "{{ storage_backup_restore_redis_snapshot_service }}"
+      endpoint: >-
+        redis://127.0.0.1:{{ storage_backup_restore_redis_snapshot_port }}
+      database: "{{ storage_backup_restore_redis_snapshot_database }}"
+      redis_version: "{{ storage_backup_restore_redis_snapshot_version }}"
+      key_count: "{{ storage_backup_restore_redis_snapshot_dbsize.stdout | int }}"

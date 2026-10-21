@@ -1,0 +1,8 @@
+---
+storage_backup_extract_minio_restore_rehearsal_id: ""
+storage_backup_extract_minio_restore_bucket: fire-fuse-workspaces
+storage_backup_extract_minio_restore_program: >-
+  /usr/local/lib/fire-fuse/extract-minio-storage-restore.py
+storage_backup_extract_minio_restore_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py
+storage_backup_extract_minio_restore_maximum_members: 1000000

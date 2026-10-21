@@ -1,0 +1,7 @@
+---
+- name: Materialize one off-host backup for an isolated restore rehearsal
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_materialize_restore

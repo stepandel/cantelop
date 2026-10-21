@@ -1,0 +1,5 @@
+---
+juicefs_client_release: '1.4.0'
+juicefs_client_artifact: ''
+juicefs_client_checksum: ''
+juicefs_client_binary: /usr/local/bin/juicefs

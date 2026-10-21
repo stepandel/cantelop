@@ -1,0 +1,131 @@
+---
+- name: Validate control builder deployment inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+      - control_builder_binary_artifact.startswith('/')
+      - control_builder_binary_checksum is match('^[0-9a-f]{64}$')
+      - control_builder_binary == '/usr/local/bin/cantelop-build-materializer'
+      - control_builder_scratch_root == '/var/lib/cantelop-builder'
+
+- name: Inspect checksum-pinned builder artifact
+  ansible.builtin.stat:
+    path: "{{ control_builder_binary_artifact }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: control_builder_controller_binary
+
+- name: Require matching regular builder artifact
+  ansible.builtin.assert:
+    that:
+      - control_builder_controller_binary.stat is trusted_file
+      - control_builder_controller_binary.stat.checksum == control_builder_binary_checksum
+
+- name: Require dedicated scratch volume
+  ansible.builtin.command:
+    argv: [findmnt, --noheadings, --output, SOURCE, --mountpoint, "{{ control_builder_scratch_root }}"]
+  changed_when: false
+
+- name: Measure dedicated scratch volume size
+  ansible.builtin.command:
+    argv: [df, -B1, --output=size, "{{ control_builder_scratch_root }}"]
+  changed_when: false
+  register: control_builder_volume_size
+
+- name: Require the agreed 250 GB scratch capacity
+  ansible.builtin.assert:
+    that:
+      - (control_builder_volume_size.stdout_lines[-1] | trim | int) >= control_builder_minimum_volume_bytes
+
+- name: Install conversion tools
+  ansible.builtin.apt:
+    name: [ca-certificates, docker.io, e2fsprogs]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create builder Docker data directory on scratch volume
+  ansible.builtin.file:
+    path: /var/lib/cantelop-builder/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Place Docker data on dedicated scratch volume
+  ansible.builtin.copy:
+    content: |
+      {"data-root":"/var/lib/cantelop-builder/docker"}
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart builder Docker
+
+- name: Apply builder Docker data-root configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start builder Docker
+  ansible.builtin.systemd_service:
+    name: docker.service
+    enabled: true
+    state: started
+
+- name: Create builder control group
+  ansible.builtin.group:
+    name: cantelop-control
+    system: true
+
+- name: Create unprivileged control worker user
+  ansible.builtin.user:
+    name: cantelop-control
+    group: cantelop-control
+    system: true
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+
+- name: Create isolated conversion directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /var/lib/cantelop-builder/incoming, owner: cantelop-control, group: cantelop-control, mode: '0700'}
+    - {path: /var/lib/cantelop-builder/work, owner: root, group: root, mode: '0700'}
+    - {path: /var/lib/cantelop-builder/images, owner: root, group: cantelop-control, mode: '0770'}
+
+- name: Install checksum-pinned image materializer
+  ansible.builtin.copy:
+    src: "{{ control_builder_binary_artifact }}"
+    dest: "{{ control_builder_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart control builder
+
+- name: Install image materializer service
+  ansible.builtin.copy:
+    src: "{{ control_builder_unit_source }}"
+    dest: /etc/systemd/system/cantelop-build-materializer.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart control builder
+
+- name: Reload systemd after image materializer installation
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Enable and start image materializer
+  ansible.builtin.systemd_service:
+    name: cantelop-build-materializer.service
+    enabled: true
+    state: started

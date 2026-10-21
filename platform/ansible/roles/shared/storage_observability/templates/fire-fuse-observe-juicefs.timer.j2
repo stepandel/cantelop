@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically observe the fire-fuse JuiceFS gateway
+
+[Timer]
+OnBootSec={{ storage_observability_interval }}
+OnUnitActiveSec={{ storage_observability_interval }}
+AccuracySec=5s
+Unit={{ storage_observability_juicefs_probe_service }}
+
+[Install]
+WantedBy=timers.target

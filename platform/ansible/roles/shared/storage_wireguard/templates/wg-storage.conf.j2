@@ -1,0 +1,14 @@
+[Interface]
+Address = {{ storage_wireguard_address }}/32
+PrivateKey = {{ storage_wireguard_private_key }}
+{% if storage_wireguard_address == '10.78.0.2' %}
+ListenPort = {{ storage_wireguard_listen_port }}
+{% endif %}
+
+[Peer]
+PublicKey = {{ storage_wireguard_peer_public_key }}
+AllowedIPs = {{ storage_wireguard_peer_address }}/32
+{% if storage_wireguard_endpoint %}
+Endpoint = {{ storage_wireguard_endpoint }}
+PersistentKeepalive = 25
+{% endif %}

@@ -1,0 +1,7 @@
+---
+- name: Plan fire-fuse storage backup retention without deletion
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_plan_retention

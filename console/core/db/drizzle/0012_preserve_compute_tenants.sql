@@ -1,0 +1,2 @@
+ALTER TABLE "cantelop_control"."apps" ADD COLUMN "compute_tenant_id" text;--> statement-breakpoint
+ALTER TABLE "cantelop_control"."apps" ADD CONSTRAINT "apps_compute_tenant_check" CHECK ("cantelop_control"."apps"."compute_tenant_id" IS NULL OR "cantelop_control"."apps"."compute_tenant_id" ~ '^usr_[0-9a-f]{32}$');

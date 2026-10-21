@@ -1,0 +1,2 @@
+ALTER TABLE "cantelop_control"."deployment_uploads" DROP CONSTRAINT "deployment_uploads_status_check";--> statement-breakpoint
+ALTER TABLE "cantelop_control"."deployment_uploads" ADD CONSTRAINT "deployment_uploads_status_check" CHECK ("cantelop_control"."deployment_uploads"."status" IN ('preparing', 'uploading', 'finalized', 'expired', 'cancelled'));

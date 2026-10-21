@@ -1,0 +1,54 @@
+---
+- name: Stage and update one selected host binary
+  hosts: "{{ ship_hosts }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Validate the selected artifact identity
+      ansible.builtin.assert:
+        that:
+          - ship_checksum is match('^[0-9a-f]{64}$')
+          - ship_revision is match('^[0-9a-f]{40}$')
+          - ship_action in ['preflight', 'apply']
+          - ship_binary.startswith('/')
+
+    - name: Create an isolated artifact directory
+      ansible.builtin.file:
+        path: "/var/lib/cantelop/local-ship/artifacts/{{ ship_checksum }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Transfer the selected binary if its content changed
+      ansible.builtin.copy:
+        src: "{{ ship_binary }}"
+        dest: "/var/lib/cantelop/local-ship/artifacts/{{ ship_checksum }}/binary"
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Preflight or update the selected component
+      ansible.builtin.script:
+        cmd: >-
+          ../../scripts/ship-component.py {{ ship_action | quote }}
+          --component {{ ship_component | quote }}
+          --binary {{ ('/var/lib/cantelop/local-ship/artifacts/' ~ ship_checksum ~ '/binary') | quote }}
+          --checksum {{ ship_checksum | quote }}
+          --revision {{ ship_revision | quote }}
+          --run-id {{ ship_run_id | quote }}
+          --drain-seconds {{ ship_drain_seconds | int }}
+          {{ ('--schema ' ~ ship_schema) if ship_schema is not none else '' }}
+        executable: /usr/bin/python3
+      register: ship_result
+      changed_when: (ship_result.stdout | from_json).changed
+
+    - name: Return the component status to the controller
+      ansible.builtin.copy:
+        content: "{{ ship_result.stdout }}"
+        dest: "{{ ship_status_directory }}/{{ inventory_hostname | hash('sha256') }}-{{ ship_component }}.json"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      when: ship_action == 'preflight'
+      changed_when: false

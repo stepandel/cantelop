@@ -1,0 +1,7 @@
+---
+- name: Install the inactive fire-fuse service gate
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: fire_fuse_service

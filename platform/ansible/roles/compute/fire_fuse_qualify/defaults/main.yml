@@ -1,0 +1,34 @@
+---
+fire_fuse_qualify_service_name: fire-fuse.service
+fire_fuse_qualify_integration_binary: /usr/local/bin/fire-fuse-integration
+fire_fuse_qualify_systemd_run: /usr/bin/systemd-run
+fire_fuse_qualify_config: /etc/fire-fuse/config.json
+fire_fuse_qualify_control_token_file: /etc/fire-fuse/control-clients/operator.token
+fire_fuse_qualify_build_id: ""
+fire_fuse_qualify_guest_tcp_port: 22
+fire_fuse_qualify_ssh_key: ""
+fire_fuse_qualify_listen_address: 127.0.0.1
+fire_fuse_qualify_listen_port: 8080
+fire_fuse_qualify_readiness_attempts: 30
+fire_fuse_qualify_readiness_delay_seconds: 1
+
+fire_fuse_qualify_unmount_hang: false
+fire_fuse_qualify_dependent_services:
+  - fire-fuse-async-dispatcher.service
+  - fire-fuse-gateway.service
+  - fire-fuse-observer.service
+
+fire_fuse_qualify_trusted_files:
+  - name: integration test
+    path: "{{ fire_fuse_qualify_integration_binary }}"
+    modes:
+      - "0755"
+  - name: configuration
+    path: "{{ fire_fuse_qualify_config }}"
+    modes:
+      - "0640"
+  - name: integration SSH key
+    path: "{{ fire_fuse_qualify_ssh_key }}"
+    modes:
+      - "0400"
+      - "0600"

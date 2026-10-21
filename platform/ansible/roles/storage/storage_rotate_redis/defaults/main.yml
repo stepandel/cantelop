@@ -1,0 +1,32 @@
+---
+storage_rotate_redis_service: fire-fuse.service
+storage_rotate_redis_redis_service: fire-fuse-redis.service
+storage_rotate_redis_password_file: /etc/fire-fuse/redis-password
+storage_rotate_redis_metadata_url_file: /etc/fire-fuse/juicefs-meta-url
+storage_rotate_redis_config_file: /etc/redis/fire-fuse.conf
+storage_rotate_redis_bind_address: 10.78.0.2
+storage_rotate_redis_port: 6379
+storage_rotate_redis_listen_address: 127.0.0.1
+storage_rotate_redis_listen_port: 8080
+storage_rotate_redis_readiness_attempts: 30
+storage_rotate_redis_readiness_delay_seconds: 1
+
+storage_rotate_redis_files:
+  - name: Redis password
+    path: "{{ storage_rotate_redis_password_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+    exact_size: 65
+  - name: JuiceFS metadata URL
+    path: "{{ storage_rotate_redis_metadata_url_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+    exact_size: 0
+  - name: Redis configuration
+    path: "{{ storage_rotate_redis_config_file }}"
+    owner: root
+    group: redis
+    mode: "0640"
+    exact_size: 0

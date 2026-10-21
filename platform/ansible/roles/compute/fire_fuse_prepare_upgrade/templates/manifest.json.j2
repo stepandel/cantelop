@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "upgrade_id": {{ fire_fuse_prepare_upgrade_id | to_json }},
+  "files": [
+{% for result in fire_fuse_prepare_upgrade_live_files.results %}
+    {
+      "name": {{ result.item.name | to_json }},
+      "destination": {{ result.item.source | to_json }},
+      "snapshot": {{ ('files/' ~ result.item.snapshot) | to_json }},
+      "mode": {{ result.stat.mode | to_json }},
+      "sha256": {{ result.stat.checksum | to_json }}
+    }{{ ',' if not loop.last else '' }}
+{% endfor %}
+  ]
+}

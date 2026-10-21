@@ -1,0 +1,7 @@
+---
+- name: Audit fire-fuse storage backup inventory
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_audit

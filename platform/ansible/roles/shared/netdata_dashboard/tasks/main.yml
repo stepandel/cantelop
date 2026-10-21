@@ -1,0 +1,338 @@
+---
+- name: Validate Netdata dashboard inputs
+  ansible.builtin.assert:
+    that:
+      - netdata_dashboard_release is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+      - netdata_dashboard_installer_url.startswith('https://')
+      - >-
+        netdata_dashboard_installer_checksum
+        is match('^sha256:[0-9a-f]{64}$')
+      - netdata_dashboard_installer_path.startswith('/var/cache/fire-fuse/')
+      - netdata_dashboard_prefix == '/opt/netdata'
+      - >-
+        netdata_dashboard_charts_directory
+        == '/opt/netdata/usr/libexec/netdata/charts.d'
+      - netdata_dashboard_service == 'netdata.service'
+      - netdata_dashboard_bind_address == '127.0.0.1'
+      - netdata_dashboard_port | int == 19999
+      - netdata_dashboard_update_every | int >= 5
+      - netdata_dashboard_update_every | int <= 60
+      - >-
+        netdata_dashboard_state_directory
+        == '/run/fire-fuse-observability'
+      - netdata_dashboard_state_stale_after_seconds | int >= 60
+      - netdata_dashboard_state_stale_after_seconds | int <= 600
+      - >-
+        netdata_dashboard_tier0_retention_size
+        is match('^[2-9][0-9]{2,3}MiB$')
+      - >-
+        netdata_dashboard_tier0_retention_size
+        | regex_replace('MiB$', '')
+        | int
+        >= 256
+      - >-
+        netdata_dashboard_tier0_retention_size
+        | regex_replace('MiB$', '')
+        | int
+        <= 1024
+      - >-
+        netdata_dashboard_tier0_retention_time
+        is match('^[1-9][0-9]*d$')
+      - netdata_dashboard_memory_high is match('^[1-9][0-9]*M$')
+      - netdata_dashboard_memory_max is match('^[1-9][0-9]*M$')
+      - >-
+        (
+          netdata_dashboard_memory_high
+          | regex_replace('M$', '')
+          | int
+        )
+        <
+        (
+          netdata_dashboard_memory_max
+          | regex_replace('M$', '')
+          | int
+        )
+      - netdata_dashboard_cpu_quota is match('^[1-9][0-9]?%$')
+      - netdata_dashboard_io_weight | int >= 1
+      - netdata_dashboard_io_weight | int <= 100
+      - netdata_dashboard_minio_warning_available_percent | int > 0
+      - >-
+        netdata_dashboard_minio_warning_available_percent | int
+        < 100
+      - netdata_dashboard_minio_critical_available_percent | int > 0
+      - >-
+        netdata_dashboard_minio_critical_available_percent | int
+        < netdata_dashboard_minio_warning_available_percent | int
+      - netdata_dashboard_redis_warning_available_percent | int > 0
+      - >-
+        netdata_dashboard_redis_warning_available_percent | int
+        < 100
+      - netdata_dashboard_redis_critical_available_percent | int > 0
+      - >-
+        netdata_dashboard_redis_critical_available_percent | int
+        < netdata_dashboard_redis_warning_available_percent | int
+      - netdata_dashboard_node in ['compute', 'storage', 'builder']
+      - >-
+        netdata_dashboard_parent_stream_addresses
+        == ['10.78.0.1', '10.77.0.1']
+      - netdata_dashboard_child_addresses == ['10.78.0.2', '10.77.0.2']
+    fail_msg: Netdata dashboard inputs must remain pinned, local, and bounded
+
+- name: Validate the Netdata streaming key
+  ansible.builtin.assert:
+    that:
+      - >-
+        netdata_dashboard_stream_api_key
+        is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    fail_msg: >-
+      vault_netdata_stream_api_key must be a lowercase UUID shared by all
+      three machines
+  no_log: true
+
+- name: Install collector dependencies
+  ansible.builtin.apt:
+    name: [curl, jq]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the Netdata installer cache directory
+  ansible.builtin.file:
+    path: "{{ netdata_dashboard_installer_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create the Netdata group
+  ansible.builtin.group:
+    name: netdata
+    system: true
+    state: present
+
+- name: Create the restricted Netdata user
+  ansible.builtin.user:
+    name: netdata
+    group: netdata
+    groups: []
+    append: false
+    create_home: false
+    home: "{{ netdata_dashboard_prefix }}/var/lib/netdata"
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Read the installed Netdata version
+  ansible.builtin.command:
+    argv:
+      - "{{ netdata_dashboard_prefix }}/usr/sbin/netdata"
+      - -v
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: netdata_dashboard_installed_version
+
+- name: Explain first-install check mode
+  ansible.builtin.debug:
+    msg: >-
+      Netdata is not installed; check mode cannot preview its installer or
+      configuration files. Run dashboard.yml without --check to install it.
+  when:
+    - ansible_check_mode
+    - netdata_dashboard_installed_version.rc != 0
+
+- name: End first-install check before files that require Netdata directories
+  ansible.builtin.meta: end_host
+  when:
+    - ansible_check_mode
+    - netdata_dashboard_installed_version.rc != 0
+
+- name: Download the checksum-pinned Netdata installer
+  ansible.builtin.get_url:
+    url: "{{ netdata_dashboard_installer_url }}"
+    dest: "{{ netdata_dashboard_installer_path }}"
+    checksum: "{{ netdata_dashboard_installer_checksum }}"
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - not ansible_check_mode
+    - >-
+      netdata_dashboard_release
+      not in netdata_dashboard_installed_version.stdout
+
+- name: Stop Netdata before replacing its installation
+  ansible.builtin.systemd_service:
+    name: "{{ netdata_dashboard_service }}"
+    state: stopped
+  when:
+    - netdata_dashboard_installed_version.rc == 0
+    - >-
+      netdata_dashboard_release
+      not in netdata_dashboard_installed_version.stdout
+
+- name: Install the checksum-pinned Netdata release without starting it
+  ansible.builtin.command:
+    argv:
+      - "{{ netdata_dashboard_installer_path }}"
+      - --accept
+      - --noprogress
+      - --
+      - --dont-start-it
+      - --disable-telemetry
+      - --stable-channel
+  changed_when: true
+  environment:
+    DISABLE_TELEMETRY: "1"
+  when:
+    - >-
+      netdata_dashboard_release
+      not in netdata_dashboard_installed_version.stdout
+  notify: Reload systemd for Netdata
+
+- name: Remove installer-added supplementary groups from Netdata
+  ansible.builtin.user:
+    name: netdata
+    group: netdata
+    groups: []
+    append: false
+    create_home: false
+    home: "{{ netdata_dashboard_prefix }}/var/lib/netdata"
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Remove the verified Netdata installer after installation
+  ansible.builtin.file:
+    path: "{{ netdata_dashboard_installer_path }}"
+    state: absent
+
+- name: Create Netdata configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: netdata
+    mode: "0750"
+  loop:
+    - "{{ netdata_dashboard_prefix }}/etc/netdata/charts.d"
+    - "{{ netdata_dashboard_prefix }}/etc/netdata/health.d"
+
+- name: Install the restricted Netdata configuration
+  ansible.builtin.template:
+    src: netdata.conf.j2
+    dest: "{{ netdata_dashboard_prefix }}/etc/netdata/netdata.conf"
+    owner: root
+    group: netdata
+    mode: "0640"
+  notify: Restart Netdata
+
+- name: Install the Netdata streaming configuration
+  ansible.builtin.template:
+    src: stream.conf.j2
+    dest: "{{ netdata_dashboard_prefix }}/etc/netdata/stream.conf"
+    owner: root
+    group: netdata
+    mode: "0640"
+  no_log: true
+  notify: Restart Netdata
+
+- name: Enable only the fire-fuse charts.d collector
+  ansible.builtin.template:
+    src: charts.d.conf.j2
+    dest: "{{ netdata_dashboard_prefix }}/etc/netdata/charts.d.conf"
+    owner: root
+    group: netdata
+    mode: "0640"
+  notify: Restart Netdata
+
+- name: Install the fire-fuse Netdata collector
+  ansible.builtin.template:
+    src: fire_fuse.chart.sh.j2
+    dest: >-
+      {{ netdata_dashboard_charts_directory }}/fire_fuse.chart.sh
+    owner: root
+    group: netdata
+    mode: "0750"
+  notify: Restart Netdata
+
+- name: Install the curated fire-fuse alerts
+  ansible.builtin.template:
+    src: fire_fuse-health.conf.j2
+    dest: >-
+      {{ netdata_dashboard_prefix }}/etc/netdata/health.d/fire_fuse.conf
+    owner: root
+    group: netdata
+    mode: "0640"
+  notify: Restart Netdata
+
+- name: Create the Netdata service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/netdata.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Netdata resource limits
+  ansible.builtin.template:
+    src: resource-limits.conf.j2
+    dest: /etc/systemd/system/netdata.service.d/10-fire-fuse-limits.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd for Netdata
+    - Restart Netdata
+
+- name: Order the Netdata parent after its WireGuard tunnels
+  ansible.builtin.template:
+    src: stream-network.conf.j2
+    dest: /etc/systemd/system/netdata.service.d/20-fire-fuse-streaming.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: netdata_dashboard_node == 'compute'
+  notify:
+    - Reload systemd for Netdata
+    - Restart Netdata
+
+- name: Disable the unpinned Netdata updater
+  ansible.builtin.systemd_service:
+    name: netdata-updater.timer
+    state: stopped
+    enabled: false
+    masked: true
+  when: not ansible_check_mode
+
+- name: Apply Netdata configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start Netdata
+  ansible.builtin.systemd_service:
+    name: "{{ netdata_dashboard_service }}"
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Wait for the loopback-only Netdata API
+  ansible.builtin.uri:
+    url: >-
+      http://{{ netdata_dashboard_bind_address }}:{{
+      netdata_dashboard_port }}/api/v1/info
+    return_content: true
+    status_code: 200
+  register: netdata_dashboard_info
+  retries: 12
+  delay: 1
+  until: netdata_dashboard_info.status == 200
+  when: not ansible_check_mode
+
+- name: Require the pinned running Netdata release
+  ansible.builtin.assert:
+    that:
+      - >-
+        netdata_dashboard_release
+        in netdata_dashboard_info.json.version
+    fail_msg: the Netdata API did not report the pinned release
+  when: not ansible_check_mode

@@ -1,0 +1,471 @@
+---
+- name: Validate isolated MinIO runtime inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_start_minio_restore_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_start_minio_restore_bucket == 'fire-fuse-workspaces'
+      - storage_backup_start_minio_restore_binary == '/usr/local/bin/minio'
+      - >-
+        storage_backup_start_minio_restore_binary_checksum
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_start_minio_restore_mc_binary == '/usr/local/bin/mc'
+      - >-
+        storage_backup_start_minio_restore_mc_checksum
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_start_minio_restore_user == 'minio'
+      - storage_backup_start_minio_restore_group == 'minio'
+      - storage_backup_start_minio_restore_root_user == 'restoreadmin'
+      - storage_backup_start_minio_restore_api_port | type_debug == 'int'
+      - storage_backup_start_minio_restore_api_port >= 1024
+      - storage_backup_start_minio_restore_api_port <= 65535
+      - storage_backup_start_minio_restore_console_port | type_debug == 'int'
+      - storage_backup_start_minio_restore_console_port >= 1024
+      - storage_backup_start_minio_restore_console_port <= 65535
+      - >-
+        storage_backup_start_minio_restore_api_port
+        != storage_backup_start_minio_restore_console_port
+      - storage_backup_start_minio_restore_api_port not in [9000, 9001]
+      - storage_backup_start_minio_restore_console_port not in [9000, 9001]
+      - >-
+        storage_backup_start_minio_restore_production_service
+        == 'fire-fuse-minio.service'
+    fail_msg: isolated MinIO runtime requires fixed paths, identities, and safe ports
+
+- name: Install exact MinIO restore validation programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - extract-minio-storage-restore.py
+      - verify-storage-backup.py
+
+- name: Record isolated MinIO runtime paths
+  ansible.builtin.set_fact:
+    storage_backup_start_minio_restore_workspace: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_start_minio_restore_rehearsal_id }}
+    storage_backup_start_minio_restore_service_root: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_start_minio_restore_rehearsal_id }}/services/minio
+    storage_backup_start_minio_restore_data_directory: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_start_minio_restore_rehearsal_id
+      }}/services/minio/data
+    storage_backup_start_minio_restore_environment_file: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_start_minio_restore_rehearsal_id
+      }}/services/minio/minio.env
+    storage_backup_start_minio_restore_runtime_record: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_start_minio_restore_rehearsal_id
+      }}/minio-runtime.json
+    storage_backup_start_minio_restore_service: >-
+      fire-fuse-restore-minio-{{
+      storage_backup_start_minio_restore_rehearsal_id }}.service
+    storage_backup_start_minio_restore_runtime_directory: >-
+      fire-fuse-restore-minio-{{
+      storage_backup_start_minio_restore_rehearsal_id }}
+
+- name: Record isolated MinIO systemd unit path
+  ansible.builtin.set_fact:
+    storage_backup_start_minio_restore_unit_file: >-
+      /etc/systemd/system/{{ storage_backup_start_minio_restore_service }}
+
+- name: Read materialization, manifest, and extraction records
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ storage_backup_start_minio_restore_workspace }}/materialization.json"
+    - "{{ storage_backup_start_minio_restore_workspace }}/manifest.json"
+    - "{{ storage_backup_start_minio_restore_workspace }}/minio-extraction.json"
+  register: storage_backup_start_minio_restore_records
+
+- name: Decode isolated MinIO prerequisite records
+  ansible.builtin.set_fact:
+    storage_backup_start_minio_restore_materialization: >-
+      {{ storage_backup_start_minio_restore_records.results[0].content
+      | b64decode | from_json }}
+    storage_backup_start_minio_restore_manifest: >-
+      {{ storage_backup_start_minio_restore_records.results[1].content
+      | b64decode | from_json }}
+    storage_backup_start_minio_restore_extraction: >-
+      {{ storage_backup_start_minio_restore_records.results[2].content
+      | b64decode | from_json }}
+
+- name: Require bound successful MinIO extraction evidence
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_start_minio_restore_materialization.status
+        == 'materialized-and-verified'
+      - >-
+        storage_backup_start_minio_restore_materialization.rehearsal_id
+        == storage_backup_start_minio_restore_rehearsal_id
+      - >-
+        storage_backup_start_minio_restore_extraction.status
+        == 'minio-snapshot-extracted'
+      - >-
+        storage_backup_start_minio_restore_extraction.rehearsal_id
+        == storage_backup_start_minio_restore_rehearsal_id
+      - >-
+        storage_backup_start_minio_restore_extraction.set_id
+        == storage_backup_start_minio_restore_manifest.set_id
+      - >-
+        storage_backup_start_minio_restore_extraction.target.data_directory
+        == storage_backup_start_minio_restore_data_directory
+      - >-
+        storage_backup_start_minio_restore_extraction.source.object_snapshot_id
+        == storage_backup_start_minio_restore_manifest.source.object_snapshot_id
+      - >-
+        storage_backup_start_minio_restore_extraction.source.object_snapshot_id
+        ==
+        (
+          'sha256:'
+          ~ storage_backup_start_minio_restore_extraction.source.sha256
+        )
+    fail_msg: isolated MinIO startup requires matching extraction evidence
+
+- name: Reverify the extracted MinIO tree before startup
+  ansible.builtin.command:
+    argv:
+      - /usr/local/lib/fire-fuse/extract-minio-storage-restore.py
+      - "{{ storage_backup_start_minio_restore_rehearsal_id }}"
+      - --restore-root
+      - "{{ storage_backup_restore_root }}"
+      - --verify-existing
+  register: storage_backup_start_minio_restore_tree_verification
+  changed_when: false
+
+- name: Decode extracted MinIO tree verification
+  ansible.builtin.set_fact:
+    storage_backup_start_minio_restore_verified_tree: >-
+      {{ storage_backup_start_minio_restore_tree_verification.stdout
+      | from_json }}
+
+- name: Require unchanged extracted MinIO tree
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_start_minio_restore_verified_tree.status
+        == 'minio-extraction-verified'
+      - >-
+        storage_backup_start_minio_restore_verified_tree.rehearsal_id
+        == storage_backup_start_minio_restore_rehearsal_id
+      - >-
+        storage_backup_start_minio_restore_verified_tree.tree_sha256
+        == storage_backup_start_minio_restore_extraction.target.tree_sha256
+    fail_msg: extracted MinIO data changed after extraction
+
+- name: Inspect isolated MinIO runtime inputs and outputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: "{{ storage_backup_start_minio_restore_binary }}"
+      expected: file
+      mode: "0755"
+      checksum: "{{ storage_backup_start_minio_restore_binary_checksum }}"
+    - path: "{{ storage_backup_start_minio_restore_mc_binary }}"
+      expected: file
+      mode: "0755"
+      checksum: "{{ storage_backup_start_minio_restore_mc_checksum }}"
+    - path: "{{ storage_backup_start_minio_restore_data_directory }}"
+      expected: directory
+      mode: "0700"
+      checksum: ""
+    - path: >-
+        {{ storage_backup_start_minio_restore_data_directory
+        }}/.minio.sys/format.json
+      expected: file
+      mode: "0600"
+      checksum: ""
+    - path: >-
+        {{ storage_backup_start_minio_restore_data_directory
+        }}/{{ storage_backup_start_minio_restore_bucket }}
+      expected: directory
+      mode: "0700"
+      checksum: ""
+    - path: "{{ storage_backup_start_minio_restore_environment_file }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+    - path: "{{ storage_backup_start_minio_restore_runtime_record }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+    - path: "{{ storage_backup_start_minio_restore_unit_file }}"
+      expected: absent
+      mode: ""
+      checksum: ""
+  register: storage_backup_start_minio_restore_paths
+
+- name: Require trusted inputs and new runtime outputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.expected == 'absent'
+          and not (item.stat.exists | default(false))
+        )
+        or
+        (
+          item.item.expected == 'file'
+          and item.stat is trusted_file(owner='root', group='root', mode=item.item.mode)
+          and
+          (
+            item.item.checksum == ''
+            or item.stat.checksum == item.item.checksum
+          )
+        )
+        or
+        (
+          item.item.expected == 'directory'
+          and item.stat is trusted_directory(owner='root', group='root', mode=item.item.mode)
+        )
+    fail_msg: isolated MinIO path {{ item.item.path }} failed trust checks
+  loop: "{{ storage_backup_start_minio_restore_paths.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Read the installed MinIO version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_start_minio_restore_binary }}"
+      - --version
+  register: storage_backup_start_minio_restore_version
+  changed_when: false
+
+- name: Require the captured MinIO version
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          storage_backup_start_minio_restore_version.stdout
+          | regex_search('RELEASE\\.[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9-]+Z')
+        )
+        == storage_backup_start_minio_restore_manifest.source.minio_version
+    fail_msg: installed MinIO version does not match the captured snapshot
+
+- name: Read production MinIO state before isolated startup
+  ansible.builtin.service_facts:
+
+- name: Record production MinIO state before isolated startup
+  ansible.builtin.set_fact:
+    storage_backup_start_minio_restore_production_state_before: >-
+      {{ ansible_facts.services.get(
+      storage_backup_start_minio_restore_production_service, {}
+      ).get('state', 'not-found') }}
+
+- name: Generate an ephemeral isolated MinIO password
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/openssl
+      - rand
+      - -hex
+      - "32"
+  register: storage_backup_start_minio_restore_password_command
+  changed_when: true
+  no_log: true
+
+- name: Record the ephemeral isolated MinIO password
+  ansible.builtin.set_fact:
+    storage_backup_start_minio_restore_root_password: >-
+      {{ storage_backup_start_minio_restore_password_command.stdout }}
+  no_log: true
+
+- name: Require a valid ephemeral isolated MinIO password
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_start_minio_restore_root_password
+        is match('^[0-9a-f]{64}$')
+  no_log: true
+
+- name: Give the isolated MinIO user ownership of only the extracted data
+  ansible.builtin.file:
+    path: "{{ storage_backup_start_minio_restore_data_directory }}"
+    state: directory
+    owner: "{{ storage_backup_start_minio_restore_user }}"
+    group: "{{ storage_backup_start_minio_restore_group }}"
+    recurse: true
+
+- name: Create an isolated MinIO client configuration directory
+  ansible.builtin.file:
+    path: "{{ storage_backup_start_minio_restore_service_root }}/mc"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Write ephemeral isolated MinIO credentials
+  ansible.builtin.template:
+    src: minio-restore.env.j2
+    dest: "{{ storage_backup_start_minio_restore_environment_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+
+- name: Install the isolated MinIO systemd unit
+  ansible.builtin.template:
+    src: fire-fuse-restore-minio.service.j2
+    dest: "{{ storage_backup_start_minio_restore_unit_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Start and qualify isolated MinIO
+  block:
+    - name: Start the isolated MinIO service
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_start_minio_restore_service }}"
+        daemon_reload: true
+        enabled: false
+        state: started
+
+    - name: Require isolated MinIO readiness
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{
+          storage_backup_start_minio_restore_api_port }}/minio/health/ready
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      register: storage_backup_start_minio_restore_ready
+      changed_when: false
+      retries: 30
+      delay: 1
+      until: storage_backup_start_minio_restore_ready.status | default(0) == 200
+
+    - name: Require the captured bucket in isolated MinIO
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_start_minio_restore_mc_binary }}"
+          - stat
+          - >-
+            restored/{{ storage_backup_start_minio_restore_bucket }}
+          - --json
+      environment:
+        HOME: /root
+        MC_CONFIG_DIR: >-
+          {{ storage_backup_start_minio_restore_service_root }}/mc
+        MC_HOST_restored: >-
+          http://{{ storage_backup_start_minio_restore_root_user
+          }}:{{ storage_backup_start_minio_restore_root_password
+          }}@127.0.0.1:{{ storage_backup_start_minio_restore_api_port }}
+        MC_NO_COLOR: "1"
+      register: storage_backup_start_minio_restore_bucket_stat
+      changed_when: false
+      no_log: true
+
+    - name: Decode isolated MinIO bucket evidence
+      ansible.builtin.set_fact:
+        storage_backup_start_minio_restore_bucket_evidence: >-
+          {{ storage_backup_start_minio_restore_bucket_stat.stdout | from_json }}
+
+    - name: Require successful isolated MinIO bucket evidence
+      ansible.builtin.assert:
+        that:
+          - storage_backup_start_minio_restore_bucket_evidence.status == 'success'
+        fail_msg: captured bucket is not readable from isolated MinIO
+  rescue:
+    - name: Stop isolated MinIO after qualification failure
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_start_minio_restore_service }}"
+        state: stopped
+      failed_when: false
+
+    - name: Fail isolated MinIO qualification
+      ansible.builtin.fail:
+        msg: >-
+          isolated MinIO did not qualify; it was stopped and its rehearsal
+          files were retained for inspection
+
+- name: Verify production MinIO remained unchanged
+  block:
+    - name: Read production MinIO state after isolated startup
+      ansible.builtin.service_facts:
+
+    - name: Require unchanged production MinIO service state
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services.get(
+              storage_backup_start_minio_restore_production_service, {}
+            ).get('state', 'not-found')
+            == storage_backup_start_minio_restore_production_state_before
+        fail_msg: production MinIO service state changed during isolated startup
+  rescue:
+    - name: Stop isolated MinIO after production invariant failure
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_start_minio_restore_service }}"
+        state: stopped
+      failed_when: false
+
+    - name: Fail the production MinIO state guard
+      ansible.builtin.fail:
+        msg: >-
+          production MinIO service state changed; the isolated restore unit
+          was stopped
+
+- name: Publish isolated MinIO runtime evidence
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schema_version': 1,
+          'status': 'isolated-minio-qualified',
+          'rehearsal_id': storage_backup_start_minio_restore_rehearsal_id,
+          'set_id': storage_backup_start_minio_restore_manifest.set_id,
+          'service': storage_backup_start_minio_restore_service,
+          'endpoint_url': (
+            'http://127.0.0.1:'
+            ~ storage_backup_start_minio_restore_api_port
+          ),
+          'bucket': storage_backup_start_minio_restore_bucket,
+          'minio_version': (
+            storage_backup_start_minio_restore_manifest.source.minio_version
+          ),
+          'binary_sha256': (
+            storage_backup_start_minio_restore_binary_checksum
+          ),
+          'object_snapshot_id': (
+            storage_backup_start_minio_restore_extraction.source.object_snapshot_id
+          ),
+          'production_service_state_before': (
+            storage_backup_start_minio_restore_production_state_before
+          ),
+          'production_service_state_after': (
+            ansible_facts.services.get(
+              storage_backup_start_minio_restore_production_service, {}
+            ).get('state', 'not-found')
+          )
+        }
+        | to_nice_json
+      }}
+    dest: "{{ storage_backup_start_minio_restore_runtime_record }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Report redacted isolated MinIO runtime evidence
+  ansible.builtin.debug:
+    msg:
+      status: isolated-minio-qualified
+      rehearsal_id: "{{ storage_backup_start_minio_restore_rehearsal_id }}"
+      set_id: "{{ storage_backup_start_minio_restore_manifest.set_id }}"
+      service: "{{ storage_backup_start_minio_restore_service }}"
+      endpoint_url: >-
+        http://127.0.0.1:{{ storage_backup_start_minio_restore_api_port }}
+      bucket: "{{ storage_backup_start_minio_restore_bucket }}"
+      minio_version: >-
+        {{ storage_backup_start_minio_restore_manifest.source.minio_version }}
+      object_snapshot_id: >-
+        {{ storage_backup_start_minio_restore_extraction.source.object_snapshot_id }}

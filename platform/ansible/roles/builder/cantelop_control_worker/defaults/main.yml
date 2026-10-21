@@ -1,0 +1,48 @@
+---
+cantelop_control_worker_user: cantelop-control
+cantelop_control_worker_group: cantelop-control
+cantelop_control_worker_binary_artifact: ""
+cantelop_control_worker_binary_checksum: ""
+cantelop_control_worker_binary: /usr/local/bin/cantelop-control-worker
+cantelop_control_migrate_artifact: ""
+cantelop_control_migrate_checksum: ""
+cantelop_control_migrate_binary: /usr/local/bin/cantelop-control-migrate
+cantelop_control_migrations_artifact: ""
+cantelop_control_migrations_manifest_checksum: ""
+cantelop_control_migrations_root: /usr/local/share/cantelop-control/migrations
+cantelop_control_migrations_directory: >-
+  {{ cantelop_control_migrations_root }}/{{ cantelop_control_migrations_manifest_checksum }}
+cantelop_control_worker_unit_source: >-
+  {{ role_path }}/../../../../systemd/builder/cantelop-control-worker.service
+cantelop_control_worker_unit: /etc/systemd/system/cantelop-control-worker.service
+cantelop_control_worker_config_directory: /etc/cantelop-control
+cantelop_control_worker_environment_file: /etc/cantelop-control/worker.env
+cantelop_control_worker_database_url: "{{ vault_cantelop_database_url | default('') }}"
+cantelop_control_worker_database_ssl: verify-full
+cantelop_control_worker_config_encryption_key: >-
+  {{ vault_cantelop_config_encryption_key | default('') }}
+cantelop_control_worker_artifact_bucket: ""
+cantelop_control_worker_artifact_endpoint: ""
+cantelop_control_worker_artifact_region: auto
+cantelop_control_worker_artifact_access_key_id: >-
+  {{ vault_cantelop_artifact_access_key_id | default('') }}
+cantelop_control_worker_artifact_secret_access_key: >-
+  {{ vault_cantelop_artifact_secret_access_key | default('') }}
+cantelop_control_worker_id: control-worker-hetzner-1
+cantelop_control_worker_compute_ingress_url: http://10.77.0.1:8084
+cantelop_control_worker_compute_control_token: >-
+  {{ vault_fire_fuse_compute_ingress_token | default('') }}
+cantelop_control_worker_cloudflare_account_id: ""
+cantelop_control_worker_cloudflare_dispatch_namespace: cantelop-user-workers-staging
+cantelop_control_worker_cloudflare_route_namespace_id: ""
+cantelop_control_worker_cloudflare_api_token: >-
+  {{ vault_cantelop_cloudflare_api_token | default('') }}
+cantelop_control_worker_release_gate_token: >-
+  {{ vault_release_gate_token | default('') }}
+cantelop_control_worker_cloudflare_compatibility_date: ""
+
+# Platform-owned Workspace databases; never supplied by end users.
+cantelop_control_worker_turso_organization: ""
+cantelop_control_worker_turso_group: ""
+cantelop_control_worker_turso_environment: ""
+cantelop_control_worker_turso_platform_token: "{{ vault_cantelop_turso_platform_token | default('') }}"

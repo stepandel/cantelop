@@ -1,0 +1,7 @@
+---
+# Converge the storage host: the compute-to-storage tunnel (both peers), then
+# Redis, MinIO, the JuiceFS volume, and storage observability. Backup and
+# restore workflows remain explicit playbooks under playbooks/storage/.
+- import_playbook: playbooks/ship/provisioning-guard.yml
+- import_playbook: playbooks/shared/storage-wireguard.yml
+- import_playbook: playbooks/storage/storage.yml

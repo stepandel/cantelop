@@ -1,0 +1,39 @@
+{
+  "firecracker_bin": "/usr/local/lib/fire-fuse/firecracker",
+  "jailer_bin": "/usr/local/lib/fire-fuse/jailer",
+  "jailer_uid": {{ fire_fuse_stage_jailer_uid }},
+  "jailer_gid": {{ fire_fuse_stage_jailer_gid }},
+  "runtime_dir": {{ fire_fuse_stage_runtime_directory | to_json }},
+  "state_db": {{ fire_fuse_stage_state_database | to_json }},
+  "network": {
+    "ip_bin": "/usr/sbin/ip",
+    "iptables_bin": "/usr/sbin/iptables",
+    "ip6tables_bin": "/usr/sbin/ip6tables",
+    "address_pool": {{ fire_fuse_stage_address_pool | to_json }},
+    "egress": {
+      "dns_resolvers": ["1.1.1.1", "8.8.8.8"],
+      "allowed_tcp_ports": [22, 80, 443],
+      "allowed_udp_ports": [443]
+    }
+  },
+  "workspace": {
+    "exportfs_bin": {{ fire_fuse_stage_workspace_exportfs_bin | to_json }},
+    "juicefs_bin": {{ fire_fuse_stage_workspace_juicefs_bin | to_json }},
+    "mountpoint_bin": {{ fire_fuse_stage_workspace_mountpoint_bin | to_json }},
+    "root": {{ fire_fuse_stage_workspace_root | to_json }},
+    "admin_root": {{ fire_fuse_stage_workspace_admin_root | to_json }}
+  },
+  "host_pool": {{ fire_fuse_stage_host_pool | to_nice_json }},
+  "limits": {{ fire_fuse_stage_limits | to_nice_json }},
+  "timeouts": {{ fire_fuse_stage_timeouts | to_nice_json }},
+  "image_catalog": {{ fire_fuse_stage_image_catalog_destination | to_json }},
+  "config_encryption_key_file": {{ fire_fuse_stage_config_encryption_key_destination | to_json }},
+  "profiles": {
+    {{ fire_fuse_stage_profile_name | to_json }}: {
+      "kernel_image": "/var/lib/fire-fuse/images/vmlinux",
+      "rootfs_image": "/var/lib/fire-fuse/images/ubuntu-24.ext4",
+      "snapshot_bundle": {{ fire_fuse_stage_snapshot_bundle | to_json }},
+      "boot_args": {{ fire_fuse_stage_profile_boot_args | to_json }}
+    }
+  }
+}

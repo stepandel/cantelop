@@ -1,0 +1,7 @@
+---
+- name: Mount, unmount, and remount the isolated restored JuiceFS volume
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_qualify_restore_mount

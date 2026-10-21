@@ -1,0 +1,359 @@
+name: Publish Cantelop CLI
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing signed Cantelop tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-cli-${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository_id == '1323478043'
+    permissions:
+      contents: write
+    runs-on: macos-latest
+    outputs:
+      tag: ${{ steps.source.outputs.tag }}
+    env:
+      SOURCE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+      SIGNING_IDENTITY: "Developer ID Application: Stepan Arsentjev (T2T986DDGJ)"
+      TEAM_ID: T2T986DDGJ
+    steps:
+      - name: Check out signed release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_TAG }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Require release credentials
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          for name in \
+            MACOS_SIGN_P12 \
+            MACOS_SIGN_PASSWORD \
+            MACOS_NOTARY_KEY \
+            MACOS_NOTARY_KEY_ID \
+            MACOS_NOTARY_ISSUER_ID \
+            TAP_GITHUB_TOKEN; do
+            if [[ -z "${!name}" ]]; then
+              echo "${name} is required" >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify signed tag and release identity
+        id: source
+        run: |
+          version="$(tr -d '\n' <clients/cli/VERSION)"
+          if [[ "$SOURCE_TAG" != "v${version}" ]]; then
+            echo "${SOURCE_TAG} does not match clients/cli/VERSION (${version})" >&2
+            exit 1
+          fi
+          git config gpg.format ssh
+          git config gpg.ssh.allowedSignersFile "$PWD/.github/release-signers"
+          git verify-tag "$SOURCE_TAG"
+          source_commit="$(git rev-parse "${SOURCE_TAG}^{commit}")"
+          if [[ "$source_commit" != "$(git rev-parse HEAD)" ]]; then
+            echo "checked-out commit does not match ${SOURCE_TAG}" >&2
+            exit 1
+          fi
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$source_commit" origin/main; then
+            echo "${SOURCE_TAG} is not reachable from origin/main" >&2
+            exit 1
+          fi
+          echo "tag=${SOURCE_TAG}" >>"$GITHUB_OUTPUT"
+          echo "version=${version}" >>"$GITHUB_OUTPUT"
+          echo "source_commit=${source_commit}" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: console/package.json
+
+      - name: Qualify the starter's SDK release against this CLI
+        run: |
+          sdk_version="$(node -p 'require("./examples/hello/package.json").dependencies["@cantelop/sdk"]')"
+          sdk_directory="$RUNNER_TEMP/cantelop-sdk"
+          git clone --quiet --depth 1 --branch "sdk-v${sdk_version}" \
+            https://github.com/stepandel/cantelop-sdk.git "$sdk_directory"
+          corepack enable
+          (cd "$sdk_directory" && pnpm install --frozen-lockfile && pnpm run build)
+          CANTELOP_SDK_DIRECTORY="$sdk_directory" scripts/check-sdk-platform-contract.sh
+
+      - name: Test and build release candidates
+        env:
+          CANTELOP_BUILD_COMMIT: ${{ steps.source.outputs.source_commit }}
+        run: |
+          go test ./clients/cli/...
+          # Released CLIs must keep matching the console API and the gateway's
+          # SDK runtime contract that `cantelop dev` mirrors.
+          python3 scripts/check-cli-api-contract.py
+          go test ./fire-fuse/gateway/ -run PublicSDKContract
+          scripts/build-cli-release.sh build/cli-candidate
+          scripts/check-cli-release.sh --validate build/cli-candidate
+
+      - name: Import signing identity and notary key
+        id: signing
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+        run: |
+          keychain="$RUNNER_TEMP/cantelop-release.keychain-db"
+          certificate="$RUNNER_TEMP/cantelop-signing.p12"
+          leaf_certificate="$RUNNER_TEMP/cantelop-signing.pem"
+          intermediate="$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          notary_key="$RUNNER_TEMP/AuthKey.p8"
+          export CERTIFICATE_PATH="$certificate" NOTARY_KEY_PATH="$notary_key"
+          python3 -c 'import base64, os, pathlib; pathlib.Path(os.environ["CERTIFICATE_PATH"]).write_bytes(base64.b64decode(os.environ["MACOS_SIGN_P12"], validate=True))'
+          python3 -c 'import base64, os, pathlib; pathlib.Path(os.environ["NOTARY_KEY_PATH"]).write_bytes(base64.b64decode(os.environ["MACOS_NOTARY_KEY"], validate=True))'
+          chmod 600 "$certificate" "$notary_key"
+          keychain_password="$(openssl rand -hex 32)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          curl --fail --silent --show-error --location \
+            https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
+            --output "$intermediate"
+          echo "f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643d2df3a  ${intermediate}" \
+            | shasum -a 256 --check
+          security import "$intermediate" \
+            -k "$keychain" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security import "$certificate" \
+            -k "$keychain" \
+            -P "$MACOS_SIGN_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security list-keychains -d user -s "$keychain"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain"
+          openssl pkcs12 \
+            -in "$certificate" \
+            -legacy \
+            -clcerts \
+            -nokeys \
+            -passin env:MACOS_SIGN_PASSWORD \
+            -out "$leaf_certificate"
+          fingerprint="$(openssl x509 -in "$leaf_certificate" -noout -fingerprint -sha1 \
+            | cut -d= -f2 \
+            | tr -d ':' \
+            | tr '[:lower:]' '[:upper:]')"
+          subject="$(openssl x509 -in "$leaf_certificate" -noout -subject -nameopt RFC2253)"
+          issuer="$(openssl x509 -in "$leaf_certificate" -noout -issuer -nameopt RFC2253)"
+          echo "Exported signing certificate ${subject}"
+          echo "Exported signing certificate ${issuer}"
+          echo "Exported signing certificate fingerprint=${fingerprint}"
+          if [[ ! "$fingerprint" =~ ^[0-9A-F]{40}$ ]] \
+            || [[ "$subject" != *"UID=${TEAM_ID}"* ]] \
+            || [[ "$subject" != *"CN=${SIGNING_IDENTITY}"* ]] \
+            || [[ "$issuer" != "issuer=C=US,O=Apple Inc.,OU=G2,CN=Developer ID Certification Authority" ]] \
+            || ! openssl x509 -in "$leaf_certificate" -noout -checkend 0; then
+            echo "PKCS#12 does not contain the expected current Apple Developer ID certificate" >&2
+            exit 1
+          fi
+          echo "keychain=${keychain}" >>"$GITHUB_OUTPUT"
+          echo "notary_key=${notary_key}" >>"$GITHUB_OUTPUT"
+          echo "fingerprint=${fingerprint}" >>"$GITHUB_OUTPUT"
+
+      - name: Sign and notarize macOS binaries
+        id: notarization
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+          SIGNING_CERTIFICATE: ${{ steps.signing.outputs.fingerprint }}
+          SIGNING_KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+          NOTARY_KEY: ${{ steps.signing.outputs.notary_key }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          release_dir="build/cli-release"
+          staging="build/cli-staging"
+          mkdir -p "$release_dir" "$staging/darwin_amd64" "$staging/darwin_arm64"
+          cp \
+            "build/cli-candidate/cantelop_${VERSION}_linux_amd64.tar.gz" \
+            "build/cli-candidate/cantelop_${VERSION}_linux_arm64.tar.gz" \
+            "$release_dir/"
+          for architecture in amd64 arm64; do
+            tar -C "$staging/darwin_${architecture}" \
+              -xzf "build/cli-candidate/cantelop_${VERSION}_darwin_${architecture}.tar.gz"
+            binary="$staging/darwin_${architecture}/cantelop"
+            codesign \
+              --force \
+              --sign "$SIGNING_CERTIFICATE" \
+              --keychain "$SIGNING_KEYCHAIN" \
+              --identifier dev.cantelop.cli \
+              --options runtime \
+              --timestamp \
+              "$binary"
+            codesign --verify --strict --verbose=2 "$binary"
+          done
+          amd64_cdhash="$(codesign -d --verbose=4 "$staging/darwin_amd64/cantelop" 2>&1 | sed -n 's/^CDHash=//p' | tr '[:upper:]' '[:lower:]')"
+          arm64_cdhash="$(codesign -d --verbose=4 "$staging/darwin_arm64/cantelop" 2>&1 | sed -n 's/^CDHash=//p' | tr '[:upper:]' '[:lower:]')"
+          submitted_archive="build/cantelop_${VERSION}_darwin-notarization.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$staging" "$submitted_archive"
+          xcrun notarytool submit "$submitted_archive" \
+            --key "$NOTARY_KEY" \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID" \
+            --wait \
+            --output-format json >build/notarization-response.json
+          submission_id="$(python3 -c 'import json; print(json.load(open("build/notarization-response.json"))["id"])')"
+          xcrun notarytool log "$submission_id" \
+            --key "$NOTARY_KEY" \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID" \
+            build/notarization-log.json
+          python3 -c 'import json; document=json.load(open("build/notarization-log.json")); assert document.get("status") == "Accepted", document'
+          notice_list="$(python3 scripts/release-notices.py list)"
+          for architecture in amd64 arm64; do
+            # Notice paths contain no whitespace; keep them beside the signed binary.
+            # shellcheck disable=SC2086
+            COPYFILE_DISABLE=1 tar \
+              -C "$staging/darwin_${architecture}" \
+              -czf "$release_dir/cantelop_${VERSION}_darwin_${architecture}.tar.gz" \
+              cantelop README.md ${notice_list}
+          done
+          echo "submitted_archive=${submitted_archive}" >>"$GITHUB_OUTPUT"
+          echo "amd64_cdhash=${amd64_cdhash}" >>"$GITHUB_OUTPUT"
+          echo "arm64_cdhash=${arm64_cdhash}" >>"$GITHUB_OUTPUT"
+
+      - name: Qualify signed release
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.source_commit }}
+          SIGNING_FINGERPRINT: ${{ steps.signing.outputs.fingerprint }}
+          SUBMITTED_ARCHIVE: ${{ steps.notarization.outputs.submitted_archive }}
+          AMD64_CDHASH: ${{ steps.notarization.outputs.amd64_cdhash }}
+          ARM64_CDHASH: ${{ steps.notarization.outputs.arm64_cdhash }}
+        run: |
+          for architecture in amd64 arm64; do
+            verification="$RUNNER_TEMP/verify-${architecture}"
+            mkdir "$verification"
+            tar -C "$verification" \
+              -xzf "build/cli-release/cantelop_${VERSION}_darwin_${architecture}.tar.gz"
+            codesign --verify --strict --verbose=2 "$verification/cantelop"
+            "$verification/cantelop" --help >/dev/null
+            "$verification/cantelop" version | grep -F "cantelop ${VERSION} (${SOURCE_COMMIT:0:12})"
+          done
+          cp build/notarization-log.json build/cli-release/notarization-log.json
+          python3 scripts/finalize-cli-release.py finalize \
+            --version "$VERSION" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-tag "$SOURCE_TAG" \
+            --workflow-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --archives build/cli-release \
+            --submitted-archive "$SUBMITTED_ARCHIVE" \
+            --notarization-log build/notarization-log.json \
+            --signing-identity "$SIGNING_IDENTITY" \
+            --signing-fingerprint "$SIGNING_FINGERPRINT" \
+            --team-id "$TEAM_ID" \
+            --darwin-amd64-cdhash "$AMD64_CDHASH" \
+            --darwin-arm64-cdhash "$ARM64_CDHASH" \
+            --output build/cli-release/release-evidence.json
+          scripts/check-cli-release.sh --validate build/cli-release
+          python3 scripts/prepare-homebrew-release.py validate \
+            --tag "$SOURCE_TAG" \
+            --directory build/cli-release
+
+      - name: Create or repair private CLI release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          mkdir -p build/cli-existing
+          if gh release view "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            asset_count="$(gh release view "$SOURCE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
+              --jq '.assets | length')"
+            if (( asset_count > 0 )); then
+              gh release download "$SOURCE_TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --dir build/cli-existing
+            fi
+            python3 scripts/finalize-cli-release.py compare-assets \
+              --version "$VERSION" \
+              --source build/cli-release \
+              --published build/cli-existing \
+              --allow-missing
+          else
+            release_flags=()
+            if [[ "$VERSION" == *-* ]]; then
+              release_flags+=(--prerelease)
+            fi
+            gh release create "$SOURCE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Cantelop CLI ${VERSION}" \
+              --generate-notes \
+              "${release_flags[@]}"
+          fi
+          gh release upload "$SOURCE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber \
+            build/cli-release/*
+
+      - name: Verify published CLI release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          mkdir -p build/cli-published
+          gh release download "$SOURCE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir build/cli-published
+          python3 scripts/finalize-cli-release.py compare-assets \
+            --version "$VERSION" \
+            --source build/cli-release \
+            --published build/cli-published
+
+      - name: Remove temporary signing material
+        if: always()
+        env:
+          KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+        run: |
+          if [[ -n "$KEYCHAIN" && -f "$KEYCHAIN" ]]; then
+            security delete-keychain "$KEYCHAIN"
+          fi
+
+  homebrew:
+    if: github.repository_id == '1323478043'
+    needs: publish
+    uses: ./.github/workflows/publish-homebrew.yml
+    with:
+      tag: ${{ needs.publish.outputs.tag }}
+    secrets:
+      TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}

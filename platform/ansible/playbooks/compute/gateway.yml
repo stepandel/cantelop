@@ -1,0 +1,7 @@
+---
+- name: Install and qualify the fire-fuse App gateway
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: fire_fuse_gateway

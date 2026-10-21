@@ -1,0 +1,18 @@
+---
+storage_backup_materialize_restore_set_id: ""
+storage_backup_materialize_restore_destination: >-
+  /etc/fire-fuse-storage/backup-destination.json
+storage_backup_materialize_restore_credentials: >-
+  /etc/fire-fuse-storage/backup-s3-credentials.json
+storage_backup_materialize_restore_program: >-
+  /usr/local/lib/fire-fuse/materialize-storage-backup-restore.py
+storage_backup_materialize_restore_mc_binary: /usr/local/bin/mc
+storage_backup_materialize_restore_mc_checksum: >-
+  01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891
+storage_backup_materialize_restore_juicefs: /usr/local/bin/juicefs
+storage_backup_materialize_restore_juicefs_checksum: >-
+  {{ juicefs_volume_client_checksum | default('') }}
+storage_backup_materialize_restore_metadata_url_file: >-
+  /etc/fire-fuse/juicefs-meta-url
+storage_backup_materialize_restore_timeout_seconds: 86400
+storage_backup_materialize_restore_lock_root: /run/lock

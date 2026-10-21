@@ -1,0 +1,8 @@
+---
+- name: Configure the fire-fuse workspace gateway
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: juicefs_client
+    - role: juicefs_gateway

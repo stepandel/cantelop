@@ -1,0 +1,8 @@
+ALTER TABLE "cantelop_observability"."logs" DROP CONSTRAINT "logs_scope_check";--> statement-breakpoint
+ALTER TABLE "cantelop_observability"."logs" ADD COLUMN "request_id" text;--> statement-breakpoint
+ALTER TABLE "cantelop_observability"."logs" ADD CONSTRAINT "logs_request_id_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "cantelop_observability"."requests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "logs_request_occurred" ON "cantelop_observability"."logs" USING btree ("request_id","occurred_at","id");--> statement-breakpoint
+ALTER TABLE "cantelop_observability"."logs" ADD CONSTRAINT "logs_scope_check" CHECK (
+    ("cantelop_observability"."logs"."request_id" IS NOT NULL AND "cantelop_observability"."logs"."trace_id" IS NOT NULL AND "cantelop_observability"."logs"."attempt_id" IS NULL AND "cantelop_observability"."logs"."span_id" IS NULL AND "cantelop_observability"."logs"."session_id" IS NULL AND "cantelop_observability"."logs"."sandbox_id" IS NULL)
+    OR ("cantelop_observability"."logs"."request_id" IS NULL AND "cantelop_observability"."logs"."attempt_id" IS NOT NULL AND "cantelop_observability"."logs"."trace_id" IS NOT NULL)
+    OR ("cantelop_observability"."logs"."request_id" IS NULL AND "cantelop_observability"."logs"."attempt_id" IS NULL AND "cantelop_observability"."logs"."trace_id" IS NULL AND "cantelop_observability"."logs"."span_id" IS NULL AND "cantelop_observability"."logs"."session_id" IS NOT NULL AND "cantelop_observability"."logs"."sandbox_id" IS NOT NULL));

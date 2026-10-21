@@ -1,0 +1,24 @@
+---
+# Converge the compute host. Deploy storage.yml first.
+#
+# The runtime release is not part of this playbook; it is a sequence of
+# reviewed checkpoints under playbooks/compute/ (stage, prepare, promote,
+# snapshot, activate, qualify). The host services below require an active
+# runtime, so on a new host run `--tags base`, then the release checkpoints,
+# then this playbook without tags.
+- import_playbook: playbooks/ship/provisioning-guard.yml
+  tags: [always]
+- import_playbook: playbooks/compute/host-base.yml
+  tags: [base]
+- import_playbook: playbooks/shared/storage-wireguard.yml
+  tags: [base]
+- import_playbook: playbooks/shared/wireguard.yml
+  tags: [base]
+- import_playbook: playbooks/compute/workspace-gateway.yml
+  tags: [base]
+- import_playbook: playbooks/compute/gateway.yml
+  tags: [services]
+- import_playbook: playbooks/compute/observer.yml
+  tags: [services]
+- import_playbook: playbooks/compute/edge-tunnel.yml
+  tags: [services]

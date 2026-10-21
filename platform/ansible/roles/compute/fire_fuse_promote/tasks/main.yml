@@ -1,0 +1,684 @@
+---
+- name: Initialize the promotion allowlist
+  ansible.builtin.set_fact:
+    fire_fuse_promote_allowlist: "{{ fire_fuse_promote_base_allowlist }}"
+
+- name: Validate promotion image declarations
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.keys() | sort == [
+          'name',
+          'process_artifact',
+          'process_checksum',
+          'rootfs_artifact',
+          'rootfs_checksum'
+        ]
+      - item.name is match('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+      - item.rootfs_checksum is match('^[0-9a-f]{64}$')
+    fail_msg: every promotion image requires an exact, safe declaration
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name | default('invalid image') }}"
+
+- name: Add declared images to the promotion allowlist
+  ansible.builtin.set_fact:
+    fire_fuse_promote_allowlist: >-
+      {{ fire_fuse_promote_allowlist + [{
+        'name': 'container image ' ~ item.name,
+        'staged_name': 'sha256-' ~ item.rootfs_checksum ~ '.ext4',
+        'destination': '/var/lib/fire-fuse/images/sha256-'
+          ~ item.rootfs_checksum ~ '.ext4',
+        'mode': '0644'
+      }] }}
+  loop: "{{ fire_fuse_release_images }}"
+  loop_control:
+    label: "{{ item.name | default('invalid image') }}"
+
+- name: Validate fire-fuse promotion inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - fire_fuse_promote_stage_directory.startswith('/')
+      - >-
+        fire_fuse_promote_manifest
+        == fire_fuse_promote_stage_directory ~ '/release.json'
+      - >-
+        fire_fuse_promote_service_name
+        is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+      - fire_fuse_promote_config_destination == '/etc/fire-fuse/config.json'
+      - >-
+        fire_fuse_promote_image_catalog_destination
+        == '/etc/fire-fuse/image-catalog.json'
+      - fire_fuse_promote_binary_destination == '/usr/local/bin/fire-fuse'
+      - >-
+        fire_fuse_promote_state_database
+        == '/var/lib/fire-fuse/state/state.db'
+      - >-
+        fire_fuse_promote_rollback_root
+        == '/var/lib/fire-fuse/release-rollbacks'
+      - fire_fuse_release_images is sequence
+      - fire_fuse_release_images is not string
+      - fire_fuse_release_images | length >= 1
+      - fire_fuse_release_images | length <= 16
+      - >-
+        fire_fuse_promote_allowlist | length
+        == fire_fuse_promote_base_allowlist | length
+          + fire_fuse_release_images | length
+      - >-
+        (
+          fire_fuse_promote_state_cutover_confirm == ''
+          and fire_fuse_promote_state_cutover_sha256 == ''
+        )
+        or (
+          fire_fuse_promote_state_cutover_confirm
+          == 'PROMOTE OFFLINE FIRE-FUSE STATE CUTOVER'
+          and fire_fuse_promote_state_cutover_sha256
+          is match('^[0-9a-f]{64}$')
+        )
+    fail_msg: >-
+      promotion requires a normal Ansible run with valid paths and the fixed
+      artifact allowlist; check mode cannot exercise transactional rollback
+
+- name: Require unique promotion allowlist entries
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_allowlist | map(attribute='name') | unique | length
+        == fire_fuse_promote_allowlist | length
+      - >-
+        fire_fuse_promote_allowlist
+        | map(attribute='staged_name') | unique | length
+        == fire_fuse_promote_allowlist | length
+      - >-
+        fire_fuse_promote_allowlist
+        | map(attribute='destination') | unique | length
+        == fire_fuse_promote_allowlist | length
+    fail_msg: promotion names, staged names, and destinations must be unique
+
+- name: Read inactive service state
+  ansible.builtin.service_facts:
+
+- name: Require the inactive service gate
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get(fire_fuse_promote_service_name, {}).get(
+          'state', 'not-found'
+        ) in ['stopped', 'unknown']
+      - >-
+        ansible_facts.services.get(fire_fuse_promote_service_name, {}).get(
+          'status', 'not-found'
+        ) == 'disabled'
+    fail_msg: >-
+      promotion requires {{ fire_fuse_promote_service_name }} to be installed,
+      stopped, and disabled
+
+- name: Inspect lifecycle state without modifying it
+  ansible.builtin.script:
+    cmd: >-
+      inspect-runtime-state.py
+      {{ fire_fuse_promote_state_database | quote }}
+    executable: /usr/bin/python3
+  changed_when: false
+  register: fire_fuse_promote_state_inspection
+
+- name: Decode lifecycle state inspection
+  ansible.builtin.set_fact:
+    fire_fuse_promote_state: >-
+      {{ fire_fuse_promote_state_inspection.stdout | from_json }}
+
+- name: Require a safe lifecycle-state inspection result
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_promote_state.keys() | sort == ['exists', 'sha256']
+      - fire_fuse_promote_state.exists | type_debug == 'bool'
+      - >-
+        (
+          not fire_fuse_promote_state.exists
+          and fire_fuse_promote_state.sha256 == 'absent'
+        )
+        or (
+          fire_fuse_promote_state.exists
+          and fire_fuse_promote_state.sha256 is match('^[0-9a-f]{64}$')
+        )
+    fail_msg: >-
+      promotion requires either an absent lifecycle database or a regular
+      existing database that the promoted runtime can validate and migrate
+
+- name: Inspect the staged release manifest
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_promote_manifest }}"
+  register: fire_fuse_promote_manifest_stat
+
+- name: Require a trusted staged release manifest
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_manifest_stat.stat
+        is trusted_file(owner='root', group='root', mode='0640')
+      - fire_fuse_promote_manifest_stat.stat.size | default(0) > 0
+    fail_msg: the staged release manifest is not a trusted root-owned file
+
+- name: Read the staged release manifest
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_promote_manifest }}"
+  register: fire_fuse_promote_manifest_contents
+
+- name: Decode the staged release manifest
+  ansible.builtin.set_fact:
+    fire_fuse_promote_release: >-
+      {{ fire_fuse_promote_manifest_contents.content | b64decode | from_json }}
+
+- name: Require the exact manifest shape
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_promote_release is fire_fuse_release_manifest
+      - >-
+        fire_fuse_promote_release.artifacts | length
+        == fire_fuse_promote_allowlist | length
+    fail_msg: the staged release manifest has an unexpected structure
+
+- name: Validate each allowlisted artifact declaration
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_promote_declared_artifact | length == 1
+      - >-
+        fire_fuse_promote_declared_artifact[0].staged_path
+        == fire_fuse_promote_stage_directory ~ '/' ~ item.staged_name
+      - >-
+        fire_fuse_promote_declared_artifact[0].destination == item.destination
+      - fire_fuse_promote_declared_artifact[0].mode == item.mode
+      - >-
+        fire_fuse_promote_declared_artifact[0].sha256
+        is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      staged artifact {{ item.name }} does not match the fixed promotion
+      allowlist
+  vars:
+    fire_fuse_promote_declared_artifact: >-
+      {{ fire_fuse_promote_release.artifacts
+      | selectattr('name', 'equalto', item.name) | list }}
+  loop: "{{ fire_fuse_promote_allowlist }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Validate the staged configuration declaration
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_release.config.staged_path
+        == fire_fuse_promote_stage_directory ~ '/config.json'
+      - >-
+        fire_fuse_promote_release.config.destination
+        == fire_fuse_promote_config_destination
+      - fire_fuse_promote_release.config.mode == '0640'
+      - >-
+        fire_fuse_promote_release.config.sha256
+        is match('^[0-9a-f]{64}$')
+    fail_msg: staged configuration does not match the promotion allowlist
+
+- name: Validate the staged image catalog declaration
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_release.image_catalog.staged_path
+        == fire_fuse_promote_stage_directory ~ '/image-catalog.json'
+      - >-
+        fire_fuse_promote_release.image_catalog.destination
+        == fire_fuse_promote_image_catalog_destination
+      - fire_fuse_promote_release.image_catalog.mode == '0640'
+      - >-
+        fire_fuse_promote_release.image_catalog.sha256
+        is match('^[0-9a-f]{64}$')
+      - >-
+        fire_fuse_promote_release.image_catalog.base_sha256 == 'absent'
+        or fire_fuse_promote_release.image_catalog.base_sha256
+          is match('^[0-9a-f]{64}$')
+    fail_msg: staged image catalog does not match the promotion allowlist
+
+- name: Inspect staged release artifacts
+  ansible.builtin.stat:
+    path: "{{ item.staged_path }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_promote_staged_artifacts
+  loop: "{{ fire_fuse_promote_release.artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted staged release artifacts
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.checksum | default('') == item.item.sha256
+    fail_msg: staged artifact {{ item.item.name }} failed integrity checks
+  loop: "{{ fire_fuse_promote_staged_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Inspect the staged configuration
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_promote_release.config.staged_path }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_promote_staged_config
+
+- name: Require the trusted staged configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_staged_config.stat
+        is trusted_file(
+          owner='root',
+          group='root',
+          mode=fire_fuse_promote_release.config.mode
+        )
+      - >-
+        fire_fuse_promote_staged_config.stat.checksum | default('')
+        == fire_fuse_promote_release.config.sha256
+    fail_msg: the staged fire-fuse configuration failed integrity checks
+
+- name: Inspect the staged image catalog
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_promote_release.image_catalog.staged_path }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_promote_staged_image_catalog
+
+- name: Require the trusted staged image catalog
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_staged_image_catalog.stat
+        is trusted_file(
+          owner='root',
+          group='root',
+          mode=fire_fuse_promote_release.image_catalog.mode
+        )
+      - >-
+        fire_fuse_promote_staged_image_catalog.stat.checksum | default('')
+        == fire_fuse_promote_release.image_catalog.sha256
+    fail_msg: the staged image catalog failed integrity checks
+
+- name: Build the verified promotion set
+  ansible.builtin.set_fact:
+    fire_fuse_promote_items: >-
+      {{ fire_fuse_promote_release.artifacts + [{
+        'name': 'image catalog',
+        'staged_path': fire_fuse_promote_release.image_catalog.staged_path,
+        'destination': fire_fuse_promote_release.image_catalog.destination,
+        'mode': fire_fuse_promote_release.image_catalog.mode,
+        'sha256': fire_fuse_promote_release.image_catalog.sha256
+      }, {
+        'name': 'configuration',
+        'staged_path': fire_fuse_promote_release.config.staged_path,
+        'destination': fire_fuse_promote_release.config.destination,
+        'mode': fire_fuse_promote_release.config.mode,
+        'sha256': fire_fuse_promote_release.config.sha256
+      }] }}
+
+- name: Inspect current live release targets
+  ansible.builtin.stat:
+    path: "{{ item.destination }}"
+    checksum_algorithm: sha256
+  register: fire_fuse_promote_live_targets
+  loop: "{{ fire_fuse_promote_items }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted existing live targets
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (item.stat.exists | default(false))
+        or (
+          item.stat is trusted_file(owner='root', group='root')
+          and item.stat.mode | default('') is match(
+            '^[0-7][0-7][0145][0145]$'
+          )
+          and (
+            not item.item.name.startswith('container image ')
+            or item.stat.checksum | default('') == item.item.sha256
+          )
+        )
+    fail_msg: >-
+      existing target {{ item.item.destination }} is not a trusted,
+      non-writable root-owned regular file, or an immutable image path contains
+      bytes other than its declared digest
+  loop: "{{ fire_fuse_promote_live_targets.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Initialize the promotion change set
+  ansible.builtin.set_fact:
+    fire_fuse_promote_changes: []
+    fire_fuse_promote_install_started: false
+    fire_fuse_promote_catalog_lease: {}
+
+- name: Record release targets that need promotion
+  ansible.builtin.set_fact:
+    fire_fuse_promote_changes: >-
+      {{ fire_fuse_promote_changes + [{
+        'name': item.item.name,
+        'staged_path': item.item.staged_path,
+        'destination': item.item.destination,
+        'mode': item.item.mode,
+        'sha256': item.item.sha256,
+        'existed': item.stat.exists | default(false),
+        'old_mode': item.stat.mode | default('')
+      }] }}
+  when: >-
+    not (item.stat.exists | default(false))
+    or item.stat.checksum | default('') != item.item.sha256
+    or item.stat.mode | default('') != item.item.mode
+  loop: "{{ fire_fuse_promote_live_targets.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Require an upgrade snapshot for a state-bearing promotion
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_upgrade_id
+        is match('^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9.-]{0,63}$')
+    fail_msg: >-
+      a release that changes live files while lifecycle state exists requires
+      CANTELOP_FIRE_FUSE_UPGRADE_ID for a verified rollback snapshot
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Inspect the upgrade rollback manifest
+  ansible.builtin.stat:
+    path: >-
+      {{ fire_fuse_promote_rollback_root }}/{{
+      fire_fuse_promote_upgrade_id }}/manifest.json
+    follow: false
+  register: fire_fuse_promote_rollback_manifest_stat
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Require a trusted upgrade rollback manifest
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_rollback_manifest_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+    fail_msg: the selected upgrade rollback manifest is not trusted
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Read the upgrade rollback manifest
+  ansible.builtin.slurp:
+    src: >-
+      {{ fire_fuse_promote_rollback_root }}/{{
+      fire_fuse_promote_upgrade_id }}/manifest.json
+  register: fire_fuse_promote_rollback_manifest_contents
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Decode the upgrade rollback manifest
+  ansible.builtin.set_fact:
+    fire_fuse_promote_rollback_manifest: >-
+      {{ fire_fuse_promote_rollback_manifest_contents.content
+      | b64decode | from_json }}
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Require the exact upgrade rollback manifest envelope
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_promote_rollback_manifest is mapping
+      - >-
+        fire_fuse_promote_rollback_manifest.keys() | sort
+        == ['files', 'schema_version', 'upgrade_id']
+      - fire_fuse_promote_rollback_manifest.schema_version | int == 1
+      - fire_fuse_promote_rollback_manifest.upgrade_id == fire_fuse_promote_upgrade_id
+      - fire_fuse_promote_rollback_manifest.files is sequence
+      - fire_fuse_promote_rollback_manifest.files is not string
+    fail_msg: the selected upgrade rollback manifest has an unexpected shape
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Select the lifecycle-state rollback entry
+  ansible.builtin.set_fact:
+    fire_fuse_promote_state_rollback_entries: >-
+      {{ fire_fuse_promote_rollback_manifest.files
+      | selectattr('name', 'equalto', 'lifecycle_state') | list }}
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Require rollback coverage for the exact live lifecycle state
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_promote_state_rollback_entries | default([]) | length == 1
+      - >-
+        fire_fuse_promote_state_rollback_entries[0].destination
+        == fire_fuse_promote_state_database
+      - fire_fuse_promote_state_rollback_entries[0].snapshot == 'files/state.db'
+      - fire_fuse_promote_state_rollback_entries[0].mode == '0600'
+      - >-
+        (
+          fire_fuse_promote_state_rollback_entries[0].sha256
+          == fire_fuse_promote_state.sha256
+        )
+        or (
+          fire_fuse_promote_state_cutover_confirm
+          == 'PROMOTE OFFLINE FIRE-FUSE STATE CUTOVER'
+          and fire_fuse_promote_state_cutover_sha256
+          == fire_fuse_promote_state.sha256
+          and fire_fuse_promote_state_rollback_entries[0].sha256
+          != fire_fuse_promote_state.sha256
+        )
+    fail_msg: >-
+      the selected rollback snapshot does not cover the exact live lifecycle
+      database or the explicitly approved offline state cutoff
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Verify the lifecycle-state rollback copy
+  ansible.builtin.stat:
+    path: >-
+      {{ fire_fuse_promote_rollback_root }}/{{
+      fire_fuse_promote_upgrade_id }}/files/state.db
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: fire_fuse_promote_state_rollback_copy
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Require an intact lifecycle-state rollback copy
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_state_rollback_copy.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - >-
+        fire_fuse_promote_state_rollback_copy.stat.checksum | default('')
+        == fire_fuse_promote_state_rollback_entries[0].sha256
+    fail_msg: the lifecycle-state rollback copy is missing or has changed
+  when:
+    - fire_fuse_promote_changes | length > 0
+    - fire_fuse_promote_state.exists
+
+- name: Acquire the image catalog deployment lease
+  ansible.builtin.script:
+    cmd: >-
+      coordinate-image-catalog.py begin
+      --catalog {{ fire_fuse_promote_image_catalog_destination | quote }}
+      --expected-sha256 {{
+        fire_fuse_promote_release.image_catalog.base_sha256 | quote }}
+    executable: /usr/bin/python3
+  register: fire_fuse_promote_catalog_lease_command
+  changed_when: false
+  when: fire_fuse_promote_changes | length > 0
+
+- name: Decode the image catalog deployment lease
+  ansible.builtin.set_fact:
+    fire_fuse_promote_catalog_lease: >-
+      {{ fire_fuse_promote_catalog_lease_command.stdout | from_json }}
+  when: fire_fuse_promote_changes | length > 0
+
+- name: Require the exact image catalog deployment lease
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_promote_catalog_lease.keys() | sort
+        == ['catalog_sha256', 'lease_token']
+      - >-
+        fire_fuse_promote_catalog_lease.catalog_sha256
+        == fire_fuse_promote_release.image_catalog.base_sha256
+      - >-
+        fire_fuse_promote_catalog_lease.lease_token
+        is match('^[0-9a-f]{64}$')
+    fail_msg: image catalog deployment lease is malformed
+  when: fire_fuse_promote_changes | length > 0
+
+- name: Promote the verified release transactionally
+  when: fire_fuse_promote_changes | length > 0
+  block:
+    - name: Create a private promotion rollback directory
+      ansible.builtin.tempfile:
+        path: /var/lib/fire-fuse
+        prefix: promote-rollback-
+        state: directory
+      register: fire_fuse_promote_rollback
+
+    - name: Protect the promotion rollback directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_promote_rollback.path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Back up changing live targets
+      ansible.builtin.copy:
+        src: "{{ item.destination }}"
+        dest: >-
+          {{ fire_fuse_promote_rollback.path }}/{{
+          item.destination | hash('sha256') }}
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      when: item.existed
+      loop: "{{ fire_fuse_promote_changes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Mark the live release transaction as started
+      ansible.builtin.set_fact:
+        fire_fuse_promote_install_started: true
+
+    - name: Install verified release targets
+      ansible.builtin.copy:
+        src: "{{ item.staged_path }}"
+        dest: "{{ item.destination }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop: "{{ fire_fuse_promote_changes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Run the promoted host preflight
+      ansible.builtin.command:
+        argv:
+          - "{{ fire_fuse_promote_binary_destination }}"
+          - -config
+          - "{{ fire_fuse_promote_config_destination }}"
+          - -check-state-only
+      changed_when: false
+
+    - name: Remove the successful promotion rollback directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_promote_rollback.path }}"
+        state: absent
+
+  rescue:
+    - name: Restore replaced live targets
+      ansible.builtin.copy:
+        src: >-
+          {{ fire_fuse_promote_rollback.path }}/{{
+          item.destination | hash('sha256') }}
+        dest: "{{ item.destination }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "{{ item.old_mode }}"
+      when:
+        - fire_fuse_promote_install_started
+        - item.existed
+      loop: "{{ fire_fuse_promote_changes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Remove newly created live targets
+      ansible.builtin.file:
+        path: "{{ item.destination }}"
+        state: absent
+      when:
+        - fire_fuse_promote_install_started
+        - not item.existed
+      loop: "{{ fire_fuse_promote_changes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Remove the completed rollback directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_promote_rollback.path }}"
+        state: absent
+      when: fire_fuse_promote_rollback.path is defined
+
+    - name: Report the rolled-back promotion failure
+      ansible.builtin.fail:
+        msg: >-
+          fire-fuse promotion failed and the previous live targets were
+          restored: {{ ansible_failed_result.msg | default('unknown failure') }}
+
+  always:
+    - name: Release the image catalog deployment lease
+      ansible.builtin.script:
+        cmd: >-
+          coordinate-image-catalog.py end
+          --catalog {{ fire_fuse_promote_image_catalog_destination | quote }}
+        executable: /usr/bin/python3
+      environment:
+        CANTELOP_CATALOG_LEASE_TOKEN: "{{ fire_fuse_promote_catalog_lease.lease_token }}"
+      changed_when: false
+      no_log: true
+
+- name: Run preflight for an unchanged live release
+  ansible.builtin.command:
+    argv:
+      - "{{ fire_fuse_promote_binary_destination }}"
+      - -config
+      - "{{ fire_fuse_promote_config_destination }}"
+      - -check-state-only
+  changed_when: false
+  when: fire_fuse_promote_changes | length == 0
+
+- name: Confirm fire-fuse remains inactive after promotion
+  ansible.builtin.service_facts:
+
+- name: Require fire-fuse to remain stopped and disabled
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services[fire_fuse_promote_service_name].state
+        in ['stopped', 'unknown']
+      - >-
+        ansible_facts.services[fire_fuse_promote_service_name].status
+        == 'disabled'
+    fail_msg: promotion must not activate the fire-fuse service

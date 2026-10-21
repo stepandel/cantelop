@@ -1,0 +1,23 @@
+[Unit]
+Description=Unexported JuiceFS administrative mount for workspace deletion
+Requires=wg-quick@wg-storage.service
+After=wg-quick@wg-storage.service
+Before=fire-fuse.service
+
+[Service]
+Type=simple
+EnvironmentFile={{ juicefs_gateway_environment_file }}
+ExecStart={{ juicefs_gateway_binary }} mount --foreground --root-only --no-bgjob --cache-dir {{ juicefs_gateway_admin_cache_directory }} --cache-size 0 {{ juicefs_gateway_metadata_url }} {{ juicefs_gateway_admin_mountpoint }}
+ExecStop={{ juicefs_gateway_binary }} umount {{ juicefs_gateway_admin_mountpoint }}
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=60s
+TimeoutStopSec=60s
+UMask=0077
+
+NoNewPrivileges=yes
+# This mount is root-only, is never exported through NFS, and retains the
+# upstream JuiceFS management interface required by `juicefs rmr --skip-trash`.
+
+[Install]
+WantedBy=multi-user.target

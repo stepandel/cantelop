@@ -1,0 +1,102 @@
+---
+- name: Require a real remote qualification run
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+    fail_msg: >-
+      backup destination qualification cannot run in check mode because remote
+      bucket state would not be tested
+
+- name: Inspect backup qualification inputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+  loop:
+    - path: "{{ storage_backup_qualify_config_file }}"
+      mode: "0644"
+      executable: false
+      checksum: ""
+    - path: "{{ storage_backup_qualify_credentials_file }}"
+      mode: "0600"
+      executable: false
+      checksum: ""
+    - path: "{{ storage_backup_qualify_validator }}"
+      mode: "0755"
+      executable: true
+      checksum: ""
+    - path: "{{ storage_backup_qualify_qualifier }}"
+      mode: "0755"
+      executable: true
+      checksum: ""
+    - path: "{{ storage_backup_qualify_mc_binary }}"
+      mode: "0755"
+      executable: true
+      checksum: "{{ storage_backup_qualify_mc_checksum }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: storage_backup_qualify_input_stats
+
+- name: Require trusted backup qualification inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - >-
+        not item.item.executable
+        or item.stat.executable | default(false)
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: >-
+      {{ item.item.path }} must be a trusted root-owned regular file with mode
+      {{ item.item.mode }} and the declared checksum
+  loop: "{{ storage_backup_qualify_input_stats.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Qualify the remote backup destination read only
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_qualify_qualifier }}"
+      - "{{ storage_backup_qualify_config_file }}"
+      - --mc
+      - "{{ storage_backup_qualify_mc_binary }}"
+  register: storage_backup_qualify_command
+  changed_when: false
+
+- name: Decode backup destination qualification evidence
+  ansible.builtin.set_fact:
+    storage_backup_qualification_evidence: >-
+      {{ storage_backup_qualify_command.stdout | from_json }}
+
+- name: Require complete redacted qualification evidence
+  ansible.builtin.assert:
+    that:
+      - >-
+        (storage_backup_qualification_evidence.keys() | list | sort)
+        ==
+        [
+          'account_bucket_listing',
+          'bucket',
+          'default_retention_mode',
+          'endpoint_url',
+          'prefix',
+          'status',
+          'versioning'
+        ]
+      - >-
+        storage_backup_qualification_evidence.status
+        == 'qualified-read-only'
+      - storage_backup_qualification_evidence.versioning == 'Enabled'
+      - >-
+        storage_backup_qualification_evidence.default_retention_mode
+        == 'COMPLIANCE'
+      - >-
+        storage_backup_qualification_evidence.account_bucket_listing
+        == 'denied'
+    fail_msg: backup destination qualification evidence is incomplete
+
+- name: Report redacted backup destination qualification evidence
+  ansible.builtin.debug:
+    var: storage_backup_qualification_evidence

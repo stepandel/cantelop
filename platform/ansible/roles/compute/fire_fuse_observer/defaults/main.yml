@@ -1,0 +1,22 @@
+---
+fire_fuse_observer_domain: apps.cantelop.dev
+fire_fuse_observer_hostname: status.apps.cantelop.dev
+fire_fuse_observer_user: fire-fuse-observer
+fire_fuse_observer_group: fire-fuse-observer
+fire_fuse_observer_binary_artifact: ""
+fire_fuse_observer_binary_checksum: ""
+fire_fuse_observer_binary: /usr/local/bin/fire-fuse-observer
+fire_fuse_observer_unit_source: >-
+  {{ role_path }}/../../../../systemd/compute/fire-fuse-observer.service
+fire_fuse_observer_unit: /etc/systemd/system/fire-fuse-observer.service
+fire_fuse_observer_token: "{{ vault_fire_fuse_observer_token | default('') }}"
+fire_fuse_observer_token_directory: /etc/fire-fuse-observer
+fire_fuse_observer_token_file: /etc/fire-fuse-observer/observer.token
+fire_fuse_observer_runtime_token: "{{ vault_fire_fuse_observer_runtime_token | default('') }}"
+fire_fuse_observer_runtime_token_file: /etc/fire-fuse-observer/runtime-control.token
+fire_fuse_session_mutation_token: "{{ vault_fire_fuse_session_mutation_token | default('') }}"
+fire_fuse_session_mutation_token_file: /etc/fire-fuse-observer/session-mutation.token
+fire_fuse_observer_nginx_site: /etc/nginx/sites-available/fire-fuse-observer
+fire_fuse_observer_nginx_enabled: /etc/nginx/sites-enabled/fire-fuse-observer
+fire_fuse_observer_tls_certificate: /etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem
+fire_fuse_observer_tls_key: /etc/letsencrypt/live/apps.cantelop.dev/privkey.pem

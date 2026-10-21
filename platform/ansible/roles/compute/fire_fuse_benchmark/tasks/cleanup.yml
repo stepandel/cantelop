@@ -1,0 +1,186 @@
+---
+- name: Remove concurrent read async status files
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+    mode: cleanup
+  loop: >-
+    {{
+      (
+        fire_fuse_benchmark_concurrent_launches
+        | default({})
+      ).get('results', [])
+    }}
+  loop_control:
+    label: "{{ item.ansible_job_id | default('not-launched') }}"
+  when: item.ansible_job_id is defined
+  changed_when: false
+  failed_when: false
+
+- name: Try sequential seed cleanup through the benchmark VM
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_ssh_argv
+        + [
+          fire_fuse_benchmark_guest_binary,
+          'sequential-clean',
+          fire_fuse_benchmark_sequential_size_mib | string
+        ]
+      }}
+  register: fire_fuse_benchmark_seed_cleanup
+  when:
+    - fire_fuse_benchmark_ssh_argv is defined
+    - not (fire_fuse_benchmark_seed_cleaned | bool)
+  changed_when: fire_fuse_benchmark_seed_cleanup.rc == 0
+  failed_when: false
+
+- name: Record direct sequential seed cleanup
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_seed_cleaned: >-
+      {{
+        fire_fuse_benchmark_seed_cleaned | bool
+        or (
+          fire_fuse_benchmark_seed_cleanup.rc
+          | default(1) == 0
+        )
+      }}
+
+- name: Create a VM for otherwise unreachable seed cleanup
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes
+    method: POST
+    body_format: json
+    body: >-
+      {{
+        {
+          'id': fire_fuse_benchmark_run_id ~ '-cleanup',
+          'app_id': fire_fuse_benchmark_app_id,
+          'workspace_id': fire_fuse_benchmark_workspace
+        }
+      }}
+    status_code: 202
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_cleanup_create
+  when:
+    - fire_fuse_benchmark_ssh_argv is defined
+    - not (fire_fuse_benchmark_seed_cleaned | bool)
+  failed_when: false
+
+- name: Record the seed-cleanup VM
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_cleanup_vm_ip: >-
+      {{ fire_fuse_benchmark_cleanup_create.json.network.guest_ip }}
+  when:
+    - fire_fuse_benchmark_cleanup_create.status | default(0) == 202
+
+- name: Remove the sequential seed through the cleanup VM
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_ssh_argv[:-1]
+        + [
+          'root@' ~ fire_fuse_benchmark_cleanup_vm_ip,
+          fire_fuse_benchmark_guest_binary,
+          'sequential-clean',
+          fire_fuse_benchmark_sequential_size_mib | string
+        ]
+      }}
+  register: fire_fuse_benchmark_recovery_seed_cleanup
+  when: fire_fuse_benchmark_cleanup_vm_ip is defined
+  changed_when: fire_fuse_benchmark_recovery_seed_cleanup.rc == 0
+  failed_when: false
+  retries: 30
+  delay: 1
+  until: fire_fuse_benchmark_recovery_seed_cleanup.rc == 0
+
+- name: Record recovery sequential seed cleanup
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_seed_cleaned: true
+  when:
+    - fire_fuse_benchmark_recovery_seed_cleanup.rc | default(1) == 0
+
+- name: Inventory microVMs during benchmark cleanup
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes
+    method: GET
+    status_code: 200
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_cleanup_inventory
+
+- name: Collect live benchmark VM IDs
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_cleanup_ids: >-
+      {{
+        fire_fuse_benchmark_cleanup_inventory.json['items']
+        | default([])
+        | selectattr('workspace_id', 'equalto', fire_fuse_benchmark_workspace)
+        | rejectattr('state', 'equalto', 'terminated')
+        | map(attribute='id')
+        | list
+      }}
+
+- name: Terminate live benchmark VMs
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes/{{ item }}
+    method: DELETE
+    status_code: 200
+    return_content: false
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  loop: "{{ fire_fuse_benchmark_cleanup_ids }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Archive the benchmark App
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_compute_ingress_address }}:{{
+      fire_fuse_benchmark_compute_ingress_port }}/v1/internal/users/{{
+      fire_fuse_benchmark_owner_id }}/apps/{{ fire_fuse_benchmark_app_id }}
+    method: DELETE
+    status_code: 200
+    return_content: false
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  when:
+    - fire_fuse_benchmark_owner_id is defined
+    - fire_fuse_benchmark_app_id is defined
+
+- name: Require complete benchmark data cleanup
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_ssh_argv is not defined
+        or fire_fuse_benchmark_seed_cleaned | bool
+    fail_msg: >-
+      storage benchmarking could not confirm sequential seed cleanup
+
+- name: Require fire-fuse readiness after storage benchmarking
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/readyz
+    method: GET
+    status_code: 200
+    return_content: false
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_cleanup_readiness
+  retries: "{{ fire_fuse_benchmark_readiness_attempts }}"
+  delay: "{{ fire_fuse_benchmark_readiness_delay_seconds }}"
+  until: fire_fuse_benchmark_cleanup_readiness.status | default(0) == 200

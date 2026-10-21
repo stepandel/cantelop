@@ -1,0 +1,5 @@
+# The parent binds its streaming listeners to the WireGuard addresses, so
+# both tunnels must exist before Netdata opens its sockets.
+[Unit]
+Wants={{ netdata_dashboard_parent_tunnels | join(' ') }}
+After={{ netdata_dashboard_parent_tunnels | join(' ') }}

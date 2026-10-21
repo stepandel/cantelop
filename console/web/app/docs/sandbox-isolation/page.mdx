@@ -1,0 +1,158 @@
+import { SandboxModelDiagram } from "@/components/sandbox-model-diagram";
+
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/sandbox-isolation" },
+  title: "Sandbox isolation", description: "How Cantelop isolates active Session compute, replaces Sandboxes, and preserves identity and Workspace files.",
+};
+
+# Sandbox isolation
+
+A Sandbox is the isolated compute environment attached to an active Session.
+It runs the agent process and holds its memory, temporary files, and open
+connections. **The Session is durable. The Sandbox is replaceable.**
+
+<SandboxModelDiagram />
+
+## Sandbox model
+
+A Session has a stable, App-scoped identity and a mailbox. While it is active,
+Cantelop assigns it a dedicated Sandbox. Different Sessions run in separate
+Sandboxes, even when they belong to the same App.
+
+The Sandbox lasts for an activation, which can span multiple messages. Replacing
+it does not create a new Session. The same Session ID can reach a fresh runtime
+with the same attached Workspace.
+
+## Threat model
+
+Cantelop treats application code inside a Sandbox as potentially untrusted.
+Isolation is intended to prevent that workload from directly accessing the
+host, another Sandbox, or resources not explicitly attached or permitted by
+platform policy. The host kernel and KVM virtualization layer, Firecracker VMM,
+and Cantelop control plane are trusted components. An attached Workspace or an allowed network
+connection is an intentional access path.
+
+## Isolation boundary
+
+Each production Sandbox runs in a **Firecracker microVM with its own Linux
+guest kernel**. Sandboxes may share a physical host, but do not share a guest
+kernel or application runtime. The application image supplies the userspace;
+Firecracker and KVM provide the boundary between the guest and host.
+
+<div role="region" aria-label="Sandbox boundaries" tabIndex={0} style={{ overflowX: "auto" }}>
+<table>
+  <thead><tr><th>Boundary</th><th>Behavior</th></tr></thead>
+  <tbody>
+    <tr><td>Processes</td><td>Each Sandbox runs its own Session runtime and processes.</td></tr>
+    <tr><td>Filesystem</td><td>The application root and temporary files are private to the Sandbox. Attached Workspaces are separate.</td></tr>
+    <tr><td>Memory</td><td>Private to the Sandbox and lost when it ends.</td></tr>
+    <tr><td>Host</td><td>The guest has its own kernel and filesystem view; the host filesystem is not mounted into the application.</td></tr>
+    <tr><td>Other Sandboxes</td><td>No direct access to their processes or private files. Shared files require a shared Workspace.</td></tr>
+    <tr><td>Network</td><td>Public requests reach the App's generated Edge Worker through Cantelop routing. Public egress uses configured ports; direct private guest traffic is blocked. Gateway and Workspace storage connections are deliberate platform paths.</td></tr>
+  </tbody>
+</table>
+</div>
+
+Listening on a port inside a Sandbox does not publish it on the internet.
+
+## Host containment
+
+Each production Firecracker process starts through **Jailer** with a per-VM
+jail and a non-root UID/GID. The VMM runs with a restricted filesystem root and
+unprivileged identity on the host. Cantelop configures:
+
+- A VM-specific ID and chroot directory, with the Firecracker API socket inside
+  the jail.
+- A non-root UID and GID for the jailed process; these are configured on the host,
+  rather than allocated as a unique identity for each Sandbox.
+- Read-only mounts of the guest kernel and root filesystem images into the jail.
+- A per-Sandbox cgroup v2 hierarchy for host CPU and memory accounting.
+
+The jail constrains the host-side VMM; Firecracker and KVM provide the separate
+guest-to-host boundary described above.
+
+## Network destinations and exceptions
+
+The host firewall restricts these destinations:
+
+- **Host network:** new connections are blocked except TCP 443 for Gateway
+  callbacks and TCP 2049 while Workspace NFS is attached. These exceptions match
+  ports, not hostnames or specific host addresses.
+- **Private networks:** forwarded traffic to RFC1918 ranges (`10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16`), including other guests, is blocked.
+- **Cloud metadata:** the blocked link-local range `169.254.0.0/16` includes
+  metadata addresses such as `169.254.169.254`.
+- **Cantelop internal services:** host and private-address restrictions apply.
+  Public endpoints on allowed ports rely on service authentication and authorization.
+
+Other special-use IPv4 ranges and guest IPv6 traffic are also blocked. Public
+IPv4 egress uses configured ports and DNS resolvers. Filtering is by address
+and port, not service name.
+
+## Elastic resources
+
+Sandboxes are **fully elastic**: CPU is shared on demand, and guest memory grows
+with the workload.
+Each Sandbox keeps its own isolation boundary as its
+resource usage changes.
+
+## Durable vs ephemeral state
+
+When a Sandbox ends, its running processes, memory, temporary files, writable
+root filesystem changes, and open connections disappear. Application state
+that exists only in memory must be reconstructed.
+
+The Session identity and persisted Session metadata remain outside that
+compute lifetime. Files written to `/workspace` also survive. Your agent must
+explicitly save and reload conversation state, checkpoints, or other data it
+needs across activations.
+
+```text
+Sandbox A ends or crashes
+          ↓
+A later activation starts Sandbox B
+          ↓
+Same Session ID · same Workspace · fresh process state
+```
+
+Continuity of identity and files does not mean resuming an interrupted process
+or restoring its network connections.
+
+## Workspaces and shared state
+
+**Sandbox isolation does not imply Workspace isolation.** A Workspace is the
+persistent filesystem attached at `/workspace`. Multiple Sessions can attach
+the same Workspace and access its files concurrently over NFS.
+
+Each Session keeps its own compute boundary. Sharing a Workspace intentionally
+shares file state, including writes and deletions. Applications coordinate
+concurrent access and choose separate Workspaces when files should remain
+independent. See [Workspaces](/docs/workspaces) for the attachment model.
+
+## Sandbox lifecycle
+
+The first message activates a Sandbox if the Session has none. After work
+finishes, `keepAliveSeconds` keeps that Sandbox warm between messages,
+preserving its process memory and temporary state.
+
+```text
+Session receives work → Sandbox activated → agent runs
+                                              ↓
+                                   Sandbox stays warm
+                                              ↓
+                                  Keep-alive expires
+                                              ↓
+                                  Sandbox is released
+                                              ↓
+                                     Session remains
+                                              ↓
+                           Next message activates a new Sandbox
+```
+
+A failure can end a Sandbox earlier. Subsequent activation still uses fresh
+compute; durable files remain in the Workspace. Keeping identity and saved state
+outside the Sandbox lets application continuity outlast a particular process.
+
+Continue with [Session runtime](/docs/session-runtime), or read
+[Running agents as untrusted code](/blog/running-agents-as-untrusted-code)
+for the design rationale.

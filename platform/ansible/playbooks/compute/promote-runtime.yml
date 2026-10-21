@@ -1,0 +1,8 @@
+---
+- name: Promote and preflight the staged fire-fuse runtime
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: fire_fuse_service
+    - role: fire_fuse_promote

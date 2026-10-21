@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly juicefs_binary="$1"
+readonly metadata_url_file="$2"
+readonly mountpoint="$3"
+readonly cache_directory="$4"
+readonly cache_size_mib="$5"
+readonly marker="${mountpoint}/.fire-fuse-host-smoke"
+
+marker_written=false
+test_started=false
+
+fail() {
+  printf 'fire-fuse-juicefs-smoke: %s\n' "$*" >&2
+  exit 1
+}
+
+is_mounted() {
+  /usr/bin/mountpoint --quiet "${mountpoint}"
+}
+
+wait_for_mount_state() {
+  local expected="$1"
+  local attempt
+
+  for attempt in {1..50}; do
+    if [[ "${expected}" == mounted ]] && is_mounted; then
+      return 0
+    fi
+    if [[ "${expected}" == unmounted ]] && ! is_mounted; then
+      return 0
+    fi
+    /usr/bin/sleep 0.1
+  done
+  return 1
+}
+
+mount_volume() {
+  "${juicefs_binary}" mount \
+    --cache-dir="${cache_directory}" \
+    --cache-size="${cache_size_mib}" \
+    --free-space-ratio=0.2 \
+    --no-bgjob \
+    --no-syslog \
+    --no-usage-report \
+    --background \
+    "${metadata_url}" \
+    "${mountpoint}"
+  wait_for_mount_state mounted || fail 'mount did not become ready'
+}
+
+unmount_volume() {
+  "${juicefs_binary}" umount "${mountpoint}"
+  wait_for_mount_state unmounted || fail 'mount did not stop'
+}
+
+cleanup() {
+  local original_status="$?"
+  local cleanup_status=0
+
+  trap - EXIT
+  set +e
+
+  if [[ "${test_started}" == true && "${marker_written}" == true ]] \
+    && ! is_mounted; then
+    mount_volume
+    cleanup_status="$?"
+  fi
+  if [[ "${test_started}" == true ]] && is_mounted; then
+    /usr/bin/rm -f -- "${marker}" || cleanup_status="$?"
+    unmount_volume || cleanup_status="$?"
+  fi
+
+  if (( original_status != 0 )); then
+    exit "${original_status}"
+  fi
+  exit "${cleanup_status}"
+}
+
+trap cleanup EXIT
+
+[[ -x "${juicefs_binary}" ]] || fail 'JuiceFS client is not executable'
+[[ -f "${metadata_url_file}" && ! -L "${metadata_url_file}" ]] \
+  || fail 'metadata URL is not a nonsymlink regular file'
+[[ -d "${mountpoint}" ]] || fail 'mountpoint does not exist'
+[[ -d "${cache_directory}" ]] || fail 'cache directory does not exist'
+[[ "${cache_size_mib}" =~ ^[1-9][0-9]{0,2}$ ]] \
+  || fail 'cache size is not a positive integer'
+is_mounted && fail 'refusing to use an already-mounted path'
+[[ -z "$(/usr/bin/find "${mountpoint}" -mindepth 1 -maxdepth 1 -print -quit)" ]] \
+  || fail 'refusing to obscure a nonempty mountpoint'
+
+private_metadata_url="$(< "${metadata_url_file}")"
+[[ "${private_metadata_url}" =~ ^redis://:([0-9a-f]{64})@([^[:space:]]+)$ ]] \
+  || fail 'metadata URL does not contain a valid Redis credential'
+export META_PASSWORD="${BASH_REMATCH[1]}"
+readonly metadata_url="redis://${BASH_REMATCH[2]}"
+unset private_metadata_url
+
+test_started=true
+mount_volume
+/usr/bin/rm -f -- "${marker}"
+
+readonly marker_value="$(
+  /usr/bin/hostname
+):$("${juicefs_binary}" version):$(/usr/bin/date --utc +%Y-%m-%dT%H:%M:%SZ)"
+printf '%s' "${marker_value}" \
+  | /usr/bin/dd of="${marker}" conv=fsync status=none
+marker_written=true
+
+[[ "$(< "${marker}")" == "${marker_value}" ]] \
+  || fail 'initial marker read did not match'
+
+unmount_volume
+mount_volume
+
+[[ "$(< "${marker}")" == "${marker_value}" ]] \
+  || fail 'marker did not persist across remount'
+
+/usr/bin/rm -f -- "${marker}"
+marker_written=false
+unmount_volume
+
+printf 'JuiceFS host smoke test passed: write, fsync, unmount, remount, read, cleanup\n'

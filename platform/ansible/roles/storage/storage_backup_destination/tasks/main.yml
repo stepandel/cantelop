@@ -1,0 +1,128 @@
+---
+- name: Validate backup destination activation
+  ansible.builtin.assert:
+    that:
+      - storage_backup_destination_enabled is boolean
+    fail_msg: storage_backup_destination_enabled must be boolean
+
+- name: Install the backup destination boundary
+  when: storage_backup_destination_enabled
+  block:
+    - name: Validate backup destination role inputs
+      ansible.builtin.assert:
+        that:
+          - storage_backup_destination_directory.startswith('/')
+          - >-
+            storage_backup_destination_config_file
+            | dirname == storage_backup_destination_directory
+          - >-
+            storage_backup_destination_credentials_file
+            | dirname == storage_backup_destination_directory
+          - storage_backup_destination_validator.startswith('/')
+          - storage_backup_destination_qualifier.startswith('/')
+          - storage_backup_destination_write_qualifier.startswith('/')
+          - >-
+            storage_backup_destination_endpoint_url
+            is match('^https://[^/?#]+/?$')
+          - >-
+            storage_backup_destination_region
+            is match('^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$')
+          - >-
+            storage_backup_destination_bucket
+            is match('^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+          - "'..' not in storage_backup_destination_bucket"
+          - >-
+            storage_backup_destination_prefix
+            is match('^[A-Za-z0-9][A-Za-z0-9._/-]{0,253}[A-Za-z0-9]$')
+          - "'..' not in storage_backup_destination_prefix.split('/')"
+          - storage_backup_destination_immutability_mode == 'object_lock'
+          - >-
+            (storage_backup_destination_access_key_id | default('') | length)
+            > 0
+          - >-
+            (storage_backup_destination_secret_access_key | default('') | length)
+            > 0
+        fail_msg: >-
+          backup destination paths, HTTPS endpoint, region, DNS-style bucket,
+          clean object prefix, Object Lock mode, and Vault credentials must be
+          explicitly valid
+      no_log: true
+
+    - name: Create the storage operations configuration directory
+      ansible.builtin.file:
+        path: "{{ storage_backup_destination_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Install the shared storage script module beside the destination programs
+      ansible.builtin.copy:
+        src: >-
+          {{ storage_backup_script_source }}/{{ storage_backup_script_module }}
+        dest: "{{ item }}/{{ storage_backup_script_module }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: >-
+        {{
+          [
+            storage_backup_destination_validator,
+            storage_backup_destination_qualifier,
+            storage_backup_destination_write_qualifier
+          ] | map('dirname') | unique
+        }}
+
+    - name: Install the backup destination validator
+      ansible.builtin.copy:
+        src: >-
+          {{ storage_backup_script_source }}/validate-storage-backup-destination.py
+        dest: "{{ storage_backup_destination_validator }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the read-only backup destination qualifier
+      ansible.builtin.copy:
+        src: >-
+          {{ storage_backup_script_source }}/qualify-storage-backup-destination.py
+        dest: "{{ storage_backup_destination_qualifier }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the controlled-write backup destination qualifier
+      ansible.builtin.copy:
+        src: >-
+          {{ storage_backup_script_source
+          }}/qualify-storage-backup-destination-write.py
+        dest: "{{ storage_backup_destination_write_qualifier }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the non-secret backup destination descriptor
+      ansible.builtin.template:
+        src: backup-destination.json.j2
+        dest: "{{ storage_backup_destination_config_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Install the root-only backup destination credential
+      ansible.builtin.template:
+        src: backup-s3-credentials.json.j2
+        dest: "{{ storage_backup_destination_credentials_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      diff: false
+      no_log: true
+
+    - name: Validate the installed backup destination boundary
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_destination_validator }}"
+          - "{{ storage_backup_destination_config_file }}"
+      changed_when: false
+      when: not ansible_check_mode

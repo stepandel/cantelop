@@ -1,0 +1,26 @@
+[Unit]
+Description=Redis metadata store for Fire Fuse JuiceFS
+Requires=wg-quick@wg-storage.service
+After=wg-quick@wg-storage.service
+
+[Service]
+Type=notify
+User=redis
+Group=redis
+ExecStart=/usr/bin/redis-server {{ redis_metadata_config_file }} --supervised systemd --daemonize no
+ExecStop=/bin/kill -s TERM $MAINPID
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths={{ redis_metadata_data_directory }}
+
+[Install]
+WantedBy=multi-user.target

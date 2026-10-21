@@ -1,0 +1,172 @@
+import { PlatformOverviewDiagram, SandboxLifecycleDiagram, SessionActorDiagram } from "./diagrams";
+
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/blog/foundational-principles" },
+  title: { absolute: "Cantelop design principles for hosted agent runtimes" }, description: "The design philosophy behind Cantelop: minimal setup, any agent harness, Sessions as actors, opinionated infrastructure, performance on the critical path.",
+};
+
+Cantelop is the platform for running cloud agents. It is built on opinionated
+infrastructure that supports any harness.
+
+<PlatformOverviewDiagram />
+
+To get started, see the [quick start guide](/docs/quick-start). To dive deeper
+into the capabilities of the platform, check the
+[README of the SDK](https://github.com/stepandel/cantelop-sdk#readme).
+
+This post goes into the design philosophy, defined by the following principles:
+
+- **[Minimal setup](#minimal-setup)**
+- **[Any agent harness](#any-agent-harness)**
+- **[A Session is an actor](#a-session-is-an-actor)**
+- **[Opinionated infrastructure](#opinionated-infrastructure)**
+- **[Performance on the critical path](#performance-on-the-critical-path)**
+
+## Background
+
+Actor model is a natural fit for agentic applications. It provides a simple abstraction
+for managing stateful, long-running, non-deterministic workloads. 
+
+Cloudflare's Durable Objects and Elixir embody the actor model. 
+
+Durable Objects in particular are widely used for agentic applications.
+However, the developer experience is desired to be better. Building complete agentic
+systems requires combining them with Cloudflare Workers and sandboxes while coordinating
+state across these components. This often means redesigning the agent harness around Cloudflare's infrastructure.
+
+Infrastructure needs to be paired with clean abstractions that make it
+intuitive to use. Vercel and Next.js are great examples of how an opinionated,
+integrated developer experience can make complex infrastructure approachable.
+
+Cantelop takes a lot of inspiration from Cloudflare on the actor model as well as the developer experience of Vercel and Next.js, 
+combining them with an opinionated sandbox architecture into a single platform.
+
+## Minimal setup
+
+SDK 1.0 provides a typed App for your backend and a Session runtime for your
+agent. SDK 1.0 is the only supported SDK; the Edge API is generated from the App
+rather than written as a separate router.
+
+Declare the App and its message contract:
+
+```ts title="src/cantelop.ts"
+import { CantelopClient } from "@cantelop/sdk";
+import { receive } from "./agent.js";
+
+const cantelop = new CantelopClient();
+export const agent = cantelop.app<{ prompt: string }>({
+  name: "my-agent",
+  runtime: { receive },
+});
+```
+
+Your own backend authenticates users, selects their Workspace, and calls the
+compiled App client:
+
+```js title="server.mjs"
+import { agent } from "./.cantelop/client/client.mjs";
+
+const session = agent.workspace({ slug: verifiedUserId }).session({
+  id: conversationId,
+  keepAliveSeconds: 300,
+});
+const message = await session.dispatch({ prompt: "Investigate this issue" });
+```
+
+The Session runtime defines behavior inside the Linux Sandbox. Each active
+Session receives a dedicated SDK-managed process that is never shared with
+another Session. A simple receive handler can wrap an existing integration:
+
+```ts title="src/agent.ts"
+import type { SessionContext } from "@cantelop/sdk/session";
+import { agentHarness } from "./harness.js";
+
+type SessionMessage = { prompt: string };
+
+export async function receive({ message, session, env, signal }: SessionContext<SessionMessage>) {
+  await agentHarness.run(message.payload.prompt, {
+    sessionId: session.id,
+    env,
+    signal,
+  });
+}
+```
+
+For long-running work with mid-turn controls, use a harness factory or supervised
+activity so intake stays responsive; see [Session runtime](/docs/session-runtime).
+
+## Any agent harness
+
+Cantelop is unopinionated about how the agent itself is built. It does not
+prescribe a model provider, agent framework, tools, skills, or message
+protocol.
+
+In practice, an existing locally developed harness can be wrapped in a Session
+runtime without being redesigned around Cantelop.
+
+The Session runtime provides the surrounding execution environment: an isolated
+Linux machine, environment variables and secrets, cancellation signals, an
+output stream, and a durable workspace mounted at `/workspace`.
+
+Short-lived sandboxes should not dictate the harness architecture. Data that
+must survive reactivation belongs in `/workspace`. The rest is ephemeral.
+
+The platform has been tested with Claude, the OpenAI Agents SDK, and Pi, but
+its generic integration boundary can support any harness.
+
+## A Session is an actor
+
+Every Session is a stable, addressable actor with its own identity and mailbox.
+Requests using the same Session ID are routed to the same logical actor.
+
+Message intake is ordered, while different Sessions can run concurrently.
+A harness owns the order of agent work and keeps control intake responsive.
+
+<SessionActorDiagram />
+
+The application defines the Session's message type. A harness runtime returns
+`queue`, `steer`, and `cancel`; the backend sends ordinary input and controls
+through the same Session reference:
+
+```ts
+await session.dispatch({ prompt: "Investigate this issue" });
+await session.steer({ prompt: "Focus on the failing test" });
+await session.cancel();
+```
+
+The harness decides how steering changes its active work. Cancellation signals
+the active operation and preserves waiting input. `session.stop()` separately
+releases the Sandbox. Applications own durable work, checkpoints, and recovery;
+transport acceptance does not prove the agent job completed.
+
+## Opinionated infrastructure
+
+A Session is a durable logical identity that runs in a dedicated sandbox. Once
+its work completes and the configured keep-alive period expires, the sandbox is
+released.
+
+When a message arrives for an idle Session, Cantelop can allocate a new sandbox
+behind the same Session ID.
+
+Developers can use `keepAliveSeconds` to keep the sandbox running between
+messages, preserving its in-memory and ephemeral state.
+
+Every sandbox mounts a durable workspace at `/workspace`. Files written there
+survive sandbox termination and become available to the next activation. Other
+filesystem state, including temporary files, home directories, and caches, is
+ephemeral.
+
+Multiple Sessions can share the same workspace, including Sessions running
+concurrently in different sandboxes. The shared filesystem is provided over NFS.
+
+<SandboxLifecycleDiagram />
+
+## Performance on the critical path
+
+Although Cantelop coordinates several infrastructure components, it should feel
+like a single, cohesive runtime. From the compute availability perspective,
+developers should not have to consider whether a Session already has a warm
+sandbox or needs to activate a new one.
+
+Sandbox startup is one of the benchmarks we watch most closely. The complete
+activation path takes around 250 ms.

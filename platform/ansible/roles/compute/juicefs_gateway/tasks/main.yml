@@ -1,0 +1,578 @@
+---
+- name: Validate JuiceFS gateway role inputs
+  ansible.builtin.assert:
+    that:
+      - juicefs_gateway_mountpoint.startswith('/var/lib/fire-fuse/')
+      - juicefs_gateway_admin_mountpoint.startswith('/var/lib/fire-fuse/')
+      - juicefs_gateway_admin_mountpoint != juicefs_gateway_mountpoint
+      - juicefs_gateway_cache_directory.startswith('/var/cache/fire-fuse/')
+      - juicefs_gateway_admin_cache_directory.startswith('/var/cache/fire-fuse/')
+      - juicefs_gateway_admin_cache_directory != juicefs_gateway_cache_directory
+      - juicefs_gateway_cache_size_mib | int >= 1
+      - juicefs_gateway_cache_size_mib | int <= 1048576
+      - juicefs_gateway_metrics_address == '127.0.0.1'
+      - juicefs_gateway_metrics_port | int == 9567
+      - juicefs_gateway_environment_file.startswith('/etc/fire-fuse/')
+      - juicefs_gateway_service is match('^[A-Za-z0-9@_.-]+\.service$')
+      - juicefs_gateway_admin_service is match('^[A-Za-z0-9@_.-]+\.service$')
+      - juicefs_gateway_admin_service != juicefs_gateway_service
+      - juicefs_gateway_binary.startswith('/')
+      - juicefs_gateway_metadata_url is match('^redis://[^@/]+:[0-9]+/[0-9]+$')
+      - juicefs_gateway_nfs_service is match('^[A-Za-z0-9@_.-]+\.service$')
+      - juicefs_gateway_nfs_config_file.startswith('/etc/nfs.conf.d/')
+      - juicefs_gateway_nfs_exports_file.startswith('/etc/exports.d/')
+      - >-
+        juicefs_gateway_nfs_drop_in_directory.startswith(
+          '/etc/systemd/system/'
+        )
+      - >-
+        juicefs_gateway_nfs_drop_in_file.startswith(
+          juicefs_gateway_nfs_drop_in_directory ~ '/'
+        )
+      - juicefs_gateway_nfs_listen_address == '0.0.0.0'
+      - juicefs_gateway_nfs_port | int == 2049
+      - juicefs_gateway_nfs_threads | int >= 1
+      - juicefs_gateway_nfs_threads | int <= 256
+      - >-
+        juicefs_gateway_nfs_firewall_service
+        is match('^[A-Za-z0-9@_.-]+\.service$')
+      - >-
+        juicefs_gateway_nfs_firewall_script.startswith(
+          '/usr/local/lib/fire-fuse/'
+        )
+      - >-
+        juicefs_gateway_nfs_firewall_chain
+        is match('^[A-Z][A-Z0-9_-]{0,27}$')
+      - >-
+        juicefs_gateway_nfs_firewall_comment
+        is match('^[a-z][a-z0-9-]{0,63}$')
+      - >-
+        not juicefs_gateway_nfs_firewall_comment.startswith('fire-fuse:')
+      - >-
+        juicefs_gateway_nfs_loopback_comment
+        is match('^[a-z][a-z0-9-]{0,63}$')
+      - >-
+        not juicefs_gateway_nfs_loopback_comment.startswith('fire-fuse:')
+      - >-
+        juicefs_gateway_nfs_loopback_comment
+        != juicefs_gateway_nfs_firewall_comment
+      - juicefs_gateway_rpcbind_port | int == 111
+      - >-
+        juicefs_gateway_rpcbind_firewall_comment
+        is match('^[a-z][a-z0-9-]{0,63}$')
+      - >-
+        not juicefs_gateway_rpcbind_firewall_comment.startswith('fire-fuse:')
+      - >-
+        juicefs_gateway_rpcbind_firewall_comment
+        not in [
+          juicefs_gateway_nfs_firewall_comment,
+          juicefs_gateway_nfs_loopback_comment
+        ]
+      - >-
+        juicefs_gateway_rpcbind_loopback_comment
+        is match('^[a-z][a-z0-9-]{0,63}$')
+      - >-
+        not juicefs_gateway_rpcbind_loopback_comment.startswith('fire-fuse:')
+      - >-
+        juicefs_gateway_rpcbind_loopback_comment
+        not in [
+          juicefs_gateway_nfs_firewall_comment,
+          juicefs_gateway_nfs_loopback_comment,
+          juicefs_gateway_rpcbind_firewall_comment
+        ]
+      - >-
+        juicefs_gateway_rpcbind_units
+        == ['rpcbind.socket', 'rpcbind.service']
+      - >-
+        juicefs_gateway_nfs_export_options
+        == [
+          'rw',
+          'async',
+          'subtree_check',
+          'all_squash'
+        ]
+    fail_msg: >-
+      JuiceFS gateway mount or locked-down NFS configuration is invalid
+
+- name: Validate JuiceFS gateway credential
+  ansible.builtin.assert:
+    that:
+      - >-
+        (redis_metadata_password | default(''))
+        is match('^[0-9a-f]{64}$')
+    fail_msg: JuiceFS gateway requires the Redis Ansible Vault credential
+  no_log: true
+
+- name: Install the host FUSE package
+  ansible.builtin.apt:
+    name: fuse3
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create JuiceFS gateway directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ juicefs_gateway_mountpoint }}"
+      mode: "0750"
+    - path: "{{ juicefs_gateway_admin_mountpoint }}"
+      # Both mounts expose the same JuiceFS root after startup. Keep their
+      # mountpoint mode aligned so a repeat run does not toggle the live root.
+      mode: "0750"
+    - path: "{{ juicefs_gateway_cache_directory }}"
+      mode: "0700"
+    - path: "{{ juicefs_gateway_admin_cache_directory }}"
+      mode: "0700"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install the JuiceFS gateway environment
+  ansible.builtin.copy:
+    content: "META_PASSWORD={{ redis_metadata_password }}\n"
+    dest: "{{ juicefs_gateway_environment_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+  notify:
+    - Restart JuiceFS gateway mount
+    - Restart JuiceFS administrative mount
+
+- name: Install the JuiceFS gateway service
+  ansible.builtin.template:
+    src: fire-fuse-juicefs-gateway.service.j2
+    dest: "/etc/systemd/system/{{ juicefs_gateway_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd units
+    - Restart JuiceFS gateway mount
+
+- name: Install the JuiceFS administrative mount service
+  ansible.builtin.template:
+    src: fire-fuse-juicefs-admin.service.j2
+    dest: "/etc/systemd/system/{{ juicefs_gateway_admin_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd units
+    - Restart JuiceFS administrative mount
+
+- name: Apply JuiceFS gateway changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the JuiceFS gateway mount
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_service }}"
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Enable and start the JuiceFS administrative mount
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_admin_service }}"
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Require the JuiceFS gateway mount
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mountpoint
+      - --quiet
+      - "{{ juicefs_gateway_mountpoint }}"
+  register: juicefs_gateway_mount
+  changed_when: false
+  retries: 20
+  delay: 1
+  until: juicefs_gateway_mount.rc == 0
+  when: not ansible_check_mode
+
+- name: Require the JuiceFS administrative mount
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mountpoint
+      - --quiet
+      - "{{ juicefs_gateway_admin_mountpoint }}"
+  register: juicefs_gateway_admin_mount
+  changed_when: false
+  retries: 20
+  delay: 1
+  until: juicefs_gateway_admin_mount.rc == 0
+  when: not ansible_check_mode
+
+- name: Inspect the running JuiceFS workspace policy
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/findmnt
+      - --json
+      - --mountpoint
+      - "{{ juicefs_gateway_mountpoint }}"
+      - --output
+      - FSTYPE,FSROOT,OPTIONS
+  register: juicefs_gateway_policy
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the running JuiceFS data-only policy
+  ansible.builtin.assert:
+    that:
+      - (juicefs_gateway_policy.stdout | from_json).filesystems | length == 1
+      - (juicefs_gateway_policy.stdout | from_json).filesystems[0].fstype == 'fuse.juicefs-workspace-v1'
+      - (juicefs_gateway_policy.stdout | from_json).filesystems[0].fsroot == '/'
+      - "'default_permissions' in (juicefs_gateway_policy.stdout | from_json).filesystems[0].options.split(',')"
+      - "'allow_other' in (juicefs_gateway_policy.stdout | from_json).filesystems[0].options.split(',')"
+      - "'user_id=0' in (juicefs_gateway_policy.stdout | from_json).filesystems[0].options.split(',')"
+    fail_msg: >-
+      the running workspace mount must use the pinned data-only JuiceFS build
+      with kernel permissions; an installed binary alone is not sufficient
+  when: not ansible_check_mode
+
+- name: Inspect the running JuiceFS administrative policy
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/findmnt
+      - --json
+      - --mountpoint
+      - "{{ juicefs_gateway_admin_mountpoint }}"
+      - --output
+      - FSTYPE,FSROOT,OPTIONS
+  register: juicefs_gateway_admin_policy
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the unexported JuiceFS administrative policy
+  ansible.builtin.assert:
+    that:
+      - (juicefs_gateway_admin_policy.stdout | from_json).filesystems | length == 1
+      - (juicefs_gateway_admin_policy.stdout | from_json).filesystems[0].fstype == 'fuse.juicefs'
+      - (juicefs_gateway_admin_policy.stdout | from_json).filesystems[0].fsroot == '/'
+      - "'allow_other' not in (juicefs_gateway_admin_policy.stdout | from_json).filesystems[0].options.split(',')"
+      - "'user_id=0' in (juicefs_gateway_admin_policy.stdout | from_json).filesystems[0].options.split(',')"
+    fail_msg: >-
+      Workspace deletion requires a root-only administrative JuiceFS mount;
+      the guest-exported data-only mount must never expose management nodes
+  when: not ansible_check_mode
+
+- name: Enforce the trusted mounted JuiceFS root
+  ansible.builtin.file:
+    path: "{{ juicefs_gateway_mountpoint }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: not ansible_check_mode
+
+- name: Inspect the trusted mounted JuiceFS root
+  ansible.builtin.stat:
+    path: "{{ juicefs_gateway_mountpoint }}"
+    follow: false
+  register: juicefs_gateway_mountpoint_status
+  when: not ansible_check_mode
+
+- name: Require the trusted mounted JuiceFS root
+  ansible.builtin.assert:
+    that:
+      - >-
+        juicefs_gateway_mountpoint_status.stat
+        is trusted_directory(owner='root', group='root', mode='0750')
+    fail_msg: >-
+      the mounted JuiceFS workspace root must be a root-owned mode-0750
+      directory
+  when: not ansible_check_mode
+
+- name: Create JuiceFS gateway NFS configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ juicefs_gateway_nfs_config_file | dirname }}"
+    - "{{ juicefs_gateway_nfs_exports_file | dirname }}"
+    - "{{ juicefs_gateway_nfs_drop_in_directory }}"
+
+- name: Install the locked-down JuiceFS gateway NFS configuration
+  ansible.builtin.template:
+    src: fire-fuse-nfs.conf.j2
+    dest: "{{ juicefs_gateway_nfs_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart JuiceFS gateway NFS server
+
+- name: Install the JuiceFS gateway NFS firewall script
+  ansible.builtin.template:
+    src: configure-nfs-firewall.j2
+    dest: "{{ juicefs_gateway_nfs_firewall_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Apply JuiceFS gateway NFS firewall
+
+- name: Install the JuiceFS gateway NFS firewall service
+  ansible.builtin.template:
+    src: fire-fuse-nfs-firewall.service.j2
+    dest: >-
+      /etc/systemd/system/{{ juicefs_gateway_nfs_firewall_service }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd units
+    - Apply JuiceFS gateway NFS firewall
+
+- name: Install the JuiceFS gateway NFS service dependency
+  ansible.builtin.template:
+    src: fire-fuse-nfs-systemd.conf.j2
+    dest: "{{ juicefs_gateway_nfs_drop_in_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd units
+    - Restart JuiceFS gateway NFS server
+
+- name: Install the empty managed JuiceFS export table
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible. Per-workspace exports are installed dynamically.
+      # Never export {{ juicefs_gateway_mountpoint }} as a shared parent.
+    dest: "{{ juicefs_gateway_nfs_exports_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart JuiceFS gateway NFS server
+
+- name: Load the JuiceFS gateway NFS firewall service
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Enable and apply the JuiceFS gateway NFS firewall
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_nfs_firewall_service }}"
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Install the NFSv4 server behind the firewall
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Stop and mask Portmapper for the NFSv4-only server
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+    daemon_reload: true
+  loop: "{{ juicefs_gateway_rpcbind_units }}"
+  when: not ansible_check_mode
+
+- name: Apply JuiceFS gateway NFS changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the JuiceFS gateway NFS server
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_nfs_service }}"
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Wait for the firewalled NFS listener
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ juicefs_gateway_nfs_port }}"
+    state: started
+    timeout: 30
+  when: not ansible_check_mode
+
+- name: Inspect the NFS listener addresses
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/ss
+      - --no-header
+      - --listening
+      - --tcp
+      - --numeric
+      - "sport = :{{ juicefs_gateway_nfs_port }}"
+  register: juicefs_gateway_nfs_listeners
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require an IPv4-only NFS listener
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          juicefs_gateway_nfs_listeners.stdout_lines
+          | select('search', '0\.0\.0\.0:2049')
+          | list
+          | length
+        ) > 0
+      - >-
+        (
+          juicefs_gateway_nfs_listeners.stdout_lines
+          | reject('search', '0\.0\.0\.0:2049')
+          | list
+          | length
+        ) == 0
+    fail_msg: NFS must listen only on the IPv4 TCP wildcard at port 2049
+  when: not ansible_check_mode
+
+- name: Inspect the masked Portmapper units
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - "{{ item }}"
+  loop: "{{ juicefs_gateway_rpcbind_units }}"
+  register: juicefs_gateway_rpcbind_unit_states
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require Portmapper to be masked and inactive
+  ansible.builtin.assert:
+    that:
+      - "'LoadState=masked' in item.stdout_lines"
+      - "'ActiveState=inactive' in item.stdout_lines"
+    fail_msg: "{{ item.item }} must remain masked and inactive"
+  loop: "{{ juicefs_gateway_rpcbind_unit_states.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not ansible_check_mode
+
+- name: Inspect Portmapper TCP and UDP listeners
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/ss
+      - --no-header
+      - --listening
+      - --tcp
+      - --udp
+      - --numeric
+      - "sport = :{{ juicefs_gateway_rpcbind_port }}"
+  register: juicefs_gateway_rpcbind_listeners
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require Portmapper to have no network listeners
+  ansible.builtin.assert:
+    that:
+      - juicefs_gateway_rpcbind_listeners.stdout_lines | length == 0
+    fail_msg: Portmapper must not listen on TCP or UDP port 111
+  when: not ansible_check_mode
+
+- name: Require the NFS default-deny INPUT jump
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/iptables
+      - --wait
+      - "5"
+      - --check
+      - INPUT
+      - --protocol
+      - tcp
+      - --destination-port
+      - "{{ juicefs_gateway_nfs_port | string }}"
+      - --match
+      - comment
+      - --comment
+      - "{{ juicefs_gateway_nfs_firewall_comment }}"
+      - --jump
+      - "{{ juicefs_gateway_nfs_firewall_chain }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the NFS firewall chain to deny unmatched clients
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/iptables
+      - --wait
+      - "5"
+      - --check
+      - "{{ juicefs_gateway_nfs_firewall_chain }}"
+      - --jump
+      - DROP
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the Portmapper firewall denies
+  ansible.builtin.command:
+    argv:
+      - "{{ item.binary }}"
+      - --wait
+      - "5"
+      - --check
+      - INPUT
+      - --protocol
+      - "{{ item.protocol }}"
+      - --destination-port
+      - "{{ juicefs_gateway_rpcbind_port | string }}"
+      - --match
+      - comment
+      - --comment
+      - "{{ juicefs_gateway_rpcbind_firewall_comment }}"
+      - --jump
+      - DROP
+  loop:
+    - binary: /usr/sbin/iptables
+      protocol: tcp
+    - binary: /usr/sbin/iptables
+      protocol: udp
+    - binary: /usr/sbin/ip6tables
+      protocol: tcp
+    - binary: /usr/sbin/ip6tables
+      protocol: udp
+  loop_control:
+    label: "{{ item.binary | basename }} {{ item.protocol }}/111"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the Portmapper loopback allowances
+  ansible.builtin.command:
+    argv:
+      - "{{ item.binary }}"
+      - --wait
+      - "5"
+      - --check
+      - INPUT
+      - --in-interface
+      - lo
+      - --protocol
+      - "{{ item.protocol }}"
+      - --destination-port
+      - "{{ juicefs_gateway_rpcbind_port | string }}"
+      - --match
+      - comment
+      - --comment
+      - "{{ juicefs_gateway_rpcbind_loopback_comment }}"
+      - --jump
+      - ACCEPT
+  loop:
+    - binary: /usr/sbin/iptables
+      protocol: tcp
+    - binary: /usr/sbin/iptables
+      protocol: udp
+    - binary: /usr/sbin/ip6tables
+      protocol: tcp
+    - binary: /usr/sbin/ip6tables
+      protocol: udp
+  loop_control:
+    label: "{{ item.binary | basename }} {{ item.protocol }}/111 loopback"
+  changed_when: false
+  when: not ansible_check_mode

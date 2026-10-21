@@ -1,0 +1,9 @@
+---
+storage_backup_capture_lock_directory: >-
+  /run/lock/fire-fuse-storage-backup-capture
+storage_backup_capture_service: fire-fuse.service
+storage_backup_capture_ready_url: http://127.0.0.1:8080/readyz
+storage_backup_capture_readiness_attempts: 30
+storage_backup_capture_readiness_delay_seconds: 1
+storage_backup_capture_final_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py

@@ -1,0 +1,28 @@
+bind 127.0.0.1
+protected-mode yes
+port {{ storage_backup_restore_redis_snapshot_port }}
+tcp-backlog 128
+timeout 0
+tcp-keepalive 300
+
+daemonize no
+supervised systemd
+loglevel notice
+logfile ""
+databases 16
+always-show-logo no
+
+dir /run/{{ storage_backup_restore_redis_snapshot_runtime_directory }}/data
+dbfilename dump.rdb
+rdbcompression yes
+rdbchecksum yes
+save ""
+
+appendonly yes
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 0
+
+maxmemory {{ storage_backup_restore_redis_snapshot_maxmemory }}
+maxmemory-policy noeviction
+requirepass {{ storage_backup_restore_redis_snapshot_password }}

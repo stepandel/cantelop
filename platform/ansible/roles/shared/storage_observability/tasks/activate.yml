@@ -1,0 +1,42 @@
+---
+- name: Enable and start the Redis observability timer
+  ansible.builtin.systemd_service:
+    name: "{{ storage_observability_redis_probe_timer }}"
+    state: started
+    enabled: true
+  when: storage_observability_backends_enabled
+
+- name: Enable and start the MinIO observability timer
+  ansible.builtin.systemd_service:
+    name: "{{ storage_observability_minio_probe_timer }}"
+    state: started
+    enabled: true
+  when: storage_observability_backends_enabled
+
+- name: Enable and start the JuiceFS observability timer
+  ansible.builtin.systemd_service:
+    name: "{{ storage_observability_juicefs_probe_timer }}"
+    state: started
+    enabled: true
+  when: storage_observability_juicefs_enabled
+
+- name: Run the initial Redis observability probe
+  ansible.builtin.systemd_service:
+    name: "{{ storage_observability_redis_probe_service }}"
+    state: started
+  changed_when: false
+  when: storage_observability_backends_enabled
+
+- name: Run the initial MinIO observability probe
+  ansible.builtin.systemd_service:
+    name: "{{ storage_observability_minio_probe_service }}"
+    state: started
+  changed_when: false
+  when: storage_observability_backends_enabled
+
+- name: Run the initial JuiceFS observability probe
+  ansible.builtin.systemd_service:
+    name: "{{ storage_observability_juicefs_probe_service }}"
+    state: started
+  changed_when: false
+  when: storage_observability_juicefs_enabled

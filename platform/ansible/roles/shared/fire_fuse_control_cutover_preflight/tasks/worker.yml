@@ -1,0 +1,71 @@
+---
+- name: Validate the builder control worker contract before shutdown
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_compute_ingress_token == cantelop_control_worker_compute_control_token
+      - cantelop_control_worker_user == 'cantelop-control'
+      - cantelop_control_worker_group == 'cantelop-control'
+      - cantelop_control_worker_binary == '/usr/local/bin/cantelop-control-worker'
+      - cantelop_control_migrate_binary == '/usr/local/bin/cantelop-control-migrate'
+      - cantelop_control_migrations_root == '/usr/local/share/cantelop-control/migrations'
+      - >-
+        cantelop_control_migrations_directory
+        == cantelop_control_migrations_root + '/'
+        + cantelop_control_migrations_manifest_checksum
+      - cantelop_control_worker_unit_source.startswith('/')
+      - cantelop_control_worker_unit == '/etc/systemd/system/cantelop-control-worker.service'
+      - cantelop_control_worker_config_directory == '/etc/cantelop-control'
+      - cantelop_control_worker_environment_file == '/etc/cantelop-control/worker.env'
+      - cantelop_control_worker_database_url is match('^postgres(?:ql)?://[^\r\n ]+$')
+      - cantelop_control_worker_database_ssl == 'verify-full'
+      - cantelop_control_worker_config_encryption_key is match('^[A-Za-z0-9_-]{43}$')
+      - cantelop_control_worker_turso_organization is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - cantelop_control_worker_turso_group is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - cantelop_control_worker_turso_environment is match('^[a-z0-9]{1,16}$')
+      - cantelop_control_worker_turso_platform_token is match('^[A-Za-z0-9_.=-]{20,4096}$')
+      - cantelop_control_worker_artifact_bucket is match('^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+      - cantelop_control_worker_artifact_endpoint is match('^https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?$')
+      - cantelop_control_worker_artifact_region is match('^[A-Za-z0-9][A-Za-z0-9-]{0,31}$')
+      - cantelop_control_worker_artifact_access_key_id is match('^[A-Za-z0-9_+=/.-]{8,256}$')
+      - cantelop_control_worker_artifact_secret_access_key is match('^[A-Za-z0-9_+=/.-]{8,256}$')
+      - cantelop_control_worker_id is match('^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$')
+      - cantelop_control_worker_compute_ingress_url == 'http://10.77.0.1:8084'
+      - cantelop_control_worker_cloudflare_account_id is match('^[0-9a-f]{32}$')
+      - cantelop_control_worker_cloudflare_dispatch_namespace is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - cantelop_control_worker_cloudflare_route_namespace_id is match('^[0-9a-f]{32}$')
+      - cantelop_control_worker_cloudflare_api_token is match('^[A-Za-z0-9_-]{20,512}$')
+      - cantelop_control_worker_cloudflare_compatibility_date is match('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+    fail_msg: >-
+      coordinated cutover preflight requires the fixed builder control worker
+      contract and the dedicated compute-ingress credential
+  no_log: true
+
+- name: Validate builder control worker artifacts
+  ansible.builtin.include_tasks: artifacts.yml
+
+- name: Verify every migration file against the controller manifest
+  ansible.builtin.command:
+    argv:
+      - shasum
+      - -a
+      - "256"
+      - -c
+      - SHA256SUMS
+    chdir: "{{ cantelop_control_migrations_artifact }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: Inspect the migration bundle on the controller
+  ansible.builtin.stat:
+    path: "{{ cantelop_control_migrations_artifact }}"
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_control_cutover_migration_bundle
+
+- name: Require a regular migration bundle directory before shutdown
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_control_cutover_migration_bundle.stat is trusted_directory
+    fail_msg: cutover prerequisite migration bundle is missing or unsafe

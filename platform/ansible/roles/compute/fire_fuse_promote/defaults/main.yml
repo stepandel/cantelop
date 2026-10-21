@@ -1,0 +1,55 @@
+---
+fire_fuse_promote_stage_directory: /var/lib/fire-fuse/staged-release
+fire_fuse_promote_manifest: >-
+  {{ fire_fuse_promote_stage_directory }}/release.json
+fire_fuse_promote_service_name: fire-fuse.service
+fire_fuse_promote_config_destination: /etc/fire-fuse/config.json
+fire_fuse_promote_image_catalog_destination: /etc/fire-fuse/image-catalog.json
+fire_fuse_promote_binary_destination: /usr/local/bin/fire-fuse
+fire_fuse_promote_state_database: /var/lib/fire-fuse/state/state.db
+fire_fuse_promote_rollback_root: /var/lib/fire-fuse/release-rollbacks
+fire_fuse_promote_upgrade_id: >-
+  {{ lookup('env', 'CANTELOP_FIRE_FUSE_UPGRADE_ID') }}
+fire_fuse_promote_state_cutover_confirm: >-
+  {{ lookup('env', 'CANTELOP_FIRE_FUSE_STATE_CUTOVER') }}
+fire_fuse_promote_state_cutover_sha256: >-
+  {{ lookup('env', 'CANTELOP_FIRE_FUSE_STATE_CUTOVER_SHA256') }}
+fire_fuse_release_images: []
+
+fire_fuse_promote_base_allowlist:
+  - name: orchestrator
+    staged_name: fire-fuse
+    destination: /usr/local/bin/fire-fuse
+    mode: "0755"
+  - name: operator admin client
+    staged_name: cantelop
+    destination: /usr/local/bin/cantelop
+    mode: "0755"
+  - name: integration test
+    staged_name: fire-fuse-integration
+    destination: /usr/local/bin/fire-fuse-integration
+    mode: "0755"
+  - name: snapshot builder
+    staged_name: fire-fuse-snapshot
+    destination: /usr/local/bin/fire-fuse-snapshot
+    mode: "0755"
+  - name: image publisher
+    staged_name: fire-fuse-image
+    destination: /usr/local/bin/fire-fuse-image
+    mode: "0755"
+  - name: Firecracker
+    staged_name: firecracker
+    destination: /usr/local/lib/fire-fuse/firecracker
+    mode: "0755"
+  - name: jailer
+    staged_name: jailer
+    destination: /usr/local/lib/fire-fuse/jailer
+    mode: "0755"
+  - name: guest kernel
+    staged_name: vmlinux
+    destination: /var/lib/fire-fuse/images/vmlinux
+    mode: "0644"
+  - name: guest rootfs
+    staged_name: ubuntu-24.ext4
+    destination: /var/lib/fire-fuse/images/ubuntu-24.ext4
+    mode: "0644"

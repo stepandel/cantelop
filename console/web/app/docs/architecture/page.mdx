@@ -1,0 +1,52 @@
+import { ArchitectureDiagram } from "./architecture-diagram";
+
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/architecture" },
+  title: "Architecture", description: "Understand how Cantelop Apps, Session actors, Sandboxes, and persistent Workspaces fit together.",
+};
+
+# Architecture
+
+Cantelop follows the **actor model**: each Session is an addressable agent
+runtime with its own identity, process, and mailbox. You define its model,
+tools, and message behavior; Cantelop manages routing, isolation, and lifecycle.
+
+An **App** is declared in code with `cantelop.app(...)`: its name, Session
+runtime, environment, and optional webhooks. It can serve many independent
+Sessions, each representing a conversation or unit of work.
+
+<ArchitectureDiagram />
+
+- **Your backend** authenticates its users, chooses their Workspace, and calls
+  the App through the SDK: `app.workspace({ slug }).session({ id })`.
+- **Edge Worker** is generated from the App definition. It accepts the SDK's
+  commands at `/commands/{command}` with the App's integration credential, and serves
+  declared [webhooks](/docs/ingress#webhooks) and an optional homepage.
+- **Session** receives ordered message intake; its harness controls agent work. The same
+  App-scoped ID reaches the same actor; different Sessions can run concurrently.
+- **Sandbox** runs one active Session in an isolated Linux environment with
+  its own process and in-memory state.
+- **Workspace** holds persistent files at `/workspace`. Sessions can share
+  these files while keeping separate runtime state.
+
+Sandboxes are **fully elastic**: CPU is shared on demand, and memory grows
+with the workload within platform limits. Cantelop
+starts Sandboxes as Sessions become active and releases them after their
+keep-alive period. See [elastic resources](/docs/sandbox-isolation#elastic-resources)
+for current limits and behavior.
+
+The first message starts a Sandbox if needed. The runtime's harness keeps
+intake responsive while work runs, so `dispatch`, `steer`, and `cancel` reach
+it mid-turn. Your code decides how queueing, steering, and cancellation work.
+
+After work finishes, the Sandbox stays warm for the requested keep-alive period.
+Releasing it clears memory and temporary files. The Session ID and Workspace
+survive; your agent must persist and reload any conversation state it needs.
+
+The CLI runs the App locally, deploys its Edge Worker and runtime as one
+release, and manages configuration, credentials, Sessions, and logs.
+
+See [Sandbox isolation](/docs/sandbox-isolation),
+[Session runtime](/docs/session-runtime),
+[Workspaces](/docs/workspaces), [Ingress](/docs/ingress), or the
+[SDK guide](https://github.com/stepandel/cantelop-sdk#readme) for more detail.

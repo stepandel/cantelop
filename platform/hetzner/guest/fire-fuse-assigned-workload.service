@@ -1,0 +1,13 @@
+[Unit]
+Description=Run an assigned Fire Fuse snapshot workload
+Documentation=https://github.com/stepandel/cantelop
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/fire-fuse-guest
+ExecStopPost=-/usr/local/sbin/fire-fuse-record-workload-exit
+ExecStopPost=/usr/bin/systemctl --no-block poweroff
+KillMode=control-group
+TimeoutStopSec=30s
+StandardOutput=journal+console
+StandardError=journal+console

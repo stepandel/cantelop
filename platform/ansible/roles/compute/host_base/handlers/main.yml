@@ -1,0 +1,7 @@
+---
+- name: Apply host sysctl configuration
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sysctl
+      - --system
+  changed_when: true

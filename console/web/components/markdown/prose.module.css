@@ -1,0 +1,561 @@
+/* Rendered markdown: the reading surface of the docs and the blog.
+
+   The console is an instrument panel read leaned in; a docs page or a post is
+   read for minutes at a stretch, and long prose set in 13px mono at eighty
+   characters a line, with eight pixels between paragraphs and section
+   headings typed as 11px labels, was the failure this file answers. The
+   measure, sizes, and rhythm here follow the long-form pages at vercel.com
+   and cursor.com: a text face at --fs-read on --lh-read leading, one line of
+   air between paragraphs, section headings large enough to scan by with most
+   of their air above them, ink links underlined in grey, and mono kept for
+   what is literally typed — code and commands.
+
+   Nothing here is route-specific. Wrap MDX in <Prose> and the styling hangs
+   off plain elements, so the markdown never has to carry a class:
+
+     h1 + p        the lede
+     h2, h3        section and sub-section headings — each carries an id and
+                   an anchor that shows on hover, so any section can be linked
+     ol > li       a numbered step, h3 its title
+     ul            a list — ticks instead of bullets inside <Checks>
+     blockquote    a condition that changes what the reader should do
+     h4 (+ p)      a definition heading and its gloss
+     hr + p        closing small print
+
+   Only what markdown cannot express keeps a class: the copy controls, the
+   heading anchor, the checklist marker, the closing control. */
+
+.prose {
+  position: relative;
+  width: min(648px, 100%);
+  margin: 0 auto;
+  padding: var(--sp-12) var(--sp-6);
+  color: var(--ink);
+  font: 400 var(--fs-read)/var(--lh-read) var(--sans);
+}
+
+/* Posts and guides are read start to finish rather than consulted, so they
+   take a looser reading ramp than the reference docs: 16px body on 1.7
+   leading, headings a clear step apart, and small print that is still body
+   size minus one. The ramp is set by re-pointing the reading tokens, so every
+   rule below — and the blog masthead and figures inside the measure — picks
+   it up without a second set of selectors. The 632px text column holds about
+   75 characters a line. The rhythm and element refinements for this
+   measure live under "Long-form" further down. */
+.prose.wide {
+  --fs-read: 1rem;
+  --fs-read-small: 0.9375rem;
+  --fs-read-h3: 1.1875rem;
+  --fs-read-h2: 1.5rem;
+  --fs-read-h1: 2rem;
+  --lh-read: 1.7;
+  width: min(680px, 100%);
+}
+
+/* ---- Rhythm ----
+   A block gets about two thirds of a line of air above it (--sp-4 against
+   a ~26px line): enough to read as a break, not so much that a screen
+   turns to gaps. Inside a step, half that. A section heading takes twice
+   the paragraph gap above and the block after it a quarter of that, so a
+   heading holds onto what it introduces and the section break still reads
+   as a different kind of gap from a paragraph break. Written at low
+   specificity so the element rules below refine the rhythm rather than
+   fight it. */
+.prose :where(p, ul, ol, blockquote, .snippetWrap) { margin: var(--sp-4) 0 0; }
+.prose :where(ol) :where(p, ul, blockquote, .snippetWrap) { margin-top: var(--sp-2); }
+.prose :is(h2, h3, h4) + * { margin-top: var(--sp-3); }
+
+/* ---- Headings ---- */
+
+.prose h1 {
+  margin: 0;
+  font: 500 var(--fs-read-h1)/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.prose > h1 + p {
+  margin-top: var(--sp-4);
+  color: var(--muted);
+}
+
+.prose h2 {
+  margin: var(--sp-8) 0 0;
+  font: 500 var(--fs-read-h2)/1.25 var(--sans);
+  letter-spacing: -0.015em;
+}
+
+.prose h3 {
+  margin: var(--sp-6) 0 0;
+  font: 500 var(--fs-read-h3)/1.35 var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.prose h4 {
+  margin: var(--sp-4) 0 0;
+  font: 500 var(--fs-read)/var(--lh-read) var(--sans);
+}
+
+/* A linked heading lands clear of the sticky bar. */
+.prose :is(h2, h3, h4) { scroll-margin-top: calc(48px + var(--sp-6)); }
+
+/* The anchor rides in the measure's left padding and shows on hover or
+   focus, the way both reference sites mark a heading as linkable. */
+.prose :is(h2, h3) { position: relative; }
+
+.anchor {
+  position: absolute;
+  right: 100%;
+  top: 0;
+  padding-right: var(--sp-2);
+  color: var(--ghost);
+  font: inherit;
+  font-weight: 400;
+  text-decoration: none;
+  opacity: 0;
+}
+.prose :is(h2, h3):hover .anchor,
+.anchor:focus-visible { opacity: 1; }
+.anchor:hover { color: var(--muted); text-decoration: none; }
+
+/* ---- Running text ---- */
+
+.prose a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--grey);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+.prose a:hover { color: var(--ink); text-decoration-color: var(--ink); }
+
+.prose strong { font-weight: 500; }
+
+.prose code {
+  font: 400 var(--fs-code) var(--mono);
+  font-variant-numeric: slashed-zero;
+  color: var(--ink);
+  background: var(--panel);
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+.prose :is(h1, h2, h3, h4) code { font-size: 0.9em; padding: 0 0.2em; }
+
+/* ---- Code blocks ----
+   A block is a white panel with a hairline border and a soft corner, no
+   shadow. Its top strip is quiet: short, on the block's own white, divided
+   from the code by the faintest rule, so what the block is named reads as a
+   caption rather than a toolbar. The strip names what the block is — the
+   file its fence was titled with, the tab strip when the page offers
+   variants, or failing both the kind of thing it is (Terminal, TypeScript)
+   — and holds the copy control, an icon that inks up under the pointer. A
+   block with nothing to name has no strip; its control floats in the corner
+   and shows on hover or focus. */
+.snippetWrap {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.snippetHead {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  height: 32px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* A file name is something typed, so it takes the typed face; a kind is a
+   word about the block, and stays in the reading face. */
+.snippetTitle,
+.snippetKind {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-4);
+  color: var(--grey);
+  font: 400 var(--fs-support)/1 var(--sans);
+  white-space: nowrap;
+}
+.snippetTitle {
+  font-family: var(--mono);
+  font-variant-numeric: slashed-zero;
+}
+
+.snippetEnd {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-right: var(--sp-1);
+}
+.snippetEnd .snippetTitle { padding-right: var(--sp-1); }
+
+.snippet {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  overflow-x: auto;
+}
+.snippet:focus-visible { outline-offset: -2px; }
+
+/* A bare block keeps its first line clear of the floating control. */
+.bare .snippet { padding-right: calc(var(--sp-4) + 28px); }
+
+.snippet code {
+  display: block;
+  background: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font: 400 0.8125rem/1.7 var(--mono);
+  font-variant-numeric: slashed-zero;
+  color: var(--ink);
+  white-space: pre;
+}
+
+/* A file's lines are numbered in a gutter, the way an editor shows them.
+   The number is a counter drawn by the stylesheet — never in the DOM, so a
+   selection or a copy never picks it up — in --ghost, a stroke to find a
+   line by rather than text to read, sized to the block's line count. */
+.numbered { counter-reset: line; }
+.numbered .line { counter-increment: line; }
+.numbered .line::before {
+  content: counter(line);
+  display: inline-block;
+  width: calc(var(--digits, 2) * 1ch);
+  margin-right: var(--sp-4);
+  text-align: right;
+  color: var(--ghost);
+  user-select: none;
+}
+
+/* Typed input and the terminal's answer are different kinds of fact: one is
+   copy-pasteable, the other is what proves the step worked. */
+.snippet .prompt { color: var(--ghost); }
+.snippet .out { color: var(--green); }
+
+/* Syntax, in four roles from highlight.ts — enough to tell a keyword from a
+   name, a literal from code, and a comment from either, without the block
+   turning into an editor theme. Each holds AA on --surface. Literals take
+   amber rather than green so a quoted argument in a command never reads as
+   the terminal's answer. */
+.snippet .keyword { color: var(--blue); }
+.snippet .string { color: var(--amber); }
+.snippet .comment { color: var(--muted); }
+.snippet .constant { color: var(--green); }
+
+/* The copy control: an icon in a small square, grey at rest, inking up
+   with a faint fill under the pointer and turning green once copied. */
+.copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--grey);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, opacity 0.15s;
+}
+.copy:hover { color: var(--ink); background: var(--hover); }
+.copy[data-copied] { color: var(--green); }
+
+.bare .copy {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 1;
+  background: var(--surface);
+  opacity: 0;
+}
+.bare .copy:hover { background: var(--hover); }
+.bare:hover .copy,
+.bare .copy:focus-visible,
+.bare .copy[data-copied] { opacity: 1; }
+@media (hover: none) { .bare .copy { opacity: 1; } }
+
+/* Variant tabs stand in the strip where a lone block shows its name. Same
+   grammar as the home page terminal: the selected tab carries ink and a thin
+   rule on its bottom edge, which sits on the strip's own hairline. The
+   strip's inset plus a tab's padding puts the first label level with the
+   code's left edge. */
+.variantTabs {
+  display: flex;
+  padding: 0 var(--sp-1);
+}
+
+.variantTab {
+  padding: 0 var(--sp-3);
+  border: 0;
+  margin-bottom: -1px;
+  border-bottom: 1.5px solid transparent;
+  background: none;
+  color: var(--grey);
+  font: 400 var(--fs-support)/1 var(--sans);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.variantTab:hover { color: var(--ink); }
+.variantTab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* Offers the page's own markdown. Sits level with the top of the title
+   rather than above it, and carries a control's weight — this is a thing to
+   reach for, not a footnote. Absolute so the markdown underneath stays plain
+   markdown, with no wrapper around the heading to make room for it. */
+.copyPage {
+  position: absolute;
+  top: var(--sp-12);
+  right: var(--sp-6);
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 var(--fs-data)/1 var(--sans);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.copyPage:hover { border-color: var(--grey); background: var(--panel); }
+
+/* Long editorial titles need the full reading measure. Keep their control
+   in its own row so it cannot cover the heading at intermediate widths. */
+.copyPageAbove {
+  position: static;
+  display: flex;
+  width: fit-content;
+  margin: 0 0 var(--sp-4) auto;
+}
+
+/* ---- Steps ----
+   An ordered list in the markdown; the index is real sequence information,
+   since these only work in order. The marker is a 24px box level with the
+   step's title line. */
+.prose ol {
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.prose ol > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: calc(var(--sp-8) + var(--sp-2));
+}
+.prose ol > li + li { margin-top: var(--sp-6); }
+
+.prose ol > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 var(--fs-data) var(--sans);
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.prose ol h3 {
+  margin: 0;
+  line-height: 24px;
+}
+
+/* ---- Lists ----
+   Requirements and success criteria: short, scannable, marker in the gutter
+   so the measure of the prose beside them is unbroken. */
+.prose ul {
+  padding: 0 0 0 var(--sp-6);
+  list-style: disc;
+}
+
+.prose ul > li { padding-left: var(--sp-1); }
+.prose ul > li + li { margin-top: var(--sp-2); }
+.prose ul > li::marker { color: var(--grey); }
+
+.prose .checks ul { list-style: none; }
+.prose .checks ul > li { position: relative; }
+.prose .checks ul > li::before {
+  content: "✓";
+  position: absolute;
+  left: calc(-1 * var(--sp-6));
+  top: 0;
+  color: var(--green);
+}
+
+/* Reference tables stay readable inside a horizontally scrollable region. */
+.prose table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: var(--fs-read-small);
+}
+.prose th, .prose td {
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.prose th { color: var(--ink); font-weight: 500; }
+
+/* ---- Asides ---- */
+
+/* A condition that changes what the reader should do, not an aside. */
+.prose blockquote {
+  padding: 0 0 0 var(--sp-4);
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-soft);
+  font-size: var(--fs-read-small);
+}
+.prose blockquote p { margin: 0; }
+.prose blockquote p + p { margin-top: var(--sp-3); }
+
+/* Command reference: the signature is the heading, so it stays scannable
+   against the left rule while the gloss keeps a prose measure. */
+.prose h4 + p { margin-top: var(--sp-1); }
+
+/* The end of a page is a decision about where to go, so it gets a control's
+   weight rather than an inline link's. */
+.prose .next {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin: var(--sp-8) var(--sp-2) 0 0;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 var(--fs-data)/1 var(--sans);
+  text-decoration: none;
+}
+.prose .next:hover { border-color: var(--grey); text-decoration: none; }
+
+/* Closing small print, after a rule. */
+.prose hr {
+  margin: var(--sp-12) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.prose hr + p {
+  margin-top: var(--sp-4);
+  color: var(--muted);
+  font-size: var(--fs-read-small);
+}
+
+/* ---- Long-form ----
+   Posts and guides. A reader moves through these in one pass, so the
+   refinements go to what makes a long pass easy: more air between
+   paragraphs, sections that open with a real break, text in the body tone
+   with ink held back for headings, emphasis that shows at a glance, and
+   asides and small print that stay at a comfortable reading size. */
+
+.prose.wide { color: var(--body); }
+.prose.wide :where(h1, h2, h3, h4, strong, th) { color: var(--ink); }
+
+.prose.wide :where(p, ul, ol, blockquote, .snippetWrap, table) { margin-top: 1.25rem; }
+.prose.wide :where(ol) :where(p, ul, blockquote, .snippetWrap) { margin-top: var(--sp-2); }
+
+.prose.wide h2 {
+  margin-top: 3.5rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+.prose.wide h3 { margin-top: 2.25rem; }
+.prose.wide h4 { margin-top: 1.75rem; }
+.prose.wide :is(h2, h3, h4) + * { margin-top: var(--sp-3); }
+.prose.wide h4 + p { margin-top: var(--sp-1); }
+.prose.wide ol h3 { margin-top: 0; }
+
+/* The lede: the paragraph that says what the page is. Set a step up and in
+   the soft ink, so it reads as the way in rather than as muted metadata. */
+.prose.wide > h1 + p {
+  margin-top: var(--sp-6);
+  color: var(--ink-soft);
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+/* Geist's 500 sits too close to its 400 at body size for a bolded term to
+   stand out mid-paragraph, so long-form emphasis takes one more step. */
+.prose.wide strong { font-weight: 600; }
+
+/* Inline code sized to the text around it rather than to a fixed step, and
+   outlined, since the panel fill alone barely separates from the ground. */
+.prose.wide :not(pre) > code {
+  font-size: 0.875em;
+  padding: 0.1em 0.3em;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+/* In a post a numbered list is a list — the points of an argument, not a
+   procedure with a paragraph of instructions per step — so its items sit
+   as close as a bulleted list's do. */
+.prose.wide ol > li + li,
+.prose.wide ul > li + li { margin-top: var(--sp-3); }
+.prose.wide ol > li { padding-left: var(--sp-6); }
+
+/* Here a number is a list marker, not a step in a procedure, so it drops
+   the step's box and sits in the gutter as a plain numeral, the way a
+   bullet does beside a bulleted list. */
+.prose.wide ol > li::before {
+  content: counter(step) ".";
+  width: auto;
+  height: auto;
+  border: 0;
+  background: none;
+  display: block;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--grey);
+}
+
+/* An aside is read, not skipped: body tone at the small reading size, set on
+   a quiet panel so it separates from the running text without a colour. */
+.prose.wide blockquote {
+  padding: var(--sp-4) var(--sp-4) var(--sp-4) calc(var(--sp-4) + 1px);
+  border-left: 3px solid var(--line-strong);
+  border-radius: 0 6px 6px 0;
+  background: var(--panel);
+  color: var(--body);
+  line-height: 1.65;
+}
+.prose.wide blockquote p { margin: 0; }
+.prose.wide blockquote p + p { margin-top: var(--sp-3); }
+
+.prose.wide table { margin-top: var(--sp-6); }
+.prose.wide th { border-bottom-color: var(--line-strong); }
+
+/* Under the measure the padding narrows, and the title and the copy control
+   stop fitting on one line, so the control returns to the flow above the
+   title. */
+@media (max-width: 560px) {
+  .prose { padding: var(--sp-8) var(--sp-4); }
+
+  .prose.wide h2 { margin-top: 2.75rem; }
+
+  /* No margin to ride in, and no hover to show on — the id still works. */
+  .anchor { display: none; }
+
+  .copyPage {
+    position: static;
+    /* Block-level, so the auto margin can still hold it to the right edge. */
+    display: flex;
+    width: fit-content;
+    margin: 0 0 var(--sp-4) auto;
+  }
+}

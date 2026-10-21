@@ -1,0 +1,629 @@
+---
+- name: Validate storage benchmark inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - fire_fuse_benchmark_confirm is boolean
+      - fire_fuse_benchmark_confirm
+      - fire_fuse_benchmark_trials | int >= 2
+      - fire_fuse_benchmark_trials | int <= 20
+      - fire_fuse_benchmark_trial_number | default(1) | int >= 1
+      - >-
+        fire_fuse_benchmark_trial_number | default(1) | int
+        <= fire_fuse_benchmark_trials | int
+      - >-
+        fire_fuse_benchmark_series_id | default('')
+        is match('^series-[0-9a-f-]{36}$')
+      - fire_fuse_benchmark_output_directory | length > 1
+      - fire_fuse_benchmark_output_directory.startswith('/')
+      - fire_fuse_benchmark_service == 'fire-fuse.service'
+      - >-
+        fire_fuse_benchmark_service_unit
+        == '/etc/systemd/system/fire-fuse.service'
+      - fire_fuse_benchmark_orchestrator == '/usr/local/bin/fire-fuse'
+      - fire_fuse_benchmark_config == '/etc/fire-fuse/config.json'
+      - >-
+        fire_fuse_benchmark_control_token_file
+        == '/etc/fire-fuse/control-clients/operator.token'
+      - >-
+        fire_fuse_benchmark_profile
+        is match('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+      - >-
+        fire_fuse_benchmark_build_id
+        is match('^sha256:[0-9a-f]{64}$')
+      - >-
+        fire_fuse_benchmark_workspace_prefix
+        is match('^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$')
+      - fire_fuse_benchmark_ssh_key | length > 1
+      - fire_fuse_benchmark_ssh_key.startswith('/')
+      - fire_fuse_benchmark_ssh_port | int >= 1
+      - fire_fuse_benchmark_ssh_port | int <= 65535
+      - fire_fuse_benchmark_runtime_port | int >= 1
+      - fire_fuse_benchmark_runtime_port | int <= 65535
+      - >-
+        fire_fuse_benchmark_guest_binary
+        == '/usr/local/bin/fire-fuse-workspace-benchmark'
+      - fire_fuse_benchmark_listen_address == '127.0.0.1'
+      - fire_fuse_benchmark_listen_port | int == 8080
+      - fire_fuse_benchmark_compute_ingress_address == '10.77.0.1'
+      - fire_fuse_benchmark_compute_ingress_port | int == 8084
+      - fire_fuse_benchmark_small_file_count | int >= 1
+      - fire_fuse_benchmark_small_file_count | int <= 100000
+      - fire_fuse_benchmark_dependency_file_count | int >= 1
+      - fire_fuse_benchmark_dependency_file_count | int <= 100000
+      - fire_fuse_benchmark_sequential_size_mib | int >= 1
+      - fire_fuse_benchmark_sequential_size_mib | int <= 4096
+      - fire_fuse_benchmark_concurrency | int >= 2
+      - fire_fuse_benchmark_concurrency | int <= 16
+      - fire_fuse_benchmark_schedule_delay_seconds | int >= 5
+      - fire_fuse_benchmark_schedule_delay_seconds | int <= 60
+      - fire_fuse_benchmark_maximum_start_lag_ms | int >= 1
+      - fire_fuse_benchmark_maximum_start_lag_ms | int <= 5000
+      - fire_fuse_benchmark_async_timeout_seconds | int >= 30
+      - fire_fuse_benchmark_async_timeout_seconds | int <= 3600
+      - >-
+        fire_fuse_benchmark_async_timeout_seconds | int
+        > fire_fuse_benchmark_schedule_delay_seconds | int
+      - fire_fuse_benchmark_profile == 'default'
+      - fire_fuse_benchmark_vcpus | int == 4
+      - fire_fuse_benchmark_memory_mib | int == 512
+      - >-
+        fire_fuse_benchmark_host_result_directory
+        == '/var/lib/fire-fuse/benchmark-results'
+      - fire_fuse_benchmark_readiness_attempts | int >= 1
+      - fire_fuse_benchmark_readiness_attempts | int <= 120
+      - fire_fuse_benchmark_readiness_delay_seconds | int >= 1
+      - fire_fuse_benchmark_readiness_delay_seconds | int <= 10
+    fail_msg: >-
+      storage benchmarking requires explicit confirmation, a normal Ansible
+      run, fixed trusted API and guest paths, a safe absolute controller output
+      directory, and the default 4-vCPU/512-MiB profile
+
+- name: Inspect the storage benchmark SSH key
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_benchmark_ssh_key }}"
+    follow: false
+    get_checksum: false
+  register: fire_fuse_benchmark_ssh_key_status
+
+- name: Require the trusted storage benchmark SSH key
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_ssh_key_status.stat
+        is trusted_file(owner='root', group='root', modes=['0400', '0600'])
+      - fire_fuse_benchmark_ssh_key_status.stat.size | default(0) | int > 0
+    fail_msg: >-
+      storage benchmarking requires a nonempty, root-owned, nonsymlinked SSH
+      private key with mode 0400 or 0600
+
+- name: Inspect the active fire-fuse configuration
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_benchmark_config }}"
+    follow: false
+    get_checksum: false
+  register: fire_fuse_benchmark_config_status
+
+- name: Inspect the control-plane token
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_benchmark_control_token_file }}"
+    follow: false
+    get_checksum: false
+  register: fire_fuse_benchmark_control_token_status
+
+- name: Require the trusted control-plane token
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_control_token_status.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - fire_fuse_benchmark_control_token_status.stat.size | default(0) | int > 0
+    fail_msg: storage benchmarking requires the trusted control-plane token file
+
+- name: Read the control-plane token
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_benchmark_control_token_file }}"
+  register: fire_fuse_benchmark_control_token_contents
+  no_log: true
+
+- name: Decode the control-plane token
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_control_token: >-
+      {{
+        fire_fuse_benchmark_control_token_contents.content
+        | b64decode
+        | trim
+      }}
+  no_log: true
+
+- name: Validate the control-plane token
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_control_token is match('^[0-9a-f]{64}$')
+    fail_msg: storage benchmarking requires a valid control-plane token
+  no_log: true
+
+- name: Require the trusted active fire-fuse configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_config_status.stat
+        is trusted_file(owner='root', group='root', mode='0640')
+      - fire_fuse_benchmark_config_status.stat.size | default(0) | int > 0
+    fail_msg: >-
+      storage benchmarking requires the active root-owned mode-0640
+      nonsymlinked fire-fuse configuration
+
+- name: Read the active fire-fuse configuration
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_benchmark_config }}"
+  register: fire_fuse_benchmark_config_content
+
+- name: Decode the active fire-fuse configuration
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_active_config: >-
+      {{ fire_fuse_benchmark_config_content.content | b64decode | from_json }}
+
+- name: Require the fixed active image catalog path
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_active_config.image_catalog
+        == '/etc/fire-fuse/image-catalog.json'
+    fail_msg: storage benchmarking requires the fixed active image catalog
+
+- name: Inspect the active fire-fuse image catalog
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_benchmark_active_config.image_catalog }}"
+    follow: false
+    get_checksum: false
+  register: fire_fuse_benchmark_catalog_status
+
+- name: Require the trusted active fire-fuse image catalog
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_catalog_status.stat
+        is trusted_file(owner='root', group='root', mode='0640')
+      - fire_fuse_benchmark_catalog_status.stat.size | default(0) | int > 0
+    fail_msg: >-
+      storage benchmarking requires the active root-owned mode-0640
+      nonsymlinked fire-fuse image catalog
+
+- name: Read the active fire-fuse image catalog
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_benchmark_active_config.image_catalog }}"
+  register: fire_fuse_benchmark_catalog_content
+
+- name: Decode the active fire-fuse image catalog
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_active_catalog: >-
+      {{ fire_fuse_benchmark_catalog_content.content | b64decode | from_json }}
+
+- name: Require active workspace benchmark configuration
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_active_config.workspace is mapping
+      - fire_fuse_benchmark_active_config.workspace.exportfs_bin is string
+      - fire_fuse_benchmark_active_config.workspace.mountpoint_bin is string
+      - fire_fuse_benchmark_active_config.workspace.root is string
+      - fire_fuse_benchmark_active_config.limits is mapping
+      - fire_fuse_benchmark_active_config.host_pool is mapping
+      - >-
+        fire_fuse_benchmark_active_config.host_pool.slots_per_profile | int
+        >= fire_fuse_benchmark_concurrency | int
+      - >-
+        fire_fuse_benchmark_active_catalog.keys() | sort
+        == ['images', 'schema_version']
+      - >-
+        fire_fuse_benchmark_active_catalog.schema_version
+        | type_debug == 'int'
+      - fire_fuse_benchmark_active_catalog.schema_version | int == 1
+      - fire_fuse_benchmark_active_catalog.images is mapping
+      - fire_fuse_benchmark_active_config.profiles is mapping
+      - >-
+        fire_fuse_benchmark_profile
+        in fire_fuse_benchmark_active_config.profiles
+      - >-
+        fire_fuse_benchmark_build_id
+        in fire_fuse_benchmark_active_catalog.images
+      - >-
+        fire_fuse_benchmark_active_config.profiles[
+          fire_fuse_benchmark_profile
+        ].snapshot_bundle is string
+      - >-
+        fire_fuse_benchmark_active_config.profiles[
+          fire_fuse_benchmark_profile
+        ].snapshot_bundle | length > 0
+      - >-
+        (fire_fuse_benchmark_concurrency | int) + 1
+        <= fire_fuse_benchmark_active_config.limits.max_vms | int
+      - >-
+        (fire_fuse_benchmark_memory_mib | int)
+        * ((fire_fuse_benchmark_concurrency | int) + 1)
+        <= fire_fuse_benchmark_active_config.limits.max_total_memory_mib | int
+    fail_msg: >-
+      storage benchmarking requires enabled workspace configuration, fixed warm
+      capacity for the reader cohort, and admission room for one recovery VM
+
+- name: Declare active benchmark host artifacts
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_host_artifact_declarations:
+      - name: orchestrator
+        path: "{{ fire_fuse_benchmark_orchestrator }}"
+        mode: "0755"
+      - name: systemd-unit
+        path: "{{ fire_fuse_benchmark_service_unit }}"
+        mode: "0644"
+      - name: configuration
+        path: "{{ fire_fuse_benchmark_config }}"
+        mode: "0640"
+      - name: image-catalog
+        path: "{{ fire_fuse_benchmark_active_config.image_catalog }}"
+        mode: "0640"
+      - name: firecracker
+        path: "{{ fire_fuse_benchmark_active_config.firecracker_bin }}"
+        mode: "0755"
+      - name: jailer
+        path: "{{ fire_fuse_benchmark_active_config.jailer_bin }}"
+        mode: "0755"
+      - name: guest-kernel
+        path: >-
+          {{
+            fire_fuse_benchmark_active_config.profiles[
+              fire_fuse_benchmark_profile
+            ].kernel_image
+          }}
+        mode: "0644"
+      - name: guest-rootfs
+        path: >-
+          {{
+            fire_fuse_benchmark_active_config.profiles[
+              fire_fuse_benchmark_profile
+            ].rootfs_image
+          }}
+        mode: "0644"
+      - name: container-rootfs
+        path: >-
+          {{
+            fire_fuse_benchmark_active_catalog.images[
+              fire_fuse_benchmark_build_id
+            ].rootfs_image
+          }}
+        mode: "0644"
+    fire_fuse_benchmark_host_artifacts: []
+
+- name: Declare active snapshot benchmark host artifacts
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_host_artifact_declarations: >-
+      {{
+        fire_fuse_benchmark_host_artifact_declarations
+        + [
+          {
+            'name': 'snapshot-manifest',
+            'path':
+              fire_fuse_benchmark_active_config.profiles[
+                fire_fuse_benchmark_profile
+              ].snapshot_bundle ~ '/manifest.json',
+            'mode': '0400'
+          },
+          {
+            'name': 'snapshot-vmstate',
+            'path':
+              fire_fuse_benchmark_active_config.profiles[
+                fire_fuse_benchmark_profile
+              ].snapshot_bundle ~ '/vmstate',
+            'mode': '0444'
+          },
+          {
+            'name': 'snapshot-memory',
+            'path':
+              fire_fuse_benchmark_active_config.profiles[
+                fire_fuse_benchmark_profile
+              ].snapshot_bundle ~ '/memory',
+            'mode': '0444'
+          }
+        ]
+      }}
+- name: Require unique active benchmark host artifacts
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_host_artifact_declarations
+        | map(attribute='name')
+        | unique
+        | length == 12
+      - >-
+        fire_fuse_benchmark_host_artifact_declarations
+        | map(attribute='path')
+        | unique
+        | length == fire_fuse_benchmark_host_artifact_declarations | length
+      - >-
+        fire_fuse_benchmark_host_artifact_declarations
+        | map(attribute='path')
+        | select('match', '^/')
+        | list
+        | length == fire_fuse_benchmark_host_artifact_declarations | length
+    fail_msg: active benchmark host artifact declarations are invalid
+
+- name: Inspect active benchmark host artifacts
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  loop: "{{ fire_fuse_benchmark_host_artifact_declarations }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: fire_fuse_benchmark_host_artifact_stats
+
+- name: Require trusted active benchmark host artifacts
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) | int > 0
+      - >-
+        item.stat.checksum | default('')
+        is match('^[0-9a-f]{64}$')
+      - >-
+        item.item.name != 'container-rootfs'
+        or item.stat.checksum
+          == fire_fuse_benchmark_active_catalog.images[
+            fire_fuse_benchmark_build_id
+          ].rootfs_sha256
+      - >-
+        item.item.name != 'container-rootfs'
+        or item.stat.size | int
+          == fire_fuse_benchmark_active_catalog.images[
+            fire_fuse_benchmark_build_id
+          ].rootfs_size_bytes | int
+    fail_msg: >-
+      active benchmark artifact {{ item.item.name }} failed trust or
+      integrity inspection
+  loop: "{{ fire_fuse_benchmark_host_artifact_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Read the active snapshot manifest
+  ansible.builtin.slurp:
+    src: >-
+      {{
+        fire_fuse_benchmark_active_config.profiles[
+          fire_fuse_benchmark_profile
+        ].snapshot_bundle ~ '/manifest.json'
+      }}
+  register: fire_fuse_benchmark_snapshot_manifest_content
+
+- name: Decode the active snapshot manifest
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_snapshot_manifest: >-
+      {{
+        fire_fuse_benchmark_snapshot_manifest_content.content
+        | b64decode
+        | from_json
+      }}
+
+- name: Require the benchmark snapshot shape
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_snapshot_manifest.schema_version | int == 2
+      - fire_fuse_benchmark_snapshot_manifest.machine is mapping
+      - >-
+        fire_fuse_benchmark_snapshot_manifest.machine.vcpu_count | int
+        == fire_fuse_benchmark_vcpus | int
+      - >-
+        fire_fuse_benchmark_snapshot_manifest.machine.memory_mib | int
+        == fire_fuse_benchmark_memory_mib | int
+      - >-
+        fire_fuse_benchmark_snapshot_manifest.machine.hotplug_memory_mib | int
+        == 4096
+    fail_msg: >-
+      benchmark vCPU and memory must exactly match the active snapshot manifest
+
+- name: Record active benchmark host artifact identities
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_host_artifacts: >-
+      {{
+        fire_fuse_benchmark_host_artifacts
+        + [
+          {
+            'name': item.item.name,
+            'path': item.item.path,
+            'sha256': item.stat.checksum,
+            'size': item.stat.size | int
+          }
+        ]
+      }}
+  loop: "{{ fire_fuse_benchmark_host_artifact_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Require the parsed snapshot manifest hash to match
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_snapshot_manifest_content.content
+        | b64decode
+        | hash('sha256')
+        == (
+          fire_fuse_benchmark_host_artifacts
+          | selectattr('name', 'equalto', 'snapshot-manifest')
+          | map(attribute='sha256')
+          | first
+        )
+    fail_msg: active snapshot manifest changed during benchmark preflight
+
+- name: Require the parsed and hashed configurations to match
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_config_content.content
+        | b64decode
+        | hash('sha256')
+        == (
+          fire_fuse_benchmark_host_artifacts
+          | selectattr('name', 'equalto', 'configuration')
+          | map(attribute='sha256')
+          | first
+        )
+    fail_msg: active fire-fuse configuration changed during benchmark preflight
+
+- name: Require the parsed and hashed image catalogs to match
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_catalog_content.content
+        | b64decode
+        | hash('sha256')
+        == (
+          fire_fuse_benchmark_host_artifacts
+          | selectattr('name', 'equalto', 'image-catalog')
+          | map(attribute='sha256')
+          | first
+        )
+    fail_msg: active fire-fuse image catalog changed during benchmark preflight
+
+- name: Read service state before storage benchmarking
+  ansible.builtin.service_facts:
+
+- name: Require the activated fire-fuse service
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get(
+          fire_fuse_benchmark_service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          fire_fuse_benchmark_service, {}
+        ).get('status', 'not-found') == 'enabled'
+    fail_msg: storage benchmarking requires fire-fuse running and enabled
+
+- name: Read the active fire-fuse process ID
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemctl
+      - show
+      - --property=MainPID
+      - --value
+      - "{{ fire_fuse_benchmark_service }}"
+  register: fire_fuse_benchmark_service_pid
+  changed_when: false
+
+- name: Require a valid active fire-fuse process ID
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_service_pid.stdout is match('^[0-9]+$')
+      - fire_fuse_benchmark_service_pid.stdout | int > 1
+    fail_msg: fire-fuse does not have a valid active main process
+
+- name: Hash the running fire-fuse executable
+  ansible.builtin.stat:
+    path: >-
+      /proc/{{ fire_fuse_benchmark_service_pid.stdout | int }}/exe
+    follow: true
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: fire_fuse_benchmark_running_orchestrator
+
+- name: Require the running orchestrator to match the active artifact
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_running_orchestrator.stat.exists | default(false)
+      - fire_fuse_benchmark_running_orchestrator.stat.isreg | default(false)
+      - >-
+        fire_fuse_benchmark_running_orchestrator.stat.checksum | default('')
+        == (
+          fire_fuse_benchmark_host_artifacts
+          | selectattr('name', 'equalto', 'orchestrator')
+          | map(attribute='sha256')
+          | first
+        )
+    fail_msg: running fire-fuse executable differs from the active host artifact
+
+- name: Require fire-fuse readiness before storage benchmarking
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/readyz
+    method: GET
+    status_code: 200
+    return_content: false
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+
+- name: Inventory live microVMs before storage benchmarking
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes
+    method: GET
+    status_code: 200
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_vm_inventory
+  changed_when: false
+
+- name: Require fire-fuse to be drained before storage benchmarking
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_vm_inventory.json['items'] is defined
+      - >-
+        fire_fuse_benchmark_vm_inventory.json['items']
+        | map(attribute='state')
+        | difference(['failed', 'terminated'])
+        | length == 0
+    fail_msg: >-
+      storage benchmarking refuses to begin while a microVM is starting,
+      running, or stopping
+
+- name: Read host entropy for the benchmark run ID
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/cat
+      - /proc/sys/kernel/random/uuid
+  register: fire_fuse_benchmark_uuid
+  changed_when: false
+
+- name: Initialize the benchmark run
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_run_id: >-
+      benchmark-{{ fire_fuse_benchmark_uuid.stdout }}
+    fire_fuse_benchmark_owner_id: >-
+      usr_{{ fire_fuse_benchmark_uuid.stdout | replace('-', '') }}
+    fire_fuse_benchmark_app_id: >-
+      app_{{ fire_fuse_benchmark_uuid.stdout | replace('-', '') }}
+    fire_fuse_benchmark_workspace: >-
+      wsp_{{ fire_fuse_benchmark_uuid.stdout | replace('-', '') }}
+    fire_fuse_benchmark_app_slug: >-
+      {{ fire_fuse_benchmark_workspace_prefix }}-{{
+      fire_fuse_benchmark_uuid.stdout[0:8] }}
+    fire_fuse_benchmark_host_label: >-
+      {{ inventory_hostname | regex_replace('[^A-Za-z0-9._-]', '_') }}
+    fire_fuse_benchmark_seed_cleaned: false
+
+- name: Validate generated storage benchmark identifiers
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_run_id
+        is match('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+      - >-
+        fire_fuse_benchmark_owner_id is match('^usr_[0-9a-f]{32}$')
+      - >-
+        fire_fuse_benchmark_app_id is match('^app_[0-9a-f]{32}$')
+      - >-
+        fire_fuse_benchmark_workspace
+        is match('^wsp_[0-9a-f]{32}$')
+      - >-
+        fire_fuse_benchmark_app_slug
+        is match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+      - >-
+        fire_fuse_benchmark_host_label
+        is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    fail_msg: generated benchmark run, workspace, or host identifier is unsafe

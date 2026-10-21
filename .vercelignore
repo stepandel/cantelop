@@ -1,0 +1,10 @@
+.git/
+.DS_Store
+.env*
+bin/
+dist/
+fire-fuse
+var/
+console/.next/
+console/node_modules/
+console/.vercel/

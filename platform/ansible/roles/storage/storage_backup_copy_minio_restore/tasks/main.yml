@@ -1,0 +1,106 @@
+---
+- name: Validate MinIO recovery copy inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_copy_minio_restore_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - >-
+        storage_backup_copy_minio_restore_program
+        == '/usr/local/lib/fire-fuse/copy-minio-storage-restore.py'
+      - storage_backup_copy_minio_restore_mc_binary == '/usr/local/bin/mc'
+      - >-
+        storage_backup_copy_minio_restore_mc_checksum
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_copy_minio_restore_timeout_seconds | type_debug == 'int'
+      - storage_backup_copy_minio_restore_timeout_seconds >= 60
+      - storage_backup_copy_minio_restore_timeout_seconds <= 172800
+    fail_msg: MinIO recovery copy requires fixed trusted paths and safe bounds
+
+- name: Install the exact MinIO recovery copy program
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - copy-minio-storage-restore.py
+
+- name: Inspect the pinned MinIO client
+  ansible.builtin.stat:
+    path: "{{ storage_backup_copy_minio_restore_mc_binary }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_copy_minio_restore_mc
+
+- name: Require the pinned MinIO client
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_copy_minio_restore_mc.stat
+        is trusted_file(owner='root', group='root', mode='0755')
+      - >-
+        storage_backup_copy_minio_restore_mc.stat.checksum
+        == storage_backup_copy_minio_restore_mc_checksum
+    fail_msg: MinIO recovery copy requires the checksum-pinned mc binary
+
+- name: Copy and verify the isolated MinIO recovery bucket
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_copy_minio_restore_program }}"
+      - "{{ storage_backup_copy_minio_restore_rehearsal_id }}"
+      - --restore-root
+      - "{{ storage_backup_restore_root }}"
+      - --mc
+      - "{{ storage_backup_copy_minio_restore_mc_binary }}"
+      - --timeout-seconds
+      - "{{ storage_backup_copy_minio_restore_timeout_seconds | string }}"
+  register: storage_backup_copy_minio_restore_command
+  changed_when: true
+
+- name: Decode MinIO recovery bucket evidence
+  ansible.builtin.set_fact:
+    storage_backup_copy_minio_restore_evidence: >-
+      {{ storage_backup_copy_minio_restore_command.stdout | from_json }}
+
+- name: Require complete redacted MinIO recovery bucket evidence
+  ansible.builtin.assert:
+    that:
+      - storage_backup_copy_minio_restore_evidence.schema_version == 1
+      - >-
+        storage_backup_copy_minio_restore_evidence.status
+        == 'minio-recovery-bucket-qualified'
+      - >-
+        storage_backup_copy_minio_restore_evidence.rehearsal_id
+        == storage_backup_copy_minio_restore_rehearsal_id
+      - >-
+        storage_backup_copy_minio_restore_evidence.endpoint_url
+        is match('^http://127\\.0\\.0\\.1:[0-9]{4,5}$')
+      - >-
+        storage_backup_copy_minio_restore_evidence.source_bucket
+        == 'fire-fuse-workspaces'
+      - >-
+        storage_backup_copy_minio_restore_evidence.recovery_bucket
+        ==
+        (
+          'fire-fuse-recovery-'
+          ~
+          (
+            storage_backup_copy_minio_restore_rehearsal_id
+            | regex_replace('^restore-', '')
+            | lower
+          )
+        )
+      - storage_backup_copy_minio_restore_evidence.object_count | int > 0
+      - storage_backup_copy_minio_restore_evidence.total_bytes | int > 0
+      - >-
+        storage_backup_copy_minio_restore_evidence.tree_sha256
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_copy_minio_restore_evidence.source_snapshot_unchanged
+        is sameas true
+    fail_msg: MinIO recovery bucket evidence is incomplete
+
+- name: Report redacted MinIO recovery bucket evidence
+  ansible.builtin.debug:
+    var: storage_backup_copy_minio_restore_evidence

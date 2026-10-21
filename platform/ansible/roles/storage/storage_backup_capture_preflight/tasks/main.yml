@@ -1,0 +1,402 @@
+---
+- name: Validate backup capture preflight inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - storage_backup_capture_maintenance_authorized is boolean
+      - storage_backup_capture_maintenance_authorized
+      - storage_backup_capture_fire_fuse_service == 'fire-fuse.service'
+      - storage_backup_capture_redis_service == 'fire-fuse-redis.service'
+      - storage_backup_capture_minio_service == 'fire-fuse-minio.service'
+      - storage_backup_capture_listen_address == '127.0.0.1'
+      - storage_backup_capture_listen_port | int == 8080
+      - storage_backup_capture_juicefs_binary == '/usr/local/bin/juicefs'
+      - >-
+        storage_backup_capture_metadata_url_file
+        == '/etc/fire-fuse/juicefs-meta-url'
+      - >-
+        storage_backup_capture_juicefs_checksum
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_capture_volume_name
+        is match('^[A-Za-z0-9][A-Za-z0-9_-]{2,62}$')
+      - storage_backup_capture_bucket_url.startswith('http://10.78.0.2:')
+      - storage_backup_capture_readiness_attempts | int >= 1
+      - storage_backup_capture_readiness_attempts | int <= 120
+      - storage_backup_capture_readiness_delay_seconds | int >= 1
+      - storage_backup_capture_readiness_delay_seconds | int <= 10
+    fail_msg: >-
+      backup capture preflight requires an explicitly authorized normal run,
+      fixed trusted service and network boundaries, and the pinned JuiceFS
+      checksum
+
+- name: Inspect trusted backup capture preflight files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: "{{ storage_backup_capture_juicefs_binary }}"
+      mode: "0755"
+      checksum: "{{ storage_backup_capture_juicefs_checksum }}"
+    - path: "{{ storage_backup_capture_metadata_url_file }}"
+      mode: "0600"
+      checksum: ""
+  loop_control:
+    label: "{{ item.path }}"
+  register: storage_backup_capture_preflight_files
+
+- name: Require trusted backup capture preflight files
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) | int > 0
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: backup capture preflight file {{ item.item.path }} is not trusted
+  loop: "{{ storage_backup_capture_preflight_files.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Read the root-only JuiceFS metadata URL
+  ansible.builtin.slurp:
+    src: "{{ storage_backup_capture_metadata_url_file }}"
+  register: storage_backup_capture_metadata_url_content
+  no_log: true
+
+- name: Decode the JuiceFS metadata URL
+  ansible.builtin.set_fact:
+    storage_backup_capture_metadata_url: >-
+      {{
+        storage_backup_capture_metadata_url_content.content
+        | b64decode
+        | trim
+      }}
+  no_log: true
+
+- name: Require the private Redis metadata boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_metadata_url
+        is match(
+          '^redis://:[0-9a-f]{64}@10\.78\.0\.2:6379/1$'
+        )
+    fail_msg: backup capture requires the expected private Redis metadata URL
+  no_log: true
+
+- name: Require exactly one compute host for storage capture
+  ansible.builtin.assert:
+    that:
+      - groups['fire_fuse_hosts'] | length == 1
+
+- name: Check active compute service before storage capture
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-active, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_backup_compute_initial_state
+  changed_when: false
+  failed_when: storage_backup_compute_initial_state.rc != 0 or storage_backup_compute_initial_state.stdout != 'active'
+
+- name: Check enabled compute service before storage capture
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-enabled, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_backup_compute_initial_enablement
+  changed_when: false
+  failed_when: storage_backup_compute_initial_enablement.rc != 0 or storage_backup_compute_initial_enablement.stdout != 'enabled'
+
+- name: Read service state before backup maintenance
+  ansible.builtin.service_facts:
+
+- name: Require active storage and orchestrator services
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_compute_initial_state.stdout == 'active'
+      - >-
+        storage_backup_compute_initial_enablement.stdout == 'enabled'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_redis_service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_redis_service, {}
+        ).get('status', 'not-found') == 'enabled'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_minio_service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_minio_service, {}
+        ).get('status', 'not-found') == 'enabled'
+    fail_msg: >-
+      backup maintenance requires fire-fuse, Redis, and MinIO to begin running
+      and enabled
+
+- name: Require fire-fuse readiness before backup maintenance
+  ansible.builtin.uri:
+    url: >-
+      http://{{ storage_backup_capture_listen_address }}:{{
+      storage_backup_capture_listen_port }}/readyz
+    method: GET
+    status_code: 200
+    return_content: false
+    use_proxy: false
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+- name: Inventory microVMs before backup maintenance
+  ansible.builtin.uri:
+    url: >-
+      http://{{ storage_backup_capture_listen_address }}:{{
+      storage_backup_capture_listen_port }}/v1/sandboxes
+    method: GET
+    status_code: 200
+    return_content: true
+    use_proxy: false
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_backup_capture_vm_inventory
+  changed_when: false
+
+- name: Require fire-fuse to be drained
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_vm_inventory.json['items'] is defined
+      - storage_backup_capture_vm_inventory.json['items'] is sequence
+      - >-
+        storage_backup_capture_vm_inventory.json['items']
+        | map(attribute='state')
+        | difference(['failed', 'terminated'])
+        | length == 0
+    fail_msg: >-
+      backup capture refuses to stop fire-fuse while a microVM is starting,
+      running, or stopping
+
+- name: Enter backup capture maintenance
+  block:
+    - name: Stop fire-fuse for backup capture
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_capture_fire_fuse_service }}"
+        state: stopped
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Stop compute workspace exports and mounts
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - nfs-kernel-server.service
+        - fire-fuse-juicefs-admin.service
+        - fire-fuse-juicefs-gateway.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Verify compute stopped for storage capture
+      ansible.builtin.include_role:
+        name: storage_backup_assert_compute_stopped
+
+    - name: Refresh service state during backup maintenance
+      ansible.builtin.service_facts:
+
+    - name: Require isolated storage services during backup maintenance
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_compute_stopped | default(false)
+          - >-
+            ansible_facts.services.get(
+              storage_backup_capture_redis_service, {}
+            ).get('state', 'not-found') == 'running'
+          - >-
+            ansible_facts.services.get(
+              storage_backup_capture_minio_service, {}
+            ).get('state', 'not-found') == 'running'
+        fail_msg: >-
+          backup maintenance requires only fire-fuse to stop while Redis and
+          MinIO remain available
+
+    - name: Inventory host JuiceFS mounts during backup maintenance
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/findmnt
+          - --raw
+          - --noheadings
+          - --types
+          - fuse.juicefs,fuse.juicefs-workspace-v1
+          - --output
+          - TARGET
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_backup_capture_host_mounts_after
+      changed_when: false
+      failed_when: storage_backup_capture_host_mounts_after.rc not in [0, 1]
+
+    - name: Require no host JuiceFS mounts during backup maintenance
+      ansible.builtin.assert:
+        that:
+          - storage_backup_capture_host_mounts_after.stdout | trim | length == 0
+        fail_msg: a host JuiceFS mount appeared during backup maintenance
+
+    - name: Read JuiceFS sessions during backup maintenance
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_capture_juicefs_binary }}"
+          - status
+          - redis://10.78.0.2:6379/1
+      environment:
+        META_PASSWORD: >-
+          {{ storage_backup_capture_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+      register: storage_backup_capture_status_command
+      changed_when: false
+      no_log: true
+
+    - name: Decode JuiceFS maintenance status
+      ansible.builtin.set_fact:
+        storage_backup_capture_status: >-
+          {{ storage_backup_capture_status_command.stdout | from_json }}
+      no_log: true
+
+    - name: Record the JuiceFS session evaluation time
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/date
+          - --utc
+          - +%Y-%m-%dT%H:%M:%S%z
+      register: storage_backup_capture_session_time
+      changed_when: false
+
+    - name: Initialize active JuiceFS session evaluation
+      ansible.builtin.set_fact:
+        storage_backup_capture_active_sessions: []
+      no_log: true
+
+    - name: Require the JuiceFS session collection
+      ansible.builtin.assert:
+        that:
+          - storage_backup_capture_status.Sessions is sequence
+        fail_msg: JuiceFS status did not provide a session collection
+      no_log: true
+
+    - name: Require parseable JuiceFS session expirations
+      ansible.builtin.assert:
+        that:
+          - item is mapping
+          - >-
+            item.Expire
+            is match(
+              '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+              ~ '[0-9]{2}:[0-9]{2}:[0-9]{2}'
+              ~ '[+-][0-9]{2}:[0-9]{2}$'
+            )
+      loop: "{{ storage_backup_capture_status.Sessions }}"
+      no_log: true
+
+    - name: Record unexpired JuiceFS sessions
+      ansible.builtin.set_fact:
+        storage_backup_capture_active_sessions: >-
+          {{ storage_backup_capture_active_sessions + [item] }}
+      loop: "{{ storage_backup_capture_status.Sessions }}"
+      when: >-
+        (
+          (
+            item.Expire
+            | to_datetime('%Y-%m-%dT%H:%M:%S%z')
+          )
+          -
+          (
+            storage_backup_capture_session_time.stdout
+            | to_datetime('%Y-%m-%dT%H:%M:%S%z')
+          )
+        ).total_seconds() > 0
+      no_log: true
+
+    - name: Require the expected idle JuiceFS volume
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_capture_status.Setting.Name
+            == storage_backup_capture_volume_name
+          - storage_backup_capture_status.Setting.Storage == 's3'
+          - >-
+            (
+              storage_backup_capture_status.Setting.Bucket
+              | regex_replace('/+$', '')
+            )
+            ==
+            (
+              storage_backup_capture_bucket_url
+              | regex_replace('/+$', '')
+            )
+          - storage_backup_capture_status.Setting.UUID | length > 0
+          - storage_backup_capture_status.Sessions is sequence
+          - storage_backup_capture_active_sessions | length == 0
+        fail_msg: >-
+          backup capture requires the expected JuiceFS volume with no active
+          client sessions
+      no_log: true
+
+    - name: Record backup maintenance entry time
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/date
+          - --utc
+          - +%Y-%m-%dT%H:%M:%SZ
+      register: storage_backup_capture_entry_time
+      changed_when: false
+
+    - name: Publish the backup maintenance boundary
+      ansible.builtin.set_fact:
+        storage_backup_capture_maintenance:
+          schema_version: 1
+          entered_at: "{{ storage_backup_capture_entry_time.stdout }}"
+          fire_fuse_service: "{{ storage_backup_capture_fire_fuse_service }}"
+          fire_fuse_state: stopped
+          redis_state: running
+          minio_state: running
+          volume_name: "{{ storage_backup_capture_status.Setting.Name }}"
+          volume_uuid: "{{ storage_backup_capture_status.Setting.UUID }}"
+          active_sessions: 0
+          expired_session_records: >-
+            {{ storage_backup_capture_status.Sessions | length }}
+
+  rescue:
+    - name: Restore compute workspace mounts after failed maintenance entry
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - fire-fuse-juicefs-gateway.service
+        - fire-fuse-juicefs-admin.service
+        - nfs-kernel-server.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Restart fire-fuse after failed maintenance entry
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_capture_fire_fuse_service }}"
+        state: started
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Require readiness after failed maintenance entry
+      ansible.builtin.uri:
+        url: >-
+          http://{{ storage_backup_capture_listen_address }}:{{
+          storage_backup_capture_listen_port }}/readyz
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_backup_capture_recovery_readiness
+      retries: "{{ storage_backup_capture_readiness_attempts }}"
+      delay: "{{ storage_backup_capture_readiness_delay_seconds }}"
+      until: >-
+        storage_backup_capture_recovery_readiness.status | default(0) == 200
+
+    - name: Report failed backup maintenance entry
+      ansible.builtin.fail:
+        msg: >-
+          backup capture maintenance entry failed; fire-fuse was restarted and
+          readiness was restored

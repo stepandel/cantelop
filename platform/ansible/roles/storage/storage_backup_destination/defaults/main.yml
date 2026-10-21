@@ -1,0 +1,20 @@
+---
+storage_backup_destination_enabled: false
+
+storage_backup_destination_directory: /etc/fire-fuse-storage
+storage_backup_destination_config_file: >-
+  {{ storage_backup_destination_directory }}/backup-destination.json
+storage_backup_destination_credentials_file: >-
+  {{ storage_backup_destination_directory }}/backup-s3-credentials.json
+storage_backup_destination_validator: >-
+  /usr/local/lib/fire-fuse/validate-storage-backup-destination.py
+storage_backup_destination_qualifier: >-
+  /usr/local/lib/fire-fuse/qualify-storage-backup-destination.py
+storage_backup_destination_write_qualifier: >-
+  /usr/local/lib/fire-fuse/qualify-storage-backup-destination-write.py
+
+storage_backup_destination_endpoint_url: ""
+storage_backup_destination_region: ""
+storage_backup_destination_bucket: ""
+storage_backup_destination_prefix: shared-volume/backup-sets
+storage_backup_destination_immutability_mode: object_lock

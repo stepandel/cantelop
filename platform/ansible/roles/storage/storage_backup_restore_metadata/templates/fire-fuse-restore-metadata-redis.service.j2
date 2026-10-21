@@ -1,0 +1,30 @@
+[Unit]
+Description=Empty Redis for JuiceFS metadata restore {{ storage_backup_restore_metadata_rehearsal_id }}
+After=network.target
+
+[Service]
+Type=notify
+User={{ storage_backup_restore_metadata_user }}
+Group={{ storage_backup_restore_metadata_group }}
+ExecStart={{ storage_backup_restore_metadata_redis_server }} /run/{{ storage_backup_restore_metadata_runtime_directory }}/redis.conf --supervised systemd --daemonize no
+ExecStop=/bin/kill -s TERM $MAINPID
+Restart=no
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+RuntimeDirectory={{ storage_backup_restore_metadata_runtime_directory }}
+RuntimeDirectoryMode=0700
+BindPaths={{ storage_backup_restore_metadata_data_directory }}:/run/{{ storage_backup_restore_metadata_runtime_directory }}/data
+BindReadOnlyPaths={{ storage_backup_restore_metadata_config_file }}:/run/{{ storage_backup_restore_metadata_runtime_directory }}/redis.conf
+IPAddressDeny=any
+IPAddressAllow=localhost
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/{{ storage_backup_restore_metadata_runtime_directory }}/data
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

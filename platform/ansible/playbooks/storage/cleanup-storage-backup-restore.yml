@@ -1,0 +1,7 @@
+---
+- name: Remove a canonically qualified isolated restore rehearsal
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_cleanup_restore

@@ -1,0 +1,19 @@
+---
+fire_fuse_service_name: fire-fuse.service
+fire_fuse_service_unit_source: >-
+  {{ role_path }}/../../../../systemd/compute/fire-fuse.service
+fire_fuse_service_unit_destination: >-
+  /etc/systemd/system/{{ fire_fuse_service_name }}
+fire_fuse_control_client_directory: /etc/fire-fuse/control-clients
+fire_fuse_operator_token: "{{ vault_fire_fuse_operator_token | default('') }}"
+fire_fuse_gateway_runtime_token: "{{ vault_fire_fuse_gateway_runtime_token | default('') }}"
+fire_fuse_dispatcher_runtime_token: "{{ vault_fire_fuse_dispatcher_runtime_token | default('') }}"
+fire_fuse_observer_runtime_token: "{{ vault_fire_fuse_observer_runtime_token | default('') }}"
+fire_fuse_compute_ingress_token: "{{ vault_fire_fuse_compute_ingress_token | default('') }}"
+fire_fuse_artifact_download_origin: "{{ vault_fire_fuse_artifact_download_origin | default('') }}"
+fire_fuse_artifact_environment_file: /etc/fire-fuse/artifact-store.env
+fire_fuse_service_config_encryption_key: "{{ vault_fire_fuse_config_encryption_key | default('') }}"
+fire_fuse_service_config_encryption_key_file: /etc/fire-fuse/config-encryption.key
+
+fire_fuse_workspace_database_credentials_url: "{{ vault_cantelop_workspace_database_credentials_url | default('') }}"
+fire_fuse_workspace_database_capability_key: "{{ vault_cantelop_workspace_database_capability_key | default('') }}"

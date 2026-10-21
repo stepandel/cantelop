@@ -1,0 +1,37 @@
+---
+fire_fuse_gateway_user: fire-fuse-gateway
+fire_fuse_gateway_group: fire-fuse-gateway
+fire_fuse_operator_token: "{{ vault_fire_fuse_operator_token | default('') }}"
+fire_fuse_compute_ingress_token: >-
+  {{ vault_fire_fuse_compute_ingress_token | default('') }}
+fire_fuse_observer_runtime_token: >-
+  {{ vault_fire_fuse_observer_runtime_token | default('') }}
+fire_fuse_gateway_runtime_token: "{{ vault_fire_fuse_gateway_runtime_token | default('') }}"
+fire_fuse_gateway_runtime_token_file: /etc/fire-fuse-gateway/runtime-control.token
+fire_fuse_gateway_product_token: "{{ vault_fire_fuse_gateway_product_token | default('') }}"
+fire_fuse_gateway_product_token_file: /etc/fire-fuse-gateway/product-control.token
+fire_fuse_dispatcher_user: fire-fuse-dispatcher
+fire_fuse_dispatcher_group: fire-fuse-dispatcher
+fire_fuse_dispatcher_config_directory: /etc/fire-fuse-dispatcher
+fire_fuse_dispatcher_runtime_token: "{{ vault_fire_fuse_dispatcher_runtime_token | default('') }}"
+fire_fuse_dispatcher_runtime_token_file: /etc/fire-fuse-dispatcher/runtime-control.token
+fire_fuse_gateway_binary_artifact: ""
+fire_fuse_gateway_binary_checksum: ""
+fire_fuse_gateway_binary: /usr/local/bin/fire-fuse-gateway
+fire_fuse_async_dispatcher_binary_artifact: ""
+fire_fuse_async_dispatcher_binary_checksum: ""
+fire_fuse_async_dispatcher_binary: /usr/local/bin/fire-fuse-async-dispatcher
+fire_fuse_gateway_unit_source: >-
+  {{ role_path }}/../../../../systemd/compute/fire-fuse-gateway.service
+fire_fuse_gateway_unit: /etc/systemd/system/fire-fuse-gateway.service
+fire_fuse_async_dispatcher_unit_source: >-
+  {{ role_path }}/../../../../systemd/compute/fire-fuse-async-dispatcher.service
+fire_fuse_async_dispatcher_unit: >-
+  /etc/systemd/system/fire-fuse-async-dispatcher.service
+fire_fuse_gateway_edge_token: ""
+fire_fuse_gateway_config_directory: /etc/fire-fuse-gateway
+fire_fuse_gateway_edge_token_file: /etc/fire-fuse-gateway/edge-ingress.token
+fire_fuse_observability_ingest_token: >-
+  {{ vault_fire_fuse_observability_ingest_token | default('') }}
+fire_fuse_observability_ingest_token_file: >-
+  /etc/fire-fuse-dispatcher/observability-ingest.token

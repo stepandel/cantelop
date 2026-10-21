@@ -1,0 +1,306 @@
+# This file is sourced by charts.d.plugin; every global uses the module prefix.
+# shellcheck shell=bash
+#
+# Each machine publishes only the services it runs. The compute host owns
+# fire-fuse and the JuiceFS gateway, the storage host owns Redis and MinIO,
+# and the builder owns the control worker and build materializer. The storage
+# and builder Netdata agents stream these charts to the compute parent, where
+# the observer reads them per host.
+#
+# A metric is written only while its probe is fresh and available. Leaving
+# the dimension unset records a gap, so a stopped probe can never keep
+# reporting its last latency or capacity as current.
+
+fire_fuse_update_every={{ netdata_dashboard_update_every }}
+fire_fuse_priority=90000
+fire_fuse_state_directory={{ netdata_dashboard_state_directory | quote }}
+fire_fuse_stale_after={{ netdata_dashboard_state_stale_after_seconds }}
+
+fire_fuse_fresh() {
+  local observed_at="${1:-0}"
+  local now
+  now="$(date +%s)"
+  [ "$observed_at" -gt 0 ] 2>/dev/null &&
+    [ "$((now - observed_at))" -le "$fire_fuse_stale_after" ]
+}
+
+{% if netdata_dashboard_node == 'compute' %}
+fire_fuse_api_url="http://127.0.0.1:8080"
+
+fire_fuse_ready=0
+fire_fuse_juicefs_available=0
+fire_fuse_cache_bytes=0
+fire_fuse_cache_hits=0
+fire_fuse_cache_misses=0
+fire_fuse_object_errors=0
+
+fire_fuse_get() {
+  local row observed
+
+  fire_fuse_ready=0
+  fire_fuse_juicefs_available=0
+  fire_fuse_cache_bytes=0
+  fire_fuse_cache_hits=0
+  fire_fuse_cache_misses=0
+  fire_fuse_object_errors=0
+
+  if /usr/bin/curl \
+    --fail --silent --max-time 2 --noproxy '*' \
+    "$fire_fuse_api_url/readyz" >/dev/null 2>&1
+  then
+    fire_fuse_ready=1
+  fi
+
+  if row="$(
+    /usr/bin/jq --raw-output '
+      [
+        (if .available == true then 1 else 0 end),
+        (.cache_bytes // 0),
+        (.cache_hits_total // 0),
+        (.cache_misses_total // 0),
+        (.object_request_errors_total // 0),
+        (.observed_at_epoch // 0)
+      ] | @tsv
+    ' "$fire_fuse_state_directory/juicefs.json" 2>/dev/null
+  )"; then
+    IFS=$'\t' read -r \
+      fire_fuse_juicefs_available \
+      fire_fuse_cache_bytes \
+      fire_fuse_cache_hits \
+      fire_fuse_cache_misses \
+      fire_fuse_object_errors \
+      observed <<< "$row"
+    fire_fuse_fresh "$observed" || fire_fuse_juicefs_available=0
+  fi
+
+  return 0
+}
+
+fire_fuse_create() {
+  cat <<EOF
+CHART fire_fuse.health '' "Compute service health" "status" health fire_fuse.health line $((fire_fuse_priority)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION fire_fuse "fire-fuse" absolute 1 1
+DIMENSION juicefs "JuiceFS gateway" absolute 1 1
+CHART fire_fuse.juicefs_cache '' "JuiceFS gateway cache" "MiB" workspace fire_fuse.juicefs_cache area $((fire_fuse_priority + 5)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION used "used" absolute 1 1048576
+CHART fire_fuse.juicefs_operations '' "JuiceFS cache and object operations" "operations/s" workspace fire_fuse.juicefs_operations line $((fire_fuse_priority + 6)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION hits "cache hits" incremental 1 1
+DIMENSION misses "cache misses" incremental 1 1
+DIMENSION object_errors "object errors" incremental 1 1
+EOF
+}
+
+fire_fuse_update() {
+  fire_fuse_get || return 1
+
+  echo "BEGIN fire_fuse.health $1"
+  echo "SET fire_fuse = $fire_fuse_ready"
+  echo "SET juicefs = $fire_fuse_juicefs_available"
+  echo "END"
+  if [ "$fire_fuse_juicefs_available" -eq 1 ]; then
+    cat <<EOF
+BEGIN fire_fuse.juicefs_cache $1
+SET used = $fire_fuse_cache_bytes
+END
+BEGIN fire_fuse.juicefs_operations $1
+SET hits = $fire_fuse_cache_hits
+SET misses = $fire_fuse_cache_misses
+SET object_errors = $fire_fuse_object_errors
+END
+EOF
+  fi
+}
+{% elif netdata_dashboard_node == 'storage' %}
+fire_fuse_redis_available=0
+fire_fuse_minio_available=0
+fire_fuse_redis_latency_us=0
+fire_fuse_minio_latency_us=0
+fire_fuse_redis_used_memory=0
+fire_fuse_redis_maxmemory=0
+fire_fuse_redis_rejected_connections=0
+fire_fuse_minio_used_bytes=0
+fire_fuse_minio_available_bytes=0
+fire_fuse_minio_available_percent=0
+
+fire_fuse_get() {
+  local row observed total
+
+  fire_fuse_redis_available=0
+  fire_fuse_minio_available=0
+  fire_fuse_redis_latency_us=0
+  fire_fuse_minio_latency_us=0
+  fire_fuse_redis_used_memory=0
+  fire_fuse_redis_maxmemory=0
+  fire_fuse_redis_rejected_connections=0
+  fire_fuse_minio_used_bytes=0
+  fire_fuse_minio_available_bytes=0
+  fire_fuse_minio_available_percent=0
+
+  if row="$(
+    /usr/bin/jq --raw-output '
+      [
+        (if .available == true then 1 else 0 end),
+        (.latency_us // 0),
+        (.used_memory_bytes // 0),
+        (.maxmemory_bytes // 0),
+        (.rejected_connections_total // 0),
+        (.observed_at_epoch // 0)
+      ] | @tsv
+    ' "$fire_fuse_state_directory/redis.json" 2>/dev/null
+  )"; then
+    IFS=$'\t' read -r \
+      fire_fuse_redis_available \
+      fire_fuse_redis_latency_us \
+      fire_fuse_redis_used_memory \
+      fire_fuse_redis_maxmemory \
+      fire_fuse_redis_rejected_connections \
+      observed <<< "$row"
+    fire_fuse_fresh "$observed" || fire_fuse_redis_available=0
+  fi
+
+  if row="$(
+    /usr/bin/jq --raw-output '
+      [
+        (if .available == true then 1 else 0 end),
+        (.latency_us // 0),
+        (.filesystem_used_bytes // 0),
+        (.filesystem_available_bytes // 0),
+        (.observed_at_epoch // 0)
+      ] | @tsv
+    ' "$fire_fuse_state_directory/minio.json" 2>/dev/null
+  )"; then
+    IFS=$'\t' read -r \
+      fire_fuse_minio_available \
+      fire_fuse_minio_latency_us \
+      fire_fuse_minio_used_bytes \
+      fire_fuse_minio_available_bytes \
+      observed <<< "$row"
+    fire_fuse_fresh "$observed" || fire_fuse_minio_available=0
+  fi
+
+  total="$((fire_fuse_minio_used_bytes + fire_fuse_minio_available_bytes))"
+  if [ "$total" -gt 0 ]; then
+    fire_fuse_minio_available_percent="$((
+      fire_fuse_minio_available_bytes * 10000 / total
+    ))"
+  fi
+
+  return 0
+}
+
+fire_fuse_create() {
+  cat <<EOF
+CHART fire_fuse.health '' "Storage service health" "status" health fire_fuse.health line $((fire_fuse_priority)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION redis "Redis" absolute 1 1
+DIMENSION minio "MinIO" absolute 1 1
+CHART fire_fuse.backend_latency '' "Storage backend probe latency" "milliseconds" storage fire_fuse.backend_latency line $((fire_fuse_priority + 1)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION redis "Redis" absolute 1 1000
+DIMENSION minio "MinIO" absolute 1 1000
+CHART fire_fuse.capacity_available '' "Storage capacity available" "percent" storage fire_fuse.capacity_available line $((fire_fuse_priority + 2)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION redis "Redis memory" absolute 1 100
+DIMENSION minio "MinIO filesystem" absolute 1 100
+CHART fire_fuse.redis_memory '' "Redis memory" "MiB" storage fire_fuse.redis_memory area $((fire_fuse_priority + 3)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION used "used" absolute 1 1048576
+DIMENSION limit "limit" absolute 1 1048576
+CHART fire_fuse.minio_storage '' "MinIO backing filesystem" "GiB" storage fire_fuse.minio_storage stacked $((fire_fuse_priority + 4)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION used "used" absolute 1 1073741824
+DIMENSION available "available" absolute 1 1073741824
+CHART fire_fuse.redis_rejections '' "Redis rejected connections" "connections/s" storage fire_fuse.redis_rejections line $((fire_fuse_priority + 7)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION rejected "rejected" incremental 1 1
+EOF
+}
+
+fire_fuse_update() {
+  fire_fuse_get || return 1
+
+  echo "BEGIN fire_fuse.health $1"
+  echo "SET redis = $fire_fuse_redis_available"
+  echo "SET minio = $fire_fuse_minio_available"
+  echo "END"
+
+  echo "BEGIN fire_fuse.backend_latency $1"
+  [ "$fire_fuse_redis_available" -eq 1 ] &&
+    echo "SET redis = $fire_fuse_redis_latency_us"
+  [ "$fire_fuse_minio_available" -eq 1 ] &&
+    echo "SET minio = $fire_fuse_minio_latency_us"
+  echo "END"
+
+  # Without a maxmemory limit Redis has no headroom to report; a gap is more
+  # honest than a permanent 100 percent.
+  echo "BEGIN fire_fuse.capacity_available $1"
+  if [ "$fire_fuse_redis_available" -eq 1 ] &&
+    [ "$fire_fuse_redis_maxmemory" -gt 0 ]
+  then
+    local redis_percent="$((
+      (fire_fuse_redis_maxmemory - fire_fuse_redis_used_memory)
+      * 10000 / fire_fuse_redis_maxmemory
+    ))"
+    [ "$redis_percent" -ge 0 ] || redis_percent=0
+    echo "SET redis = $redis_percent"
+  fi
+  [ "$fire_fuse_minio_available" -eq 1 ] &&
+    echo "SET minio = $fire_fuse_minio_available_percent"
+  echo "END"
+
+  if [ "$fire_fuse_redis_available" -eq 1 ]; then
+    cat <<EOF
+BEGIN fire_fuse.redis_memory $1
+SET used = $fire_fuse_redis_used_memory
+SET limit = $fire_fuse_redis_maxmemory
+END
+BEGIN fire_fuse.redis_rejections $1
+SET rejected = $fire_fuse_redis_rejected_connections
+END
+EOF
+  fi
+  if [ "$fire_fuse_minio_available" -eq 1 ]; then
+    cat <<EOF
+BEGIN fire_fuse.minio_storage $1
+SET used = $fire_fuse_minio_used_bytes
+SET available = $fire_fuse_minio_available_bytes
+END
+EOF
+  fi
+  return 0
+}
+{% elif netdata_dashboard_node == 'builder' %}
+fire_fuse_control_worker=0
+fire_fuse_build_materializer=0
+
+fire_fuse_unit_active() {
+  /usr/bin/systemctl is-active --quiet "$1" 2>/dev/null
+}
+
+fire_fuse_get() {
+  fire_fuse_control_worker=0
+  fire_fuse_build_materializer=0
+  fire_fuse_unit_active cantelop-control-worker.service &&
+    fire_fuse_control_worker=1
+  fire_fuse_unit_active cantelop-build-materializer.service &&
+    fire_fuse_build_materializer=1
+  return 0
+}
+
+fire_fuse_create() {
+  cat <<EOF
+CHART fire_fuse.health '' "Builder service health" "status" health fire_fuse.health line $((fire_fuse_priority)) $fire_fuse_update_every '' '' 'fire_fuse'
+DIMENSION control_worker "Control worker" absolute 1 1
+DIMENSION build_materializer "Build materializer" absolute 1 1
+EOF
+}
+
+fire_fuse_update() {
+  fire_fuse_get || return 1
+
+  cat <<EOF
+BEGIN fire_fuse.health $1
+SET control_worker = $fire_fuse_control_worker
+SET build_materializer = $fire_fuse_build_materializer
+END
+EOF
+}
+{% endif %}
+
+fire_fuse_check() {
+  fire_fuse_get
+}

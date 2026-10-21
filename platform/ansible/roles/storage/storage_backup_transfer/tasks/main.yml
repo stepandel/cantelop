@@ -1,0 +1,254 @@
+---
+- name: Validate storage backup transfer inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_transfer_set_id
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_transfer_directory == '/etc/fire-fuse-storage'
+      - >-
+        storage_backup_transfer_config_file
+        == '/etc/fire-fuse-storage/backup-destination.json'
+      - >-
+        storage_backup_transfer_credentials_file
+        == '/etc/fire-fuse-storage/backup-s3-credentials.json'
+      - >-
+        storage_backup_transfer_program
+        == '/usr/local/lib/fire-fuse/transfer-storage-backup.py'
+      - >-
+        storage_backup_transfer_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+      - >-
+        storage_backup_transfer_validator
+        == '/usr/local/lib/fire-fuse/validate-storage-backup-destination.py'
+      - >-
+        storage_backup_transfer_read_qualifier
+        == '/usr/local/lib/fire-fuse/qualify-storage-backup-destination.py'
+      - >-
+        storage_backup_transfer_write_qualifier
+        ==
+        (
+          '/usr/local/lib/fire-fuse/'
+          ~ 'qualify-storage-backup-destination-write.py'
+        )
+      - storage_backup_transfer_mc_binary == '/usr/local/bin/mc'
+      - >-
+        storage_backup_transfer_mc_checksum
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_transfer_minimum_retention_days
+        | type_debug == 'int'
+      - storage_backup_transfer_minimum_retention_days >= 14
+      - storage_backup_transfer_minimum_retention_days <= 3650
+      - storage_backup_transfer_timeout_seconds | type_debug == 'int'
+      - storage_backup_transfer_timeout_seconds >= 60
+      - storage_backup_transfer_timeout_seconds <= 172800
+      - storage_backup_transfer_lock_root == '/run/lock'
+    fail_msg: >-
+      backup transfer requires a safe set ID, fixed trusted local and
+      destination paths, pinned mc, and bounded retention and timeout values
+
+- name: Install exact storage backup transfer programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - transfer-storage-backup.py
+      - verify-storage-backup.py
+      - validate-storage-backup-destination.py
+      - qualify-storage-backup-destination.py
+      - qualify-storage-backup-destination-write.py
+
+- name: Inspect trusted storage backup transfer inputs
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: "{{ storage_backup_transfer_config_file }}"
+      mode: "0644"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_credentials_file }}"
+      mode: "0600"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_program }}"
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_verifier }}"
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_validator }}"
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_read_qualifier }}"
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_write_qualifier }}"
+      mode: "0755"
+      checksum: ""
+    - path: "{{ storage_backup_transfer_mc_binary }}"
+      mode: "0755"
+      checksum: "{{ storage_backup_transfer_mc_checksum }}"
+  register: storage_backup_transfer_inputs
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Require trusted storage backup transfer inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - >-
+        (
+          item.item.mode == '0755'
+          and item.stat.executable
+        )
+        or
+        (
+          item.item.mode != '0755'
+          and not item.stat.executable
+        )
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum == item.item.checksum
+    fail_msg: transfer input {{ item.item.path }} failed trust checks
+  loop: "{{ storage_backup_transfer_inputs.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Record the per-set storage backup transfer lock
+  ansible.builtin.set_fact:
+    storage_backup_transfer_lock_directory: >-
+      {{ storage_backup_transfer_lock_root }}/fire-fuse-storage-backup-transfer-{{
+      storage_backup_transfer_set_id }}
+
+- name: Acquire the per-set storage backup transfer lock
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mkdir
+      - --mode=0700
+      - "{{ storage_backup_transfer_lock_directory }}"
+  register: storage_backup_transfer_lock
+  changed_when: storage_backup_transfer_lock.rc == 0
+  failed_when: false
+
+- name: Require the per-set storage backup transfer lock
+  ansible.builtin.assert:
+    that:
+      - storage_backup_transfer_lock.rc == 0
+    fail_msg: >-
+      this backup set is already being transferred or its transfer lock is
+      stale; inspect the exact set before removing its empty lock directory
+
+- name: Transfer and verify the complete storage backup
+  block:
+    - name: Transfer the complete set to immutable off-host storage
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_transfer_program }}"
+          - "{{ storage_backup_transfer_set_id }}"
+          - --destination
+          - "{{ storage_backup_transfer_config_file }}"
+          - --mc
+          - "{{ storage_backup_transfer_mc_binary }}"
+          - --local-root
+          - "{{ storage_backup_staging_root }}"
+          - --minimum-retention-days
+          - "{{ storage_backup_transfer_minimum_retention_days | string }}"
+          - --timeout-seconds
+          - "{{ storage_backup_transfer_timeout_seconds | string }}"
+      register: storage_backup_transfer_command
+      changed_when: true
+
+    - name: Decode storage backup transfer evidence
+      ansible.builtin.set_fact:
+        storage_backup_transfer_evidence: >-
+          {{ storage_backup_transfer_command.stdout | from_json }}
+
+    - name: Require complete redacted storage backup transfer evidence
+      ansible.builtin.assert:
+        that:
+          - >-
+            (storage_backup_transfer_evidence.keys() | list | sort)
+            ==
+            [
+              'artifacts',
+              'bucket',
+              'endpoint_url',
+              'manifest',
+              'remote_prefix',
+              'set_id',
+              'status'
+            ]
+          - >-
+            storage_backup_transfer_evidence.status
+            in
+            [
+              'transferred-and-verified',
+              'already-transferred-and-verified'
+            ]
+          - >-
+            storage_backup_transfer_evidence.set_id
+            == storage_backup_transfer_set_id
+          - storage_backup_transfer_evidence.endpoint_url.startswith('https://')
+          - storage_backup_transfer_evidence.bucket | length > 0
+          - >-
+            storage_backup_transfer_evidence.remote_prefix.endswith(
+              '/' ~ storage_backup_transfer_set_id
+            )
+          - storage_backup_transfer_evidence.artifacts | length == 4
+          - storage_backup_transfer_evidence.manifest.path == 'manifest.json'
+          - >-
+            storage_backup_transfer_evidence.manifest.sha256
+            is match('^[0-9a-f]{64}$')
+          - >-
+            storage_backup_transfer_evidence.manifest.version_id
+            | length > 0
+          - >-
+            storage_backup_transfer_evidence.manifest.retained_until
+            | length > 0
+        fail_msg: immutable backup transfer evidence is incomplete
+
+    - name: Require complete retained artifact transfer evidence
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_transfer_evidence.artifacts
+            | map(attribute='path')
+            | list
+            | sort
+            ==
+            [
+              'metadata.dump',
+              'minio-objects.tar',
+              'redis-persistence.tar.gz',
+              'restore-secrets.vault'
+            ]
+          - item.sha256 is match('^[0-9a-f]{64}$')
+          - item.version_id | length > 0
+          - item.retained_until | length > 0
+        fail_msg: retained artifact transfer evidence is incomplete
+      loop: "{{ storage_backup_transfer_evidence.artifacts }}"
+      loop_control:
+        label: "{{ item.path }}"
+
+  always:
+    - name: Release the per-set storage backup transfer lock
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/rmdir
+          - "{{ storage_backup_transfer_lock_directory }}"
+      changed_when: true
+
+- name: Record the completed off-host transfer locally
+  ansible.builtin.include_role:
+    name: storage_backup_record_transfer
+
+- name: Report redacted storage backup transfer evidence and bookkeeping
+  ansible.builtin.debug:
+    msg:
+      transfer: "{{ storage_backup_transfer_evidence }}"
+      local_record: "{{ storage_backup_transfer_record }}"

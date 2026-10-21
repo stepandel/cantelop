@@ -1,0 +1,32 @@
+---
+- name: Record the qualified worker deployment
+  hosts: control_builder_hosts
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Validate the deployment record identity
+      ansible.builtin.assert:
+        that:
+          - ship_revision is match('^[0-9a-f]{40}$')
+          - ship_checksum is match('^[0-9a-f]{64}$')
+          - ship_run_id is match('^[0-9TZ-]{16,40}[0-9a-f]{12}$')
+          - ship_component == 'worker'
+
+    - name: Create the private worker deployment record directory
+      ansible.builtin.file:
+        path: "/var/lib/cantelop/local-ship/{{ ship_run_id }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Record the worker source and artifact identity
+      ansible.builtin.copy:
+        content: >-
+          {{ {'component': 'worker', 'source_commit': ship_revision,
+              'sha256': ship_checksum,
+              'destination': '/usr/local/bin/cantelop-control-worker'} | to_nice_json }}
+        dest: "/var/lib/cantelop/local-ship/{{ ship_run_id }}/worker.json"
+        owner: root
+        group: root
+        mode: "0600"

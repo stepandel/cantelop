@@ -1,0 +1,129 @@
+---
+- name: Validate JuiceFS smoke-test inputs
+  ansible.builtin.assert:
+    that:
+      - juicefs_smoke_release is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - juicefs_smoke_binary.startswith('/')
+      - juicefs_smoke_metadata_url_file.startswith('/')
+      - juicefs_smoke_mountpoint is match('^/mnt/[A-Za-z0-9._-]+$')
+      - >-
+        juicefs_smoke_cache_directory
+        is match('^/var/cache/[A-Za-z0-9._-]+$')
+      - juicefs_smoke_cache_size_mib | int >= 1
+      - juicefs_smoke_cache_size_mib | int <= 512
+      - juicefs_smoke_helper.startswith('/usr/local/lib/fire-fuse/')
+    fail_msg: >-
+      JuiceFS smoke-test paths must use the dedicated /mnt, /var/cache, and
+      /usr/local/lib/fire-fuse locations, and cache size must be 1-512 MiB
+
+- name: Install JuiceFS smoke-test mount support
+  ansible.builtin.apt:
+    name: fuse3
+    state: present
+
+- name: Load the FUSE module
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/modprobe
+      - fuse
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Inspect the FUSE device
+  ansible.builtin.stat:
+    path: /dev/fuse
+  register: juicefs_smoke_fuse_device
+  when: not ansible_check_mode
+
+- name: Require the FUSE character device
+  ansible.builtin.assert:
+    that:
+      - juicefs_smoke_fuse_device.stat.exists | default(false)
+      - juicefs_smoke_fuse_device.stat.ischr | default(false)
+    fail_msg: /dev/fuse is not available after loading the FUSE module
+  when: not ansible_check_mode
+
+- name: Inspect the installed JuiceFS client
+  ansible.builtin.stat:
+    path: "{{ juicefs_smoke_binary }}"
+  register: juicefs_smoke_binary_stat
+
+- name: Require the installed JuiceFS client
+  ansible.builtin.assert:
+    that:
+      - >-
+        juicefs_smoke_binary_stat.stat
+        is trusted_file(owner='root', group='root')
+      - juicefs_smoke_binary_stat.stat.executable | default(false)
+    fail_msg: the JuiceFS client must be a root-owned executable regular file
+
+- name: Read the installed JuiceFS version
+  ansible.builtin.command:
+    argv:
+      - "{{ juicefs_smoke_binary }}"
+      - version
+  register: juicefs_smoke_version
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the pinned JuiceFS version
+  ansible.builtin.assert:
+    that:
+      - >-
+        juicefs_smoke_release in
+        (juicefs_smoke_version.stdout ~ juicefs_smoke_version.stderr)
+    fail_msg: >-
+      installed JuiceFS version did not report {{ juicefs_smoke_release }}
+  when: not ansible_check_mode
+
+- name: Inspect the JuiceFS metadata URL file
+  ansible.builtin.stat:
+    path: "{{ juicefs_smoke_metadata_url_file }}"
+  register: juicefs_smoke_metadata_url_stat
+
+- name: Require the root-only JuiceFS metadata URL
+  ansible.builtin.assert:
+    that:
+      - >-
+        juicefs_smoke_metadata_url_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+    fail_msg: >-
+      the JuiceFS metadata URL must be a root-owned, nonsymlink regular file
+      with mode 0600
+
+- name: Create JuiceFS smoke-test directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ juicefs_smoke_helper | dirname }}"
+      mode: "0755"
+    - path: "{{ juicefs_smoke_mountpoint }}"
+      mode: "0755"
+    - path: "{{ juicefs_smoke_cache_directory }}"
+      mode: "0700"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install the JuiceFS smoke-test helper
+  ansible.builtin.template:
+    src: fire-fuse-juicefs-smoke.j2
+    dest: "{{ juicefs_smoke_helper }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Exercise JuiceFS persistence across a remount
+  ansible.builtin.command:
+    argv:
+      - "{{ juicefs_smoke_helper }}"
+      - "{{ juicefs_smoke_binary }}"
+      - "{{ juicefs_smoke_metadata_url_file }}"
+      - "{{ juicefs_smoke_mountpoint }}"
+      - "{{ juicefs_smoke_cache_directory }}"
+      - "{{ juicefs_smoke_cache_size_mib | string }}"
+  changed_when: true
+  when: not ansible_check_mode

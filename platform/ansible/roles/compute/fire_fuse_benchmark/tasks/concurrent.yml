@@ -1,0 +1,345 @@
+---
+- name: Create the concurrent reader cohort
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes
+    method: POST
+    body_format: json
+    body: >-
+      {{
+        {
+          'id': fire_fuse_benchmark_run_id ~ '-cohort-' ~ item,
+          'app_id': fire_fuse_benchmark_app_id,
+          'workspace_id': fire_fuse_benchmark_workspace
+        }
+      }}
+    status_code: 202
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  loop: "{{ range(0, fire_fuse_benchmark_concurrency | int) | list }}"
+  loop_control:
+    label: "reader-{{ item + 1 }}"
+  register: fire_fuse_benchmark_concurrent_create
+
+- name: Record the concurrent reader cohort
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_concurrent_records: >-
+      {{
+        fire_fuse_benchmark_concurrent_create.results
+        | map(attribute='json')
+        | list
+      }}
+    fire_fuse_benchmark_concurrent_ssh_prefix:
+      - /usr/bin/ssh
+      - -i
+      - "{{ fire_fuse_benchmark_ssh_key }}"
+      - -p
+      - "{{ fire_fuse_benchmark_ssh_port | string }}"
+      - -o
+      - BatchMode=yes
+      - -o
+      - ConnectTimeout=2
+      - -o
+      - GlobalKnownHostsFile=/dev/null
+      - -o
+      - IdentitiesOnly=yes
+      - -o
+      - LogLevel=ERROR
+      - -o
+      - StrictHostKeyChecking=no
+      - -o
+      - UserKnownHostsFile=/dev/null
+    fire_fuse_benchmark_concurrent_results: []
+    fire_fuse_benchmark_concurrent_completion_times_ns: []
+
+- name: Record concurrent reader identities
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_concurrent_vm_ids: >-
+      {{
+        fire_fuse_benchmark_concurrent_records
+        | map(attribute='id')
+        | list
+      }}
+    fire_fuse_benchmark_concurrent_vm_ips: >-
+      {{
+        fire_fuse_benchmark_concurrent_records
+        | map(attribute='network.guest_ip')
+        | list
+      }}
+
+- name: Validate the concurrent reader cohort
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_concurrent_vm_ids
+        | length == fire_fuse_benchmark_concurrency | int
+      - >-
+        fire_fuse_benchmark_concurrent_vm_ids
+        | unique
+        | length == fire_fuse_benchmark_concurrency | int
+      - >-
+        fire_fuse_benchmark_concurrent_vm_ips
+        | unique
+        | length == fire_fuse_benchmark_concurrency | int
+      - >-
+        fire_fuse_benchmark_concurrent_records
+        | map(attribute='workspace_id')
+        | unique
+        | list == [fire_fuse_benchmark_workspace]
+      - >-
+        fire_fuse_benchmark_concurrent_records
+        | map(attribute='build_id')
+        | unique
+        | list == [fire_fuse_benchmark_build_id]
+    fail_msg: concurrent benchmark readers are not unique workspace peers
+
+- name: Select a concurrent reader for cleanup
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_ssh_argv: >-
+      {{
+        fire_fuse_benchmark_concurrent_ssh_prefix
+        + ['root@' ~ (fire_fuse_benchmark_concurrent_vm_ips | first)]
+      }}
+
+- name: Wait for concurrent reader guests
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_concurrent_ssh_prefix
+        + ['root@' ~ item, '/usr/bin/true']
+      }}
+  loop: "{{ fire_fuse_benchmark_concurrent_vm_ips }}"
+  loop_control:
+    label: "{{ item }}"
+  register: fire_fuse_benchmark_concurrent_ready
+  changed_when: false
+  retries: 30
+  delay: 1
+  until: fire_fuse_benchmark_concurrent_ready.rc == 0
+
+- name: Read concurrent reader benchmark capabilities
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_concurrent_ssh_prefix
+        + [
+          'root@' ~ item,
+          fire_fuse_benchmark_guest_binary,
+          'describe'
+        ]
+      }}
+  loop: "{{ fire_fuse_benchmark_concurrent_vm_ips }}"
+  loop_control:
+    label: "{{ item }}"
+  register: fire_fuse_benchmark_concurrent_descriptions
+  changed_when: false
+
+- name: Require scheduled-read support on concurrent readers
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | from_json).schema_version == 2
+      - >-
+        'sequential-read-at'
+        in (item.stdout | from_json).workloads
+    fail_msg: a concurrent reader lacks benchmark protocol version 2
+  loop: "{{ fire_fuse_benchmark_concurrent_descriptions.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Choose the coordinated read start time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - >-
+        --date=+{{ fire_fuse_benchmark_schedule_delay_seconds | int
+        }} seconds
+      - +%s%N
+  register: fire_fuse_benchmark_scheduled_start
+  changed_when: false
+
+- name: Validate the coordinated read start time
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_scheduled_start.stdout
+        is match('^[0-9]{19}$')
+    fail_msg: host did not produce a Unix-nanosecond benchmark start time
+
+- name: Launch coordinated concurrent reads
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_concurrent_ssh_prefix
+        + [
+          'root@' ~ item,
+          fire_fuse_benchmark_guest_binary,
+          'sequential-read-at',
+          fire_fuse_benchmark_sequential_size_mib | string,
+          fire_fuse_benchmark_run_id,
+          fire_fuse_benchmark_scheduled_start.stdout
+        ]
+      }}
+  loop: "{{ fire_fuse_benchmark_concurrent_vm_ips }}"
+  loop_control:
+    label: "{{ item }}"
+  register: fire_fuse_benchmark_concurrent_launches
+  changed_when: false
+  async: "{{ fire_fuse_benchmark_async_timeout_seconds }}"
+  poll: 0
+
+- name: Collect coordinated concurrent reads
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ fire_fuse_benchmark_concurrent_launches.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  register: fire_fuse_benchmark_concurrent_jobs
+  changed_when: false
+  retries: "{{ fire_fuse_benchmark_async_timeout_seconds }}"
+  delay: 1
+  until: fire_fuse_benchmark_concurrent_jobs.finished | bool
+
+- name: Decode coordinated concurrent reads
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_concurrent_results: >-
+      {{
+        fire_fuse_benchmark_concurrent_results
+        + [
+          item.stdout
+          | from_json
+          | combine(
+            {
+              'participant': fire_fuse_benchmark_participant_index + 1,
+              'concurrency': fire_fuse_benchmark_concurrency | int,
+              'cache_state': 'concurrent-candidate',
+              'cache_scope':
+                'fresh-vm-shared-workspace-coordinated-read',
+              'cache_guarantee':
+                'guest-clients-reset-host-and-backend-caches-retained'
+            }
+          )
+        ]
+      }}
+  loop: "{{ fire_fuse_benchmark_concurrent_jobs.results }}"
+  loop_control:
+    index_var: fire_fuse_benchmark_participant_index
+    label: "reader-{{ fire_fuse_benchmark_participant_index + 1 }}"
+
+- name: Validate coordinated concurrent read results
+  ansible.builtin.assert:
+    that:
+      - item.schema_version == 2
+      - item.workload == 'sequential-read'
+      - item.run_id == fire_fuse_benchmark_run_id
+      - >-
+        item.scheduled_start_ns | int
+        == fire_fuse_benchmark_scheduled_start.stdout | int
+      - item.actual_start_ns | int >= item.scheduled_start_ns | int
+      - item.start_lag_ns | int >= 0
+      - >-
+        item.start_lag_ns | int
+        <= fire_fuse_benchmark_maximum_start_lag_ms | int * 1000000
+    fail_msg: coordinated reader missed the accepted start-time window
+  loop: "{{ fire_fuse_benchmark_concurrent_results }}"
+  loop_control:
+    label: "reader-{{ item.participant | default('invalid') }}"
+
+- name: Record coordinated concurrent read completion times
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_concurrent_completion_times_ns: >-
+      {{
+        fire_fuse_benchmark_concurrent_completion_times_ns
+        + [
+          (item.actual_start_ns | int)
+          + (item.duration_ns | int)
+        ]
+      }}
+  loop: "{{ fire_fuse_benchmark_concurrent_results }}"
+  loop_control:
+    label: "reader-{{ item.participant }}"
+
+- name: Record coordinated concurrent read timing
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_concurrent_start_skew_ns: >-
+      {{
+        (
+          fire_fuse_benchmark_concurrent_results
+          | map(attribute='actual_start_ns')
+          | map('int')
+          | max
+        )
+        -
+        (
+          fire_fuse_benchmark_concurrent_results
+          | map(attribute='actual_start_ns')
+          | map('int')
+          | min
+        )
+      }}
+    fire_fuse_benchmark_concurrent_wall_duration_ns: >-
+      {{
+        (
+          fire_fuse_benchmark_concurrent_completion_times_ns
+          | max
+        )
+        -
+        (
+          fire_fuse_benchmark_concurrent_results
+          | map(attribute='actual_start_ns')
+          | map('int')
+          | min
+        )
+      }}
+
+- name: Require bounded coordinated read skew
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_concurrent_start_skew_ns | int
+        <= fire_fuse_benchmark_maximum_start_lag_ms | int * 1000000
+    fail_msg: coordinated reader start-time skew exceeded the accepted bound
+
+- name: Remove the sequential benchmark seed
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_ssh_argv
+        + [
+          fire_fuse_benchmark_guest_binary,
+          'sequential-clean',
+          fire_fuse_benchmark_sequential_size_mib | string
+        ]
+      }}
+  changed_when: true
+
+- name: Record sequential benchmark seed cleanup
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_seed_cleaned: true
+
+- name: Terminate concurrent reader VMs
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes/{{ item }}
+    method: DELETE
+    status_code: 200
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  loop: "{{ fire_fuse_benchmark_concurrent_vm_ids }}"
+  loop_control:
+    label: "{{ item }}"
+  register: fire_fuse_benchmark_concurrent_terminate
+
+- name: Require terminated concurrent reader VM states
+  ansible.builtin.assert:
+    that:
+      - item.json.state == 'terminated'
+    fail_msg: a concurrent benchmark reader VM did not terminate cleanly
+  loop: "{{ fire_fuse_benchmark_concurrent_terminate.results }}"
+  loop_control:
+    label: "{{ item.item }}"

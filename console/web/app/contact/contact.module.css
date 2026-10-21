@@ -1,0 +1,29 @@
+.article { max-width: 36rem; margin: 0 auto; padding: var(--sp-12) var(--sp-4); }
+.article h1 { margin: 0; }
+.lede { margin: var(--sp-3) 0 var(--sp-8); color: var(--muted); line-height: var(--lh-prose); }
+
+/* Stacked fields: a contact form is read top to bottom, not scanned in a row
+   like the console's inline forms, but it keeps their controls and focus. */
+.form { display: flex; flex-direction: column; gap: var(--sp-4); }
+.field { display: flex; flex-direction: column; gap: var(--sp-1); font: 500 var(--fs-support) var(--sans); color: var(--ink); }
+.field input, .field textarea {
+  padding: var(--sp-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 var(--fs-data)/var(--lh-prose) var(--sans);
+}
+.field input { height: 36px; }
+.field textarea { min-height: 10rem; resize: vertical; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--active); }
+.optional { font-weight: 400; color: var(--faint); }
+
+/* Kept out of view and out of the tab order; people never fill it, bots do. */
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.actions { display: flex; align-items: center; gap: var(--sp-3); }
+.error { margin: 0; color: var(--red); font: 400 var(--fs-support)/var(--lh-prose) var(--sans); }
+.sent { padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); line-height: var(--lh-prose); }
+.sent p { margin: 0; }
+.sent p + p { margin-top: var(--sp-2); color: var(--muted); }

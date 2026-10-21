@@ -1,0 +1,28 @@
+---
+- name: Reload systemd units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart JuiceFS gateway mount
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_service }}"
+    state: restarted
+  when: not ansible_check_mode
+
+- name: Restart JuiceFS administrative mount
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_admin_service }}"
+    state: restarted
+  when: not ansible_check_mode
+
+- name: Restart JuiceFS gateway NFS server
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_nfs_service }}"
+    state: restarted
+  when: not ansible_check_mode
+
+- name: Apply JuiceFS gateway NFS firewall
+  ansible.builtin.systemd_service:
+    name: "{{ juicefs_gateway_nfs_firewall_service }}"
+    state: restarted
+  when: not ansible_check_mode

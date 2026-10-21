@@ -1,0 +1,39 @@
+{
+  "routes": [
+    { "route": "console/web/app/api/cli/authorize/route.ts", "method": "GET", "cli_file": "clients/cli/internal/auth/login.go", "cli_symbol": "BrowserLogin", "tokens": ["/api/cli/authorize"] },
+    { "route": "console/web/app/api/cli/config/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/customer.go", "cli_symbol": "runLogin", "tokens": ["/api/cli/config"] },
+    { "route": "console/web/app/api/cli/token/route.ts", "method": "POST", "cli_file": "clients/cli/internal/controlapi/session.go", "cli_symbol": "ExchangeTenantToken", "tokens": ["/api/cli/token"] },
+    { "route": "console/web/app/v1/apps/[id]/integration/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/integration_credentials.go", "cli_symbol": "readIntegrationCredentials", "tokens": ["/v1/apps/", "/integration", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/integration/rotate/route.ts", "method": "POST", "cli_file": "clients/cli/cmd/cantelop/integration_credentials.go", "cli_symbol": "rotateIntegrationCredentials", "tokens": ["/v1/apps/", "/integration/rotate", "http.MethodPost"] },
+    { "route": "console/web/app/v1/apps/[id]/integration/route.ts", "method": "POST", "cli_file": "clients/cli/internal/integration/config.go", "cli_symbol": "ConfigureDeployed", "tokens": ["/v1/apps/", "/integration", "http.MethodPost"] },
+    { "route": "console/web/app/v1/apps/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/customer.go", "cli_symbol": "runAppList", "tokens": ["/v1/apps"] },
+    { "route": "console/web/app/v1/apps/route.ts", "method": "POST", "cli_file": "clients/cli/internal/controlapi/apps.go", "cli_symbol": "CreateApp", "tokens": ["/v1/apps", "http.MethodPost"] },
+    { "route": "console/web/app/v1/apps/[id]/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/customer.go", "cli_symbol": "runAppInspect", "tokens": ["/v1/apps/", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/route.ts", "method": "DELETE", "cli_file": "clients/cli/cmd/cantelop/customer.go", "cli_symbol": "runAppArchive", "tokens": ["/v1/apps/", "http.MethodDelete"] },
+    { "route": "console/web/app/v1/apps/by-slug/[slug]/route.ts", "method": "GET", "cli_file": "clients/cli/internal/controlapi/apps.go", "cli_symbol": "ResolveAppID", "tokens": ["/v1/apps/by-slug/"] },
+    { "route": "console/web/app/v1/apps/[id]/config/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/customer.go", "cli_symbol": "runConfigCommand", "tokens": ["/config", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/config/[kind]/[name]/route.ts", "method": "PUT", "cli_file": "clients/cli/cmd/cantelop/config_set.go", "cli_symbol": "applyConfigUpdates", "tokens": ["basePath", "http.MethodPut"] },
+    { "route": "console/web/app/v1/apps/[id]/config/[kind]/[name]/route.ts", "method": "DELETE", "cli_file": "clients/cli/cmd/cantelop/customer.go", "cli_symbol": "runConfigCommand", "tokens": ["/config", "http.MethodDelete"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/uploads/route.ts", "method": "POST", "cli_file": "clients/cli/internal/deploy/release.go", "cli_symbol": "Release", "tokens": ["/deployments/uploads", "Idempotency-Key"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/uploads/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/deployment_cancel.go", "cli_symbol": "runDeploymentCancel", "tokens": ["/deployments/uploads", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/uploads/[upload_id]/route.ts", "method": "DELETE", "cli_file": "clients/cli/cmd/cantelop/deployment_cancel.go", "cli_symbol": "runDeploymentCancel", "tokens": ["/deployments/uploads", "http.MethodDelete"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/uploads/[upload_id]/complete/route.ts", "method": "POST", "cli_file": "clients/cli/internal/deploy/release.go", "cli_symbol": "Release", "tokens": ["/complete", "session_runtime_parts"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/[release_id]/route.ts", "method": "GET", "cli_file": "clients/cli/internal/deploy/release.go", "cli_symbol": "pollRelease", "tokens": ["/deployments/", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/operational.go", "cli_symbol": "runReleases", "tokens": ["/deployments", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/[release_id]/[action]/route.ts", "method": "POST", "cli_file": "clients/cli/cmd/cantelop/deployment_restart.go", "cli_symbol": "requestDeploymentRecovery", "tokens": ["/deployments/", "http.MethodPost"] },
+    { "route": "console/web/app/v1/apps/[id]/deployments/rollback/route.ts", "method": "POST", "cli_file": "clients/cli/cmd/cantelop/operational.go", "cli_symbol": "runRollback", "tokens": ["/deployments/rollback", "http.MethodPost"] },
+    { "route": "console/web/app/v1/apps/[id]/sandboxes/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/monitoring.go", "cli_symbol": "runMonitoring", "tokens": ["/v1/apps/", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/traces/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/monitoring.go", "cli_symbol": "runMonitoring", "tokens": ["/v1/apps/", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/logs/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/operational.go", "cli_symbol": "fetchLogs", "tokens": ["/logs?limit=500", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/sessions/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/operational.go", "cli_symbol": "runSessionList", "tokens": ["/sessions", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/sessions/[session_id]/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/operational.go", "cli_symbol": "runSessionAction", "tokens": ["/sessions/", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/sessions/[session_id]/route.ts", "method": "DELETE", "cli_file": "clients/cli/cmd/cantelop/operational.go", "cli_symbol": "runSessionAction", "tokens": ["/sessions/", "http.MethodDelete"] },
+    { "route": "console/web/app/v1/apps/[id]/routes/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/routes.go", "cli_symbol": "runRoutes", "tokens": ["/routes", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/routes/detail/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/routes.go", "cli_symbol": "runRouteDetail", "tokens": ["/routes/detail", "http.MethodGet"] },
+    { "route": "console/web/app/v1/apps/[id]/workspaces/[workspace]/database/migrations/route.ts", "method": "GET", "cli_file": "clients/cli/cmd/cantelop/database.go", "cli_symbol": "runDatabaseMigrations", "tokens": ["http.MethodGet", "/database/migrations"] }
+  ],
+  "non_cli_routes": [
+    { "route": "console/web/app/v1/workspaces/route.ts", "method": "GET" },
+    { "route": "console/web/app/v1/workspaces/route.ts", "method": "POST" }
+  ]
+}

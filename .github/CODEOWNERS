@@ -1,0 +1,17 @@
+# Release authority and license exceptions require maintainer review.
+/.github/ @stepandel
+/.gitleaksignore @stepandel
+/LICENSE @stepandel
+/licenses/ @stepandel
+/THIRD_PARTY_NOTICES.md @stepandel
+/docs/licensing.md @stepandel
+/scripts/release-notices.py @stepandel
+/scripts/build-*-release.sh @stepandel
+/scripts/check-*-release.sh @stepandel
+# Publication policy and source/deployment identity require maintainer review.
+/.public-source-policy.json @stepandel
+/console/public-source.json @stepandel
+/SOURCE_SNAPSHOT.json @stepandel
+/scripts/public-source.py @stepandel
+/console/scripts/verify-public-source.ts @stepandel
+/.gitleaks.toml @stepandel

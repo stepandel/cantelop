@@ -1,0 +1,202 @@
+---
+- name: Decode guest storage benchmark results
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_guest_results:
+      - "{{ fire_fuse_benchmark_small_files_command.stdout | from_json }}"
+      - "{{ fire_fuse_benchmark_dependency_command.stdout | from_json }}"
+      - >-
+        {{
+          fire_fuse_benchmark_sequential_write_command.stdout
+          | from_json
+        }}
+      - >-
+        {{
+          fire_fuse_benchmark_sequential_read_command.stdout
+          | from_json
+          | combine({'cache_scope': 'same-vm-after-write'})
+        }}
+      - >-
+        {{
+          fire_fuse_benchmark_fresh_first_read_command.stdout
+          | from_json
+          | combine(
+            {
+              'cache_state': 'shared-client-cache-influenced',
+              'cache_scope': 'new-vm-first-read',
+              'cache_guarantee':
+                'guest-replaced-host-juicefs-and-backend-caches-retained'
+            }
+          )
+        }}
+      - >-
+        {{
+          fire_fuse_benchmark_fresh_repeat_read_command.stdout
+          | from_json
+          | combine(
+            {
+              'cache_state': 'immediate-repeat-candidate',
+              'cache_scope': 'new-vm-immediate-repeat',
+              'cache_guarantee':
+                'same-guest-host-client-immediate-repeat'
+            }
+          )
+        }}
+
+- name: Append coordinated concurrent read results
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_guest_results: >-
+      {{
+        fire_fuse_benchmark_guest_results
+        + fire_fuse_benchmark_concurrent_results
+      }}
+
+- name: Validate guest storage benchmark results
+  ansible.builtin.assert:
+    that:
+      - item.schema_version == 2
+      - item.run_id == fire_fuse_benchmark_run_id
+      - item.duration_ns | int > 0
+      - item.operations | int >= 1
+      - item.bytes | int >= 0
+    fail_msg: guest benchmark returned an invalid result object
+  loop: "{{ fire_fuse_benchmark_guest_results }}"
+  loop_control:
+    label: "{{ item.workload | default('invalid') }}"
+
+- name: Require the expected benchmark workload sequence
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_guest_results
+        | map(attribute='workload')
+        | list
+        == (
+          [
+            'small-files',
+            'dependency-tree',
+            'sequential-write',
+            'sequential-read',
+            'sequential-read',
+            'sequential-read'
+          ]
+          + (
+            ['sequential-read']
+            * (fire_fuse_benchmark_concurrency | int)
+          )
+        )
+    fail_msg: guest benchmark results did not match the expected sequence
+
+- name: Read the benchmark result timestamp
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%SZ
+  register: fire_fuse_benchmark_result_timestamp
+  changed_when: false
+
+- name: Validate the benchmark result timestamp
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_benchmark_result_timestamp.stdout
+        is match(
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+          ~ '[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+        )
+    fail_msg: host did not produce an RFC 3339 UTC result timestamp
+
+- name: Write the host benchmark result
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schema_version': 5,
+          'series_id': fire_fuse_benchmark_series_id,
+          'run_id': fire_fuse_benchmark_run_id,
+          'trial':
+            fire_fuse_benchmark_trial_number | default(1) | int,
+          'trial_count': fire_fuse_benchmark_trials | int,
+          'host': inventory_hostname,
+          'timestamp': fire_fuse_benchmark_result_timestamp.stdout,
+          'workspace_id': fire_fuse_benchmark_workspace,
+          'profile': fire_fuse_benchmark_profile,
+          'image_id': fire_fuse_benchmark_build_id,
+          'vm': {
+            'vcpus': fire_fuse_benchmark_vcpus | int,
+            'memory_mib': fire_fuse_benchmark_memory_mib | int
+          },
+          'parameters': {
+            'small_file_count':
+              fire_fuse_benchmark_small_file_count | int,
+            'dependency_file_count':
+              fire_fuse_benchmark_dependency_file_count | int,
+            'sequential_size_mib':
+              fire_fuse_benchmark_sequential_size_mib | int,
+            'concurrency':
+              fire_fuse_benchmark_concurrency | int,
+            'schedule_delay_seconds':
+              fire_fuse_benchmark_schedule_delay_seconds | int,
+            'maximum_start_lag_ms':
+              fire_fuse_benchmark_maximum_start_lag_ms | int
+          },
+          'lifecycle': {
+            'startup_duration_ns':
+              fire_fuse_benchmark_startup_duration_ns | int,
+            'shutdown_duration_ns':
+              fire_fuse_benchmark_shutdown_duration_ns | int,
+            'warmup_trace': {
+              'total_ns':
+                fire_fuse_benchmark_warmup_trace_event.total_ns | int,
+              'steps':
+                fire_fuse_benchmark_warmup_trace_event.steps
+            }
+          },
+          'coordination': {
+            'clock_model': 'guest-wall-clocks-assumed-synchronized',
+            'participants':
+              fire_fuse_benchmark_concurrency | int,
+            'scheduled_start_ns':
+              fire_fuse_benchmark_scheduled_start.stdout | int,
+            'observed_start_skew_ns':
+              fire_fuse_benchmark_concurrent_start_skew_ns | int,
+            'observed_wall_duration_ns':
+              fire_fuse_benchmark_concurrent_wall_duration_ns | int,
+            'aggregate_bytes':
+              (
+                fire_fuse_benchmark_concurrent_results
+                | map(attribute='bytes')
+                | map('int')
+                | sum
+              )
+          },
+          'artifacts': {
+            'host': fire_fuse_benchmark_host_artifacts,
+            'guest': fire_fuse_benchmark_guest_artifacts
+          },
+          'metrics': fire_fuse_benchmark_guest_results
+        }
+        | to_nice_json
+      }}
+    dest: >-
+      {{ fire_fuse_benchmark_host_result_directory }}/{{
+      fire_fuse_benchmark_run_id }}.json
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Fetch the storage benchmark result
+  ansible.builtin.fetch:
+    src: >-
+      {{ fire_fuse_benchmark_host_result_directory }}/{{
+      fire_fuse_benchmark_run_id }}.json
+    dest: >-
+      {{ fire_fuse_benchmark_output_directory }}/{{
+      fire_fuse_benchmark_host_label }}-{{
+      fire_fuse_benchmark_series_id }}-trial-{{
+      '%02d' | format(
+        fire_fuse_benchmark_trial_number | default(1) | int
+      )
+      }}-{{
+      fire_fuse_benchmark_run_id }}.json
+    flat: true

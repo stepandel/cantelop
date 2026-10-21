@@ -1,0 +1,297 @@
+---
+- name: Validate restore mount qualification inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_qualify_restore_mount_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_qualify_restore_mount_juicefs == '/usr/local/bin/juicefs'
+      - >-
+        storage_backup_qualify_restore_mount_juicefs_checksum
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_qualify_restore_mount_mountpoint_root
+        == '/mnt/fire-fuse-restores'
+      - >-
+        storage_backup_qualify_restore_mount_cache_root
+        == '/var/cache/fire-fuse-restores'
+      - storage_backup_qualify_restore_mount_cache_size_mib | type_debug == 'int'
+      - storage_backup_qualify_restore_mount_cache_size_mib >= 1
+      - storage_backup_qualify_restore_mount_cache_size_mib <= 512
+    fail_msg: restore mount qualification requires fixed isolated paths and pins
+
+- name: Record restore mount qualification paths
+  ansible.builtin.set_fact:
+    storage_backup_qualify_restore_mount_workspace: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_qualify_restore_mount_rehearsal_id }}
+    storage_backup_qualify_restore_mount_mountpoint: >-
+      {{ storage_backup_qualify_restore_mount_mountpoint_root
+      }}/{{ storage_backup_qualify_restore_mount_rehearsal_id }}
+    storage_backup_qualify_restore_mount_cache: >-
+      {{ storage_backup_qualify_restore_mount_cache_root
+      }}/{{ storage_backup_qualify_restore_mount_rehearsal_id }}
+    storage_backup_qualify_restore_mount_record: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_qualify_restore_mount_rehearsal_id
+      }}/mount-runtime.json
+
+- name: Read restored metadata runtime evidence and configuration
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ storage_backup_qualify_restore_mount_workspace }}/metadata-runtime.json"
+    - >-
+      {{ storage_backup_qualify_restore_mount_workspace
+      }}/services/metadata-redis/redis.conf
+  register: storage_backup_qualify_restore_mount_inputs
+  no_log: true
+
+- name: Decode mount qualification inputs
+  ansible.builtin.set_fact:
+    storage_backup_qualify_restore_mount_metadata: >-
+      {{ storage_backup_qualify_restore_mount_inputs.results[0].content
+      | b64decode | from_json }}
+    storage_backup_qualify_restore_mount_password: >-
+      {{
+        storage_backup_qualify_restore_mount_inputs.results[1].content
+        | b64decode
+        | regex_search('(?m)^requirepass ([0-9a-f]{64})$', '\1')
+        | first
+      }}
+  no_log: true
+
+- name: Require qualified restored metadata
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_qualify_restore_mount_metadata.status
+        == 'juicefs-metadata-restored'
+      - >-
+        storage_backup_qualify_restore_mount_metadata.rehearsal_id
+        == storage_backup_qualify_restore_mount_rehearsal_id
+      - >-
+        storage_backup_qualify_restore_mount_metadata.service
+        ==
+        (
+          'fire-fuse-restore-metadata-redis-'
+          ~ storage_backup_qualify_restore_mount_rehearsal_id
+          ~ '.service'
+        )
+      - >-
+        storage_backup_qualify_restore_mount_metadata.endpoint
+        == 'redis://127.0.0.1:16380/1'
+      - storage_backup_qualify_restore_mount_metadata.database == 1
+      - >-
+        storage_backup_qualify_restore_mount_password
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_qualify_restore_mount_metadata.sessions == 0
+    fail_msg: mount qualification requires bound restored metadata evidence
+  no_log: true
+
+- name: Inspect pinned JuiceFS client and unused output paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - "{{ storage_backup_qualify_restore_mount_juicefs }}"
+    - "{{ storage_backup_qualify_restore_mount_record }}"
+    - "{{ storage_backup_qualify_restore_mount_mountpoint }}"
+    - "{{ storage_backup_qualify_restore_mount_cache }}"
+  register: storage_backup_qualify_restore_mount_paths
+
+- name: Require pinned client and new qualification paths
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_qualify_restore_mount_paths.results[0].stat
+        is trusted_file(owner='root', group='root', mode='0755')
+      - >-
+        storage_backup_qualify_restore_mount_paths.results[0].stat.checksum
+        == storage_backup_qualify_restore_mount_juicefs_checksum
+      - not (storage_backup_qualify_restore_mount_paths.results[1].stat.exists | default(false))
+      - not (storage_backup_qualify_restore_mount_paths.results[2].stat.exists | default(false))
+      - not (storage_backup_qualify_restore_mount_paths.results[3].stat.exists | default(false))
+    fail_msg: restore mount qualification paths are not new and trusted
+
+- name: Install FUSE support
+  ansible.builtin.apt:
+    name: fuse3
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Load FUSE kernel module
+  ansible.builtin.command:
+    argv: [/usr/sbin/modprobe, fuse]
+  changed_when: false
+
+- name: Inspect FUSE device
+  ansible.builtin.stat:
+    path: /dev/fuse
+  register: storage_backup_qualify_restore_mount_fuse
+
+- name: Require FUSE character device
+  ansible.builtin.assert:
+    that:
+      - storage_backup_qualify_restore_mount_fuse.stat.exists | default(false)
+      - storage_backup_qualify_restore_mount_fuse.stat.ischr | default(false)
+    fail_msg: isolated restore mount requires /dev/fuse
+
+- name: Create isolated mount and cache directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ storage_backup_qualify_restore_mount_mountpoint_root }}"
+      mode: "0755"
+    - path: "{{ storage_backup_qualify_restore_mount_mountpoint }}"
+      mode: "0700"
+    - path: "{{ storage_backup_qualify_restore_mount_cache_root }}"
+      mode: "0700"
+    - path: "{{ storage_backup_qualify_restore_mount_cache }}"
+      mode: "0700"
+
+- name: Install restore mount qualification helper
+  ansible.builtin.template:
+    src: qualify-juicefs-restore-mount.j2
+    dest: "{{ storage_backup_qualify_restore_mount_helper }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read protected service states before mount qualification
+  ansible.builtin.service_facts:
+
+- name: Record protected service states before mount qualification
+  ansible.builtin.set_fact:
+    storage_backup_qualify_restore_mount_states_before:
+      production_redis: >-
+        {{ ansible_facts.services.get('fire-fuse-redis.service', {}
+        ).get('state', 'not-found') }}
+      production_minio: >-
+        {{ ansible_facts.services.get('fire-fuse-minio.service', {}
+        ).get('state', 'not-found') }}
+      restore_minio: >-
+        {{ ansible_facts.services.get(
+        'fire-fuse-restore-minio-'
+        ~ storage_backup_qualify_restore_mount_rehearsal_id
+        ~ '.service', {}
+        ).get('state', 'not-found') }}
+      metadata_redis: >-
+        {{ ansible_facts.services.get(
+        storage_backup_qualify_restore_mount_metadata.service, {}
+        ).get('state', 'not-found') }}
+
+- name: Require restore storage services running
+  ansible.builtin.assert:
+    that:
+      - storage_backup_qualify_restore_mount_states_before.restore_minio == 'running'
+      - storage_backup_qualify_restore_mount_states_before.metadata_redis == 'running'
+    fail_msg: isolated MinIO and metadata Redis must be running
+
+- name: Exercise restored JuiceFS mount and cold remount
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_qualify_restore_mount_helper }}"
+      - "{{ storage_backup_qualify_restore_mount_juicefs }}"
+      - "{{ storage_backup_qualify_restore_mount_metadata.endpoint }}"
+      - "{{ storage_backup_qualify_restore_mount_mountpoint }}"
+      - "{{ storage_backup_qualify_restore_mount_cache }}"
+      - "{{ storage_backup_qualify_restore_mount_cache_size_mib | string }}"
+      - "{{ storage_backup_qualify_restore_mount_rehearsal_id }}"
+  environment:
+    META_PASSWORD: "{{ storage_backup_qualify_restore_mount_password }}"
+  register: storage_backup_qualify_restore_mount_command
+  changed_when: true
+  no_log: true
+
+- name: Verify rehearsal mountpoint is no longer mounted
+  ansible.builtin.command:
+    argv: [/usr/bin/mountpoint, --quiet, "{{ storage_backup_qualify_restore_mount_mountpoint }}"]
+  register: storage_backup_qualify_restore_mount_unmounted
+  changed_when: false
+  failed_when: storage_backup_qualify_restore_mount_unmounted.rc != 32
+
+- name: Inspect unmounted rehearsal mountpoint
+  ansible.builtin.find:
+    paths: "{{ storage_backup_qualify_restore_mount_mountpoint }}"
+    hidden: true
+    recurse: false
+    file_type: any
+  register: storage_backup_qualify_restore_mount_mountpoint_contents
+
+- name: Require empty unmounted rehearsal mountpoint
+  ansible.builtin.assert:
+    that:
+      - storage_backup_qualify_restore_mount_mountpoint_contents.matched == 0
+    fail_msg: rehearsal mountpoint retained content after clean unmount
+
+- name: Decode mount and remount evidence
+  ansible.builtin.set_fact:
+    storage_backup_qualify_restore_mount_evidence: >-
+      {{ storage_backup_qualify_restore_mount_command.stdout | from_json }}
+
+- name: Require complete mount and remount evidence
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_qualify_restore_mount_evidence.status
+        == 'juicefs-mount-remount-qualified'
+      - >-
+        storage_backup_qualify_restore_mount_evidence.rehearsal_id
+        == storage_backup_qualify_restore_mount_rehearsal_id
+      - >-
+        storage_backup_qualify_restore_mount_evidence.representative_sha256
+        is match('^[0-9a-f]{64}$')
+      - >-
+        storage_backup_qualify_restore_mount_evidence.first_mount_marker_sha256
+        == storage_backup_qualify_restore_mount_evidence.remount_marker_sha256
+      - storage_backup_qualify_restore_mount_evidence.clean_unmount_verified is sameas true
+      - storage_backup_qualify_restore_mount_evidence.marker_removed is sameas true
+    fail_msg: restored JuiceFS mount/remount evidence is incomplete
+
+- name: Recheck protected service states
+  ansible.builtin.service_facts:
+
+- name: Require unchanged protected service states
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get('fire-fuse-redis.service', {}
+        ).get('state', 'not-found')
+        == storage_backup_qualify_restore_mount_states_before.production_redis
+      - >-
+        ansible_facts.services.get('fire-fuse-minio.service', {}
+        ).get('state', 'not-found')
+        == storage_backup_qualify_restore_mount_states_before.production_minio
+      - >-
+        ansible_facts.services.get(
+          'fire-fuse-restore-minio-'
+          ~ storage_backup_qualify_restore_mount_rehearsal_id
+          ~ '.service', {}
+        ).get('state', 'not-found')
+        == storage_backup_qualify_restore_mount_states_before.restore_minio
+      - >-
+        ansible_facts.services.get(
+          storage_backup_qualify_restore_mount_metadata.service, {}
+        ).get('state', 'not-found')
+        == storage_backup_qualify_restore_mount_states_before.metadata_redis
+    fail_msg: protected service state changed during mount qualification
+
+- name: Publish restored mount evidence
+  ansible.builtin.copy:
+    content: "{{ storage_backup_qualify_restore_mount_evidence | to_nice_json }}"
+    dest: "{{ storage_backup_qualify_restore_mount_record }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Report redacted restored mount evidence
+  ansible.builtin.debug:
+    var: storage_backup_qualify_restore_mount_evidence

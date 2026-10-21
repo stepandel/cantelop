@@ -1,0 +1,146 @@
+---
+- name: Load the Redis service account
+  ansible.builtin.getent:
+    database: passwd
+    key: redis
+    fail_key: true
+
+- name: Create Redis configuration and data directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: /etc/redis
+      owner: root
+      group: redis
+      mode: "0750"
+    - path: "{{ redis_metadata_data_directory }}"
+      owner: redis
+      group: redis
+      mode: "0750"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install the Redis password file
+  ansible.builtin.copy:
+    content: "{{ redis_metadata_password }}\n"
+    dest: "{{ redis_metadata_password_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+
+- name: Install the JuiceFS metadata URL
+  ansible.builtin.copy:
+    content: >
+      {{ 'redis://:' ~ redis_metadata_password ~ '@' ~
+         redis_metadata_bind_address ~ ':' ~
+         (redis_metadata_port | string) ~ '/' ~
+         (redis_metadata_database | string) }}
+    dest: "{{ redis_metadata_url_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+
+- name: Preview the Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ redis_metadata_config_file }}"
+    owner: root
+    group: redis
+    mode: "0640"
+  check_mode: true
+  diff: false
+  no_log: true
+  register: redis_metadata_config_preview
+
+- name: Preview the fire-fuse Redis service
+  ansible.builtin.template:
+    src: fire-fuse-redis.service.j2
+    dest: "/etc/systemd/system/{{ redis_metadata_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  check_mode: true
+  diff: false
+  register: redis_metadata_unit_preview
+
+- name: Require a stopped consumer before restarting Redis
+  ansible.builtin.assert:
+    that:
+      - >-
+        not
+        (
+          redis_metadata_config_preview.changed
+          or redis_metadata_unit_preview.changed
+        )
+        or
+        (
+          ansible_facts.services.get(redis_metadata_service, {}).get('state', 'not-found') == 'not-found'
+          or storage_compute_stopped | default(false)
+        )
+    fail_msg: >-
+      Redis configuration or service changes require the fire-fuse consumer
+      service to be drained and stopped before Redis can be restarted
+
+- name: Install the Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ redis_metadata_config_file }}"
+    owner: root
+    group: redis
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse Redis
+
+- name: Install the fire-fuse Redis service
+  ansible.builtin.template:
+    src: fire-fuse-redis.service.j2
+    dest: "/etc/systemd/system/{{ redis_metadata_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd units
+    - Restart fire-fuse Redis
+
+- name: Stop and disable the distribution Redis service
+  ansible.builtin.systemd_service:
+    name: "{{ redis_metadata_stock_service }}"
+    state: stopped
+    enabled: false
+
+- name: Apply Redis configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start fire-fuse Redis
+  ansible.builtin.systemd_service:
+    name: "{{ redis_metadata_service }}"
+    state: started
+    enabled: true
+
+- name: Wait for authenticated Redis readiness
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/redis-cli
+      - --no-auth-warning
+      - -h
+      - "{{ redis_metadata_bind_address }}"
+      - -p
+      - "{{ redis_metadata_port | string }}"
+      - ping
+  environment:
+    REDISCLI_AUTH: "{{ redis_metadata_password }}"
+  register: redis_metadata_readiness
+  changed_when: false
+  retries: 10
+  delay: 1
+  until: redis_metadata_readiness.stdout == 'PONG'
+  no_log: true

@@ -1,0 +1,11 @@
+---
+- name: Activate the promoted fire-fuse runtime
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: fire_fuse_activate
+    - role: storage_observability
+      vars:
+        storage_observability_juicefs_enabled: true
+        storage_observability_backends_enabled: false

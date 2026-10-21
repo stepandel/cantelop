@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "images": {
+    "sha256:a52d2c287288e195367fcc2fa191e7ee81455ca8799964343475c970cf1158d3": {
+      "rootfs_image": "/var/lib/fire-fuse/images/sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.ext4",
+      "rootfs_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "rootfs_size_bytes": 1024,
+      "process": {
+        "args": ["/bin/server"],
+        "env": ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+        "working_directory": "/",
+        "uid": 0,
+        "gid": 0
+      }
+    }
+  }
+}

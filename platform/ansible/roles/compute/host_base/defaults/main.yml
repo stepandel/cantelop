@@ -1,0 +1,32 @@
+---
+host_base_supported_distribution: Ubuntu
+host_base_supported_distribution_version: "24.04"
+host_base_supported_architecture: x86_64
+
+host_base_jailer_user: fire-fuse-jailer
+host_base_jailer_group: fire-fuse-jailer
+
+host_base_packages:
+  - ca-certificates
+  - curl
+  - e2fsprogs
+  - iproute2
+  - iptables
+  - jq
+  - kmod
+  - openssh-client
+  - procps
+
+host_base_directories:
+  - path: /etc/fire-fuse
+    mode: "0750"
+  - path: /usr/local/lib/fire-fuse
+    mode: "0755"
+  - path: /var/lib/fire-fuse
+    mode: "0751"
+  - path: /var/lib/fire-fuse/images
+    mode: "0750"
+  - path: /var/lib/fire-fuse/runtime
+    mode: "0750"
+  - path: /var/lib/fire-fuse/state
+    mode: "0750"

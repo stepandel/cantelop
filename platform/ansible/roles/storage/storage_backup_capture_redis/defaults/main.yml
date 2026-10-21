@@ -1,0 +1,10 @@
+---
+storage_backup_capture_redis_data_directory: /var/lib/fire-fuse/redis
+storage_backup_capture_redis_filename: redis-persistence.tar.gz
+storage_backup_capture_redis_service: fire-fuse-redis.service
+storage_backup_capture_redis_fire_fuse_service: fire-fuse.service
+storage_backup_capture_redis_bind_address: 10.78.0.2
+storage_backup_capture_redis_port: 6379
+storage_backup_capture_redis_cli: /usr/bin/redis-cli
+storage_backup_capture_redis_wait_attempts: 60
+storage_backup_capture_redis_wait_delay_seconds: 1

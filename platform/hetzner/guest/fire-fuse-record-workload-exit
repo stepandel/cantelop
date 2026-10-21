@@ -1,0 +1,32 @@
+#!/bin/sh
+# ExecStopPost runs outside the SDK, before poweroff and cgroup removal.
+# Only systemd's enumerated result and numeric evidence enter this record.
+set -eu
+result=unknown
+case "${SERVICE_RESULT:-}" in
+  success|exit-code|signal|core-dump|watchdog|timeout|oom-kill|resources|protocol|start-limit-hit) result=$SERVICE_RESULT ;;
+esac
+exit_kind=unknown
+case "${EXIT_CODE:-}" in exited|killed|dumped) exit_kind=$EXIT_CODE ;; esac
+exit_status=unknown
+case "${EXIT_STATUS:-}" in
+  ''|*[!0-9A-Z]*) ;;
+  *) exit_status=$EXIT_STATUS ;;
+esac
+# An absent cgroup counter is unknown, never zero.
+oom_kill=null
+if [ "$#" -gt 0 ]; then
+  events=$1
+else
+  group=$(awk -F: '$1 == "0" { print $3; exit }' /proc/self/cgroup)
+  events="/sys/fs/cgroup${group}/memory.events"
+fi
+if [ -r "$events" ]; then
+  value=$(awk '$1 == "oom_kill" && $2 ~ /^[0-9]+$/ { print $2; exit }' "$events")
+  case "$value" in ''|*[!0-9]*) ;; *) oom_kill=$value ;; esac
+fi
+cause=workload_exit
+if [ "$result" = oom-kill ] || { [ "$oom_kill" != null ] && [ "$oom_kill" -gt 0 ]; }; then
+  cause=oom_confirmed
+fi
+printf '{"event":"guest.workload.exited","cause":"%s","service_result":"%s","exit_kind":"%s","exit_status":"%s","oom_kill":%s}\n' "$cause" "$result" "$exit_kind" "$exit_status" "$oom_kill"

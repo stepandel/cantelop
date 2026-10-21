@@ -1,0 +1,103 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/deploy" },
+  title: "Deployment", description: "Deploy a Cantelop App as one release, configure production secrets, and roll back to an earlier Edge Worker and Session runtime.",
+};
+
+# Deployment
+
+A deployment releases the App's generated Edge Worker and Session runtime
+together, under the name declared in `src/cantelop.ts`. Sign in with
+`cantelop login` and configure your
+[production environment](/docs/environments) before deploying.
+
+```shell
+$ cantelop deploy
+# First deploy, creating the App and importing its declared environment:
+$ cantelop deploy --create-app --env-file .env
+```
+
+- **Complete releases:** the CLI builds and uploads the Edge Worker bundle and
+  Session image, then reports provisioning progress for both components.
+- **Backend credentials:** deploying records the App's integration credential
+  in the SDK's `default` profile. For a backend hosted elsewhere, copy it from
+  `cantelop app credentials` into the host's secret store.
+- **Activation:** a release becomes active only after both components succeed.
+  If either fails, the release is not activated.
+- **Runtime images:** use the default image or an optional
+  [Dockerfile](/docs/session-runtime#runtime-configuration) for dependencies.
+- **Build validation:** `cantelop deploy --dry-run` runs the same build without
+  login, uploads, or release creation.
+- **Multiple Apps:** when `src/cantelop.ts` defines more than one App, select
+  one with `--app NAME`.
+
+## Deploy your backend with the App
+
+Deploy the backend and App from the same source whenever runtime logic or its
+message, event, reply, or view types change. These changes produce a new runtime
+identity. A backend compiled for the previous runtime receives
+`session_runtime_mismatch` (409) on Session commands until rebuilt and redeployed.
+Webhook and homepage edits do not change runtime identity.
+
+Import the compiled client from `.cantelop/client/client.mjs`, copying the
+complete client directory including declarations and `types/`, or build your
+backend with the SDK compiler transform. Coordinate both deployments: requests
+fail with 409 while their identities differ. After both are active, retry with
+the same command ID. See the
+[SDK runtime compilation guide](https://github.com/stepandel/cantelop-sdk/blob/main/docs/runtime-definitions.md#deploy-the-backend-with-the-app).
+
+## Cancel an interrupted upload
+
+If an abandoned upload is blocking a new deployment, cancel it without
+rebuilding the image or waiting for the one-hour upload expiry:
+
+```shell
+$ cantelop deploy cancel
+# Or specify the App without a local project:
+$ cantelop deploy cancel --app my-app
+```
+
+Cancellation releases the App's upload lock and clears the matching local retry
+state. If storage cleanup needs a retry, the CLI prints the exact command; new
+deployments can proceed in the meantime. Use `--upload UPLOAD_ID` to target a
+specific upload.
+
+## Cancel or restart a release
+
+The App's **Releases** page offers **Cancel deployment** for queued/provisioning releases and
+**Restart deployment** for pending, failed, or cancelled releases. Cancellation
+waits for provider acknowledgement before unlocking the App. Completed provider
+changes are not rolled back; active and superseded releases cannot be cancelled.
+
+```shell
+$ cantelop releases
+$ cantelop deploy cancel --app my-app --release rel_YOUR_RELEASE_ID
+$ cantelop deploy restart --app my-app --release rel_YOUR_RELEASE_ID
+```
+
+Restart automatically creates one new release with fresh operations after the
+old work is cancelled. It reuses uploaded artifacts, so no local project or
+Docker build is needed when `--app` is provided. Repeating a restart request for
+the same release returns the same replacement. Restart the replacement if
+another attempt is needed.
+
+To rebuild changed source, cancel the pending release, wait for **Cancelled**,
+and run `cantelop deploy` from your project. If that command resumes an old local
+retry and reports that its release was cancelled, run it again to start fresh.
+Provider outages can keep a release in **Cancelling** while cleanup retries.
+
+## Roll back
+
+`cantelop rollback` atomically reactivates the newest superseded release, and
+refuses to race a deployment that is still being provisioned. Running it again
+can reactivate the release that was just superseded.
+
+Roll back the backend to the matching compiled client as well. Retained releases
+built with older SDKs are unsupported; prepare an SDK 1.0 release for rollback.
+
+```shell
+$ cantelop releases
+$ cantelop rollback
+```
+
+See the [CLI reference](/docs/cli) for command options, release history,
+credential rotation, and logs.

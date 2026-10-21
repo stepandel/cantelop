@@ -1,0 +1,126 @@
+---
+- name: Benchmark Fire Fuse host capacity
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: false
+  serial: 1
+  vars:
+    fire_fuse_capacity_host_results: /var/lib/fire-fuse/benchmark-results
+  pre_tasks:
+    - name: Require explicit capacity benchmark inputs
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - fire_fuse_capacity_confirm | default(false) | bool
+          - fire_fuse_capacity_profile | default('') is string
+          - fire_fuse_capacity_profile | default('') | length > 1
+          - (fire_fuse_capacity_profile | default('')).startswith('/')
+          - fire_fuse_capacity_build_id | default('') is match('^sha256:[0-9a-f]{64}$')
+          - fire_fuse_capacity_ssh_key | default('') is string
+          - fire_fuse_capacity_ssh_key | default('') | length > 1
+          - (fire_fuse_capacity_ssh_key | default('')).startswith('/')
+          - fire_fuse_capacity_output_directory | default('') is string
+          - fire_fuse_capacity_output_directory | default('') | length > 1
+          - (fire_fuse_capacity_output_directory | default('')).startswith('/')
+        fail_msg: >-
+          Capacity benchmarking needs explicit confirmation, absolute profile,
+          guest SSH key and controller output paths, and a catalog Build ID.
+
+    - name: Create private controller results directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_capacity_output_directory }}"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+
+    - name: Create private host results directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_capacity_host_results }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+  tasks:
+    - name: Create a temporary benchmark directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: fire-fuse-capacity
+      register: fire_fuse_capacity_temp
+
+    - name: Run the benchmark and retain its result
+      block:
+        - name: Upload the capacity runner
+          ansible.builtin.copy:
+            src: ../../scripts/benchmark-host-capacity.py
+            dest: "{{ fire_fuse_capacity_temp.path }}/benchmark.py"
+            owner: root
+            group: root
+            mode: '0700'
+
+        - name: Upload the selected workload profile
+          ansible.builtin.copy:
+            src: "{{ fire_fuse_capacity_profile }}"
+            dest: "{{ fire_fuse_capacity_temp.path }}/profile.json"
+            owner: root
+            group: root
+            mode: '0600'
+
+        - name: Run the five-axis capacity benchmark
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/python3
+              - "{{ fire_fuse_capacity_temp.path }}/benchmark.py"
+              - --profile
+              - "{{ fire_fuse_capacity_temp.path }}/profile.json"
+              - --build-id
+              - "{{ fire_fuse_capacity_build_id }}"
+              - --ssh-key
+              - "{{ fire_fuse_capacity_ssh_key }}"
+              - --output-dir
+              - "{{ fire_fuse_capacity_host_results }}"
+          register: fire_fuse_capacity_command
+          changed_when: true
+          failed_when: false
+
+        - name: Decode the benchmark result location
+          ansible.builtin.set_fact:
+            fire_fuse_capacity_result: "{{ fire_fuse_capacity_command.stdout | from_json }}"
+          when: fire_fuse_capacity_command.stdout.startswith('{')
+
+        - name: Fetch benchmark evidence even when a workload failed
+          ansible.builtin.fetch:
+            src: "{{ fire_fuse_capacity_result.result }}"
+            dest: >-
+              {{ fire_fuse_capacity_output_directory }}/{{ inventory_hostname
+              | regex_replace('[^A-Za-z0-9._-]', '_') }}-{{ fire_fuse_capacity_result.result
+              | basename }}
+            flat: true
+          when: fire_fuse_capacity_result is defined
+
+        - name: Fetch compact comparable summary
+          ansible.builtin.fetch:
+            src: "{{ fire_fuse_capacity_result.summary }}"
+            dest: >-
+              {{ fire_fuse_capacity_output_directory }}/{{ inventory_hostname
+              | regex_replace('[^A-Za-z0-9._-]', '_') }}-{{ fire_fuse_capacity_result.summary
+              | basename }}
+            flat: true
+          when: fire_fuse_capacity_result is defined
+
+        - name: Require the capacity benchmark to pass
+          ansible.builtin.assert:
+            that:
+              - fire_fuse_capacity_command.rc == 0
+              - fire_fuse_capacity_result is defined
+              - fire_fuse_capacity_result.passed | default(false) | bool
+            fail_msg: >-
+              Capacity benchmark failed. Review the fetched JSON evidence or
+              the preflight error in the task output.
+      always:
+        - name: Remove temporary benchmark code and profile
+          ansible.builtin.file:
+            path: "{{ fire_fuse_capacity_temp.path }}"
+            state: absent
+          when: fire_fuse_capacity_temp.path is defined

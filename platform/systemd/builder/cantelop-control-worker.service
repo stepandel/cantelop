@@ -1,0 +1,45 @@
+[Unit]
+Description=Cantelop durable provider control worker
+Documentation=file:/usr/local/share/doc/fire-fuse/external-control-plane.md
+Requires=wg-quick@wg0.service cantelop-build-materializer.service
+After=network-online.target wg-quick@wg0.service cantelop-build-materializer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cantelop-control
+Group=cantelop-control
+Environment=TZ=UTC
+EnvironmentFile=/etc/cantelop-control/worker.env
+ExecStartPre=/usr/local/bin/cantelop-control-worker --check
+ExecStart=/usr/local/bin/cantelop-control-worker
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cantelop-control-worker
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/cantelop-builder/incoming /var/lib/cantelop-builder/images
+
+[Install]
+WantedBy=multi-user.target

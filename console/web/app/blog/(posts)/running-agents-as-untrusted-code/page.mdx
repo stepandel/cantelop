@@ -1,0 +1,110 @@
+import { NetworkBoundaryDiagram, ResourceBoundaryDiagram, SandboxBoundariesDiagram, SandboxDestructionDiagram, WorkspaceBoundaryDiagram } from "./diagrams";
+
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/blog/running-agents-as-untrusted-code" },
+  title: "Running AI agents as untrusted code", description: "Preserving useful agent capabilities while limiting their reach: compute isolation, host containment, networking, resources, and Sandbox lifecycle in Cantelop.",
+};
+
+Sandboxing is a well established process for running AI agents. Any provider that
+offers infrastructure for running untrusted code follows similar principles.
+
+So this blog doesn't propose anything new. It's a summary of established disciplines
+and Cantelop's implementation of them.
+
+To sum up, a great sandbox preserves the capabilities an agent needs while minimizing the blast radius of those capabilities.
+
+This could be achieved by establishing the following boundaries:
+
+1. **[Compute](#1-compute-boundary):** execution, memory, and filesystem isolation
+2. **[Host](#2-host-containment):** prevent process accessing the host
+3. **[Network](#3-network-policy):** firewall ingress and egress policy
+4. **[Resources](#4-resource-isolation):** bound resource consumption
+5. **[Lifecycle](#5-lifecycle-boundary):** enforce ephemeral state destruction
+
+<SandboxBoundariesDiagram />
+
+## 1. Compute boundary
+
+This is the boundary that could limit the agent the most. At the very least, the agent needs access to
+processes, memory, and a filesystem.
+
+A full VM would provide a flexible environment with its own guest kernel, enabling arbitrary code,
+browsers, and other demanding software to run.
+
+**Firecracker** is well suited for providing this environment. It's a lightweight virtualization
+technology behind [AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/lambda-microvms-guide.html)
+and [Fly Machines](https://fly.io/docs/machines/guides-examples/functions-with-machines/).
+
+In Cantelop, each active Session runs in a separate Firecracker microVM limited by a set
+of permissions that prevent it from accessing other workloads.
+
+## 2. Host containment
+
+A compromised guest could still access the host if it exploits the host-side Firecracker process.
+
+So we need to further isolate the host process. This involves running the Firecracker process with a non-root UID/GID and a per-VM chroot.
+This isolation is called a "jail" in Firecracker.
+
+This essentially gives the guest
+process its own restricted filesystem root on the host.
+
+```text
+Actual path:  [jailer-base]/firecracker/[vm-id]/root/firecracker
+Visible path: /firecracker
+```
+
+In addition to the restricted filesystem root and unprivileged identity,
+Cantelop places each VMM in its own host-side resource hierarchy and only
+exposes the files and devices required to run that microVM.
+
+## 3. Network policy
+
+A good network boundary lets a workload reach the services it needs while
+only accepting inbound connections from trusted sources.
+
+Cantelop enforces network access via host firewall which
+restricts outbound access to private and infrastructure addresses.
+
+<NetworkBoundaryDiagram />
+
+Edge API is built specifically for user's customization and ingress management.
+It authenticates callers and authorizes access. Sandboxes do not expose public
+ingress ports directly.
+
+## 4. Resource isolation
+
+Sandbox resources should be constrained such that one workload cannot materially
+interfere with others on the same host.
+
+Cantelop bounds guest memory and vCPU count per microVM and tracks host CPU
+and memory usage through per-Sandbox cgroups. Physical host resources remain
+shared; hard host CPU quotas and memory caps are not currently enforced per Sandbox.
+
+<ResourceBoundaryDiagram />
+
+## 5. Lifecycle boundary
+
+Destroy everything that was not explicitly made durable.
+
+When a Sandbox terminates, Cantelop stops its Firecracker process and removes
+its VM-specific jail. The microVM's processes, memory, temporary files, and writable
+root filesystem changes are discarded. The next activation uses a completely new instance and
+does not reuse the previous Sandbox.
+
+To keep activation fast, Cantelop maintains a warm pool of fresh microVMs and
+jails. Used Sandboxes never return to this pool.
+
+<SandboxDestructionDiagram />
+
+### Workspaces
+
+The explicit exception is `/workspace`: files saved there survive Sandbox termination.
+Workspaces are durable volumes that can be shared between Sessions of the same App.
+
+Terminating a Sandbox unmounts the workspace without deleting its data.
+
+<WorkspaceBoundaryDiagram />
+
+---
+
+To dive deeper into sandbox isolation, you can refer to the [Sandbox isolation reference](/docs/sandbox-isolation).

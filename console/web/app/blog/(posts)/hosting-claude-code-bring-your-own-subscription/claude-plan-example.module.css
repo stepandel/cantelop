@@ -1,0 +1,101 @@
+.example { margin: 24px 0; font-family: var(--sans); }
+.card { display: flex; gap: 16px; padding: 24px; border: 1px solid #e5e5e3; border-radius: 16px; background: #fff; color: #292824; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.cardExpanded { border-color: #d4ded7; box-shadow: 0 12px 36px rgba(23, 46, 32, .08); }
+.content { flex: 1; min-width: 0; }
+.title { font-size: 18px; font-weight: 600; line-height: 1.4; }
+.description { margin-top: 6px; color: #62615d; font-size: 14px; line-height: 1.5; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 24px; }
+.models { display: flex; flex-wrap: wrap; gap: 8px; }
+.models span, .models button { padding: 4px 8px; border: 1px solid transparent; border-radius: 8px; background: #f6f6f4; color: #62615d; font: 500 12px/1.5 var(--sans); }
+.models button { cursor: pointer; transition: background 120ms ease, border-color 120ms ease, color 120ms ease; }
+.models button:hover:not(:disabled) { background: #eeeeeb; color: #292824; }
+.models button:disabled { cursor: wait; }
+.models .modelSelected, .models .modelSelected:hover:not(:disabled) { border-color: #292824; background: #fff; color: #292824; }
+.connect { margin-left: auto; padding: 7px 12px; border: 1px solid #e5e5e3; border-radius: 10px; background: #fff; color: #292824; font: 500 14px/1.5 var(--sans); cursor: pointer; transition: border-color 120ms ease, background 120ms ease, transform 120ms ease; }
+.connect:hover { border-color: #c9c8c3; background: #f8f8f6; }
+.connect:active { transform: translateY(1px); }
+
+/* Checking and sign-in stay compact; only the chat takes a fixed height so the
+   thread can scroll inside it. */
+.inlineDemo { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.chatDemo { height: min(440px, 70vh); }
+/* A list inside the post's .prose, whose numbered-step rules would otherwise
+   apply; scoped deep enough to outrank them. */
+.card .inlineDemo .steps { display: grid; gap: 8px; margin: 0; padding: 14px; border: 1px solid #e1e1dd; border-radius: 10px; background: #f7f7f5; list-style: none; font-size: 13px; line-height: 1.4; }
+.card .inlineDemo .steps li { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; color: #85847e; }
+.card .inlineDemo .steps li + li { margin: 0; }
+.card .inlineDemo .steps li::before { content: none; }
+.card .inlineDemo .steps li[data-state="active"] { color: #292824; font-weight: 500; }
+.card .inlineDemo .steps li[data-state="done"] { color: #62615d; }
+.card .inlineDemo .steps code { padding: 1px 5px; border-radius: 5px; background: #ebebe7; font: 400 .92em/1.4 var(--mono); }
+.card .inlineDemo .steps li span { flex: 0 0 auto; box-sizing: border-box; width: 12px; height: 12px; border: 2px solid #d9d8d3; border-radius: 50%; }
+.card .inlineDemo .steps li[data-state="active"] span, .spinner { border: 2px solid #c9c8c3; border-top-color: #58a66a; border-radius: 50%; animation: demo-spin .8s linear infinite; }
+.card .inlineDemo .steps li[data-state="done"] span { border: 0; background: #58a66a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8l4-4.2' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; }
+.spinner { display: inline-block; box-sizing: border-box; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; }
+@keyframes demo-spin { to { transform: rotate(360deg); } }
+
+.loginFlow { display: grid; gap: 10px; }
+.loginRow { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.loginRow .loginStatus { flex: 1; min-width: 200px; margin: 0; color: #62615d; font-size: 13px; line-height: 1.5; }
+.loginRow .primary { color: #fff; text-decoration: none; }
+.codeForm { display: flex; gap: 8px; padding: 6px; border: 1px solid #e1e1dd; border-radius: 12px; background: #fff; }
+.codeForm:focus-within { border-color: #b8b7b1; box-shadow: 0 0 0 3px rgba(41, 40, 36, .05); }
+.codeForm input { flex: 1; min-width: 0; padding: 6px 8px; border: 0; background: transparent; color: #292824; font: 400 14px/1.5 var(--sans); outline: none; }
+
+.sessionForm { display: flex; flex: 1; flex-direction: column; gap: 12px; min-height: 0; }
+.thread { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; padding: 16px 2px 4px; overscroll-behavior: contain;
+  mask-image: linear-gradient(to bottom, transparent, #000 16px); }
+.empty { margin: auto; color: #85847e; font-size: 13px; text-align: center; }
+.user { align-self: flex-end; max-width: 80%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: #f1f1ee; color: #292824; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.assistant { display: grid; gap: 6px; align-self: stretch; min-width: 0; color: #292824; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.plain { white-space: pre-wrap; }
+
+/* Replies are chat-sized Markdown. The demo sits inside the post's .prose,
+   whose long-form rules (.prose.wide h2, ol > li::before, …) would otherwise
+   win, so these are scoped three classes deep to outrank them. */
+.card .thread .markdown { min-width: 0; color: #292824; font-size: 14px; line-height: 1.6; }
+.card .thread .markdown > :first-child { margin-top: 0; }
+.card .thread .markdown > :last-child { margin-bottom: 0; }
+.card .thread .markdown :is(p, ul, ol, pre, blockquote, table) { margin: 0 0 10px; }
+.card .thread .markdown :is(h1, h2, h3, h4, h5, h6) { margin: 14px 0 4px; color: #292824; font: 600 14px/1.4 var(--sans); letter-spacing: 0; }
+.card .thread .markdown :is(h1, h2) { font-size: 15px; }
+.card .thread .markdown :is(ul, ol) { padding: 0 0 0 20px; }
+.card .thread .markdown ul { list-style: disc; }
+.card .thread .markdown ol { list-style: decimal; }
+.card .thread .markdown li { margin: 2px 0 0; padding: 0 0 0 2px; }
+.card .thread .markdown li::before { content: none; }
+.card .thread .markdown li::marker { color: #85847e; }
+.card .thread .markdown li > :is(p, ul, ol) { margin: 2px 0 0; }
+.card .thread .markdown a { color: #292824; text-decoration: underline; text-decoration-color: #c9c8c3; text-underline-offset: 2px; }
+.card .thread .markdown a:hover { text-decoration-color: currentColor; }
+.card .thread .markdown strong { font-weight: 600; }
+.card .thread .markdown :not(pre) > code { padding: 1px 5px; border: 0; border-radius: 5px; background: #f1f1ee; font: 400 .88em/1.5 var(--mono); }
+.card .thread .markdown pre { overflow-x: auto; padding: 10px 12px; border: 1px solid #e8e8e5; border-radius: 10px; background: #f8f8f6; }
+.card .thread .markdown pre code { padding: 0; background: none; font: 400 12.5px/1.6 var(--mono); white-space: pre; }
+.card .thread .markdown blockquote { padding: 0 0 0 12px; border: 0; border-left: 3px solid #e1e1dd; border-radius: 0; background: none; color: #62615d; font-size: 14px; }
+.card .thread .markdown blockquote p { margin: 0; }
+.card .thread .markdown hr { margin: 14px 0; border: 0; border-top: 1px solid #e8e8e5; }
+.card .thread .markdown table { display: block; width: max-content; min-width: 0; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 13px; }
+.card .thread .markdown :is(th, td) { padding: 5px 10px; border: 1px solid #e8e8e5; text-align: left; vertical-align: top; }
+.card .thread .markdown th { background: #f8f8f6; color: #292824; font-weight: 600; }
+.failed { color: #9a3f32; }
+.working { display: flex; align-items: center; gap: 7px; color: #85847e; font-size: 12px; }
+.working span { width: 6px; height: 6px; border-radius: 50%; background: #d97757; animation: demo-pulse 1.2s ease-in-out infinite; }
+@keyframes demo-pulse { 50% { opacity: .3; } }
+.note { align-self: center; color: #85847e; font-size: 12px; }
+.error { padding: 12px; border: 1px solid #efcfca; border-radius: 10px; background: #fff6f4; color: #9a3f32; font-size: 13px; line-height: 1.5; }
+.composer { border: 1px solid #e1e1dd; border-radius: 12px; background: #fff; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.composer:focus-within { border-color: #b8b7b1; box-shadow: 0 0 0 3px rgba(41, 40, 36, .05); }
+.composer textarea { display: block; width: 100%; box-sizing: border-box; min-height: 48px; padding: 12px 14px 4px; border: 0; background: transparent; color: #292824; font: 400 14px/1.5 var(--sans); resize: none; outline: none; }
+.composerBar { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; }
+.connected { display: flex; align-items: center; gap: 6px; margin-right: auto; color: #62615d; font-size: 12px; }
+.connected span { width: 6px; height: 6px; border-radius: 50%; background: #58a66a; }
+.primary { padding: 6px 14px; border: 1px solid #292824; border-radius: 8px; background: #292824; color: #fff; font: 600 13px/1.4 var(--sans); cursor: pointer; }
+.primary:disabled { opacity: .55; cursor: wait; }
+.caption { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.caption code { font-size: .92em; }
+
+@media (max-width: 480px) {
+  .card { padding: 16px; gap: 12px; }
+  .connected { display: none; }
+}

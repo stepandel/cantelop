@@ -1,0 +1,199 @@
+---
+- name: Validate complete storage backup capture inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - storage_backup_capture_maintenance_authorized | default(false) is boolean
+      - storage_backup_capture_maintenance_authorized | default(false)
+      - >-
+        storage_backup_capture_lock_directory
+        == '/run/lock/fire-fuse-storage-backup-capture'
+      - storage_backup_capture_service == 'fire-fuse.service'
+      - storage_backup_capture_ready_url == 'http://127.0.0.1:8080/readyz'
+      - storage_backup_capture_readiness_attempts | int >= 1
+      - storage_backup_capture_readiness_attempts | int <= 120
+      - storage_backup_capture_readiness_delay_seconds | int >= 1
+      - storage_backup_capture_readiness_delay_seconds | int <= 10
+      - >-
+        storage_backup_capture_final_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+      - >-
+        (storage_backup_capture_restore_configuration_vault_password_file
+        | default('')) is match('^/.+$')
+    fail_msg: >-
+      complete backup capture requires an explicitly authorized normal run,
+      fixed service and lock boundaries, bounded readiness checks, and an
+      absolute controller restore-Vault password path
+
+- name: Acquire the exclusive storage backup capture lock
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mkdir
+      - --mode=0700
+      - "{{ storage_backup_capture_lock_directory }}"
+  register: storage_backup_capture_lock
+  changed_when: storage_backup_capture_lock.rc == 0
+  failed_when: false
+
+- name: Require the exclusive storage backup capture lock
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_lock.rc == 0
+    fail_msg: >-
+      another capture may be active or the backup lock is stale; inspect the
+      host and remove the exact empty lock directory only when no capture runs
+
+- name: Initialize complete storage backup capture state
+  ansible.builtin.set_fact:
+    storage_backup_capture_failed: false
+
+- name: Capture a complete local storage backup
+  block:
+    - name: Record the backup set timestamp
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/date
+          - --utc
+          - +%Y%m%dT%H%M%SZ
+      register: storage_backup_capture_set_timestamp
+      changed_when: false
+
+    - name: Generate the backup set random suffix
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/od
+          - -An
+          - -N4
+          - -tx1
+          - /dev/urandom
+      register: storage_backup_capture_set_random
+      changed_when: false
+
+    - name: Publish the unique backup set ID
+      ansible.builtin.set_fact:
+        storage_backup_capture_set_id: >-
+          backup-{{ storage_backup_capture_set_timestamp.stdout }}-{{
+          storage_backup_capture_set_random.stdout
+          | regex_replace('[^0-9a-f]', '') }}
+
+    - name: Require a safe unique backup set ID
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_capture_set_id
+            is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+        fail_msg: backup set ID generation returned an unsafe value
+
+    - name: Enter the storage backup maintenance boundary
+      ansible.builtin.include_role:
+        name: storage_backup_capture_preflight
+
+    - name: Capture the JuiceFS metadata
+      ansible.builtin.include_role:
+        name: storage_backup_capture_metadata
+
+    - name: Capture stable Redis persistence
+      ansible.builtin.include_role:
+        name: storage_backup_capture_redis
+
+    - name: Capture the exact MinIO object data
+      ansible.builtin.include_role:
+        name: storage_backup_capture_minio
+
+    - name: Capture the encrypted restore configuration
+      ansible.builtin.include_role:
+        name: storage_backup_capture_restore_configuration
+
+    - name: Construct and verify the complete backup manifest
+      ansible.builtin.include_role:
+        name: storage_backup_capture_manifest
+
+  rescue:
+    - name: Record the failed storage backup capture
+      ansible.builtin.set_fact:
+        storage_backup_capture_failed: true
+
+  always:
+    - name: Restore workspace mounts after storage backup capture
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - fire-fuse-juicefs-gateway.service
+        - fire-fuse-juicefs-admin.service
+        - nfs-kernel-server.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Restore fire-fuse after storage backup capture
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_capture_service }}"
+        state: started
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Require fire-fuse readiness after storage backup capture
+      ansible.builtin.uri:
+        url: "{{ storage_backup_capture_ready_url }}"
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_backup_capture_restored_readiness
+      changed_when: false
+      retries: "{{ storage_backup_capture_readiness_attempts }}"
+      delay: "{{ storage_backup_capture_readiness_delay_seconds }}"
+      until: >-
+        storage_backup_capture_restored_readiness.status | default(0) == 200
+
+    - name: Reverify the complete set after restoring fire-fuse
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_backup_capture_final_verifier }}"
+          - "{{ storage_backup_capture_complete_set.manifest_path }}"
+      register: storage_backup_capture_final_verification
+      changed_when: false
+      when: not storage_backup_capture_failed
+
+    - name: Decode the final complete-set verification
+      ansible.builtin.set_fact:
+        storage_backup_capture_final_verification_result: >-
+          {{ storage_backup_capture_final_verification.stdout | from_json }}
+      when: not storage_backup_capture_failed
+
+    - name: Require the expected final complete set
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_capture_final_verification_result.status
+            == 'verified'
+          - >-
+            storage_backup_capture_final_verification_result.set_id
+            == storage_backup_capture_complete_set.set_id
+          - >-
+            storage_backup_capture_final_verification_result.artifacts
+            | int == 4
+        fail_msg: complete backup changed while fire-fuse was restored
+      when: not storage_backup_capture_failed
+
+    - name: Release the storage backup capture lock
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/rmdir
+          - "{{ storage_backup_capture_lock_directory }}"
+      changed_when: true
+
+- name: Report a safely recovered storage backup failure
+  ansible.builtin.fail:
+    msg: >-
+      storage backup capture failed; fire-fuse was restarted and passed
+      readiness, and any incomplete staging set was preserved for inspection
+  when: storage_backup_capture_failed
+
+- name: Report the completed local storage backup
+  ansible.builtin.debug:
+    msg:
+      status: complete_local_backup
+      set_id: "{{ storage_backup_capture_complete_set.set_id }}"
+      directory: "{{ storage_backup_capture_complete_set.directory }}"
+      manifest_sha256: >-
+        {{ storage_backup_capture_complete_set.manifest_sha256 }}

@@ -1,0 +1,40 @@
+---
+netdata_dashboard_release: v2.10.2
+netdata_dashboard_installer_url: >-
+  https://github.com/netdata/netdata/releases/download/{{
+  netdata_dashboard_release }}/netdata-{{ netdata_dashboard_release }}.gz.run
+netdata_dashboard_installer_checksum: >-
+  sha256:6ebea70b9e9782f298b95246823b22e0d2669ad4c3705da830c47531c0a5009d
+netdata_dashboard_installer_path: >-
+  /var/cache/fire-fuse/netdata-{{ netdata_dashboard_release }}.gz.run
+netdata_dashboard_prefix: /opt/netdata
+netdata_dashboard_charts_directory: >-
+  /opt/netdata/usr/libexec/netdata/charts.d
+netdata_dashboard_service: netdata.service
+netdata_dashboard_bind_address: 127.0.0.1
+netdata_dashboard_port: 19999
+netdata_dashboard_update_every: 5
+netdata_dashboard_state_directory: /run/fire-fuse-observability
+netdata_dashboard_state_stale_after_seconds: 150
+netdata_dashboard_tier0_retention_size: 256MiB
+netdata_dashboard_tier0_retention_time: 14d
+netdata_dashboard_memory_high: 192M
+netdata_dashboard_memory_max: 256M
+netdata_dashboard_cpu_quota: 25%
+netdata_dashboard_io_weight: 10
+netdata_dashboard_minio_warning_available_percent: 20
+netdata_dashboard_minio_critical_available_percent: 10
+netdata_dashboard_redis_warning_available_percent: 25
+netdata_dashboard_redis_critical_available_percent: 10
+# Which machine this agent describes: the compute parent, or one of the two
+# children that stream to it over WireGuard.
+netdata_dashboard_node: compute
+netdata_dashboard_stream_api_key: "{{ vault_netdata_stream_api_key }}"
+netdata_dashboard_parent_stream_addresses: [10.78.0.1, 10.77.0.1]
+netdata_dashboard_parent_tunnels:
+  - wg-quick@wg-storage.service
+  - wg-quick@wg0.service
+netdata_dashboard_child_addresses: [10.78.0.2, 10.77.0.2]
+netdata_dashboard_stream_destinations:
+  storage: 10.78.0.1
+  builder: 10.77.0.1

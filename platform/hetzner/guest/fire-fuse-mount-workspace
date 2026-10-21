@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly config_directory='/run/fire-fuse/workspace'
+readonly mountpoint='/workspace'
+
+fail() {
+  printf 'fire-fuse-mount-workspace: %s\n' "$*" >&2
+  exit 1
+}
+
+read_value() {
+  local name="$1"
+  local path="${config_directory}/${name}"
+  local value
+
+  [[ -f "${path}" && ! -L "${path}" ]] || fail "missing regular configuration file: ${path}"
+  value="$(< "${path}")"
+  [[ -n "${value}" ]] || fail "empty configuration file: ${path}"
+  [[ "${value}" != *$'\n'* ]] || fail "configuration file has multiple lines: ${path}"
+  printf '%s' "${value}"
+}
+
+workspace_id="$(read_value workspace-id)"
+client_id="$(read_value client-id)"
+server="$(read_value server)"
+export_path="$(read_value export-path)"
+
+[[ "${workspace_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || fail 'invalid workspace ID'
+[[ "${client_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || fail 'invalid NFS client ID'
+[[ "${server}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail 'NFS server must be an IPv4 address'
+IFS='.' read -r first second third fourth <<< "${server}"
+for octet in "${first}" "${second}" "${third}" "${fourth}"; do
+  (( 10#${octet} <= 255 )) || fail 'NFS server contains an invalid IPv4 octet'
+done
+first_value=$((10#${first}))
+second_value=$((10#${second}))
+(
+  ((first_value == 10)) ||
+  ((first_value == 172 && second_value >= 16 && second_value <= 31)) ||
+  ((first_value == 192 && second_value == 168))
+) || fail 'NFS server must be a private IPv4 address'
+
+[[ "${export_path}" == /* ]] || fail 'NFS export path must be absolute'
+[[ "${export_path}" != *[[:space:]:]* ]] || fail 'NFS export path contains unsafe characters'
+[[ "${export_path}" != *'//'*
+  && "${export_path}" != *'/./'*
+  && "${export_path}" != *'/../'*
+  && "${export_path}" != */.
+  && "${export_path}" != */..
+  && "${export_path}" != */ ]] || fail 'NFS export path must be clean'
+[[ "${export_path##*/}" == "${workspace_id}" ]] ||
+  fail 'NFS export path does not match the workspace ID'
+
+install -d -m 0755 "${mountpoint}"
+
+# Snapshot clones share a hostname. Give each VM a distinct, stable NFSv4
+# client owner before its first mount so they cannot steal one another's lease.
+readonly nfs_client_identifier='/sys/fs/nfs/net/nfs_client/identifier'
+[[ -f "${nfs_client_identifier}" && -w "${nfs_client_identifier}" ]] ||
+  fail 'NFSv4 client identifier interface is unavailable'
+printf '%s\n' "${client_id}" > "${nfs_client_identifier}" ||
+  fail 'could not set NFSv4 client identifier'
+
+# NFSv4 discards temporary mounts while resolving the export. On SMP guests,
+# their normal RCU grace periods can dominate startup. Expedite only this
+# mount, and restore the guest's policy before starting the workload.
+readonly rcu_expedited='/sys/kernel/rcu_expedited'
+if [[ -r "${rcu_expedited}" && -w "${rcu_expedited}" ]]; then
+  readonly previous_rcu_expedited="$(< "${rcu_expedited}")"
+  [[ "${previous_rcu_expedited}" == 0 || "${previous_rcu_expedited}" == 1 ]] ||
+    fail 'invalid RCU expedited setting'
+
+  restore_rcu() {
+    local status=$?
+    trap - EXIT
+    if ! printf '%s\n' "${previous_rcu_expedited}" > "${rcu_expedited}"; then
+      printf 'fire-fuse-mount-workspace: could not restore RCU policy\n' >&2
+      status=1
+    fi
+    exit "${status}"
+  }
+  trap restore_rcu EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  printf '1\n' > "${rcu_expedited}" || fail 'could not expedite RCU'
+fi
+
+/usr/sbin/mount.nfs4 \
+  --options vers=4.2,proto=tcp,port=2049,hard,timeo=600,retrans=2 \
+  "${server}:${export_path}" \
+  "${mountpoint}"

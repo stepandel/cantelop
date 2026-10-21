@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly device='/dev/vdb'
+readonly merged='/run/fire-fuse/container-rootfs'
+readonly overlay_runtime='/run/fire-fuse/container-overlay'
+readonly lower="${overlay_runtime}/lower"
+readonly upper="${overlay_runtime}/upper"
+readonly work="${overlay_runtime}/work"
+readonly upper_size='128m'
+
+fail() {
+  printf 'fire-fuse-mount-container-rootfs: %s\n' "$*" >&2
+  exit 1
+}
+
+cleanup() {
+  /usr/local/sbin/fire-fuse-unmount-container-rootfs >/dev/null 2>&1 || true
+}
+
+[[ -b "${device}" ]] || fail "container root device is not a block device: ${device}"
+install -d -m 0755 "${merged}" "${overlay_runtime}"
+trap cleanup ERR
+
+/usr/bin/mount \
+  --types tmpfs \
+  --options "nodev,nosuid,mode=0755,size=${upper_size}" \
+  tmpfs \
+  "${overlay_runtime}"
+install -d -m 0755 "${lower}" "${upper}" "${work}"
+
+/usr/bin/mount \
+  --types ext4 \
+  --options ro,nodev,nosuid \
+  "${device}" \
+  "${lower}"
+
+/usr/bin/mount \
+  --types overlay \
+  --options "nodev,nosuid,lowerdir=${lower},upperdir=${upper},workdir=${work}" \
+  overlay \
+  "${merged}"
+
+trap - ERR

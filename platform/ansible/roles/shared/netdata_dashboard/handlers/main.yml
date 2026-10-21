@@ -1,0 +1,11 @@
+---
+- name: Reload systemd for Netdata
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Restart Netdata
+  ansible.builtin.systemd_service:
+    name: "{{ netdata_dashboard_service }}"
+    state: restarted
+  when: not ansible_check_mode

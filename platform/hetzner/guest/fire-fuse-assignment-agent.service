@@ -1,0 +1,13 @@
+[Unit]
+Description=Wait for one Fire Fuse snapshot assignment
+Documentation=https://github.com/stepandel/cantelop
+Requires=dev-vdb.device
+After=dev-vdb.device
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/fire-fuse-assignment-agent
+Restart=no
+UMask=0077
+StandardOutput=journal+console
+StandardError=journal+console

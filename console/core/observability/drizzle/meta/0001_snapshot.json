@@ -1,0 +1,1408 @@
+{
+  "id": "d7fd40df-e37e-4d6c-a261-fd249b0b64d9",
+  "prevId": "e6303852-944b-42c3-80b1-2cb25aac5ba2",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "cantelop_observability.ingestion_receipts": {
+      "name": "ingestion_receipts",
+      "schema": "cantelop_observability",
+      "columns": {
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "ingestion_receipts_received": {
+          "name": "ingestion_receipts_received",
+          "columns": [
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "ingestion_receipts_source_event_id_pk": {
+          "name": "ingestion_receipts_source_event_id_pk",
+          "columns": [
+            "source",
+            "event_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ingestion_receipts_source_check": {
+          "name": "ingestion_receipts_source_check",
+          "value": "\"cantelop_observability\".\"ingestion_receipts\".\"source\" IN ('edge', 'gateway', 'fire_fuse', 'sdk')"
+        },
+        "ingestion_receipts_event_id_check": {
+          "name": "ingestion_receipts_event_id_check",
+          "value": "length(\"cantelop_observability\".\"ingestion_receipts\".\"event_id\") BETWEEN 1 AND 128"
+        },
+        "ingestion_receipts_schema_version_check": {
+          "name": "ingestion_receipts_schema_version_check",
+          "value": "\"cantelop_observability\".\"ingestion_receipts\".\"schema_version\" BETWEEN 1 AND 1000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.logs": {
+      "name": "logs",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sandbox_id": {
+          "name": "sandbox_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "span_id": {
+          "name": "span_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attributes": {
+          "name": "attributes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "logs_request_occurred": {
+          "name": "logs_request_occurred",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_attempt_occurred": {
+          "name": "logs_attempt_occurred",
+          "columns": [
+            {
+              "expression": "attempt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_span_occurred": {
+          "name": "logs_span_occurred",
+          "columns": [
+            {
+              "expression": "span_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_sandbox_occurred": {
+          "name": "logs_sandbox_occurred",
+          "columns": [
+            {
+              "expression": "sandbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "logs_request_id_requests_id_fk": {
+          "name": "logs_request_id_requests_id_fk",
+          "tableFrom": "logs",
+          "tableTo": "requests",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "logs_session_id_sessions_id_fk": {
+          "name": "logs_session_id_sessions_id_fk",
+          "tableFrom": "logs",
+          "tableTo": "sessions",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "logs_sandbox_id_sandboxes_id_fk": {
+          "name": "logs_sandbox_id_sandboxes_id_fk",
+          "tableFrom": "logs",
+          "tableTo": "sandboxes",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "sandbox_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "logs_attempt_id_message_attempts_id_fk": {
+          "name": "logs_attempt_id_message_attempts_id_fk",
+          "tableFrom": "logs",
+          "tableTo": "message_attempts",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "attempt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "logs_span_id_spans_id_fk": {
+          "name": "logs_span_id_spans_id_fk",
+          "tableFrom": "logs",
+          "tableTo": "spans",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "span_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "logs_id_check": {
+          "name": "logs_id_check",
+          "value": "\"cantelop_observability\".\"logs\".\"id\" ~ '^log_[0-9a-f]{32}$'"
+        },
+        "logs_app_id_check": {
+          "name": "logs_app_id_check",
+          "value": "\"cantelop_observability\".\"logs\".\"app_id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "logs_trace_id_check": {
+          "name": "logs_trace_id_check",
+          "value": "\"cantelop_observability\".\"logs\".\"trace_id\" IS NULL OR (\"cantelop_observability\".\"logs\".\"trace_id\" ~ '^[0-9a-f]{32}$' AND \"cantelop_observability\".\"logs\".\"trace_id\" <> repeat('0', 32))"
+        },
+        "logs_scope_check": {
+          "name": "logs_scope_check",
+          "value": "\n    (\"cantelop_observability\".\"logs\".\"request_id\" IS NOT NULL AND \"cantelop_observability\".\"logs\".\"trace_id\" IS NOT NULL AND \"cantelop_observability\".\"logs\".\"attempt_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"span_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"session_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"sandbox_id\" IS NULL)\n    OR (\"cantelop_observability\".\"logs\".\"request_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"attempt_id\" IS NOT NULL AND \"cantelop_observability\".\"logs\".\"trace_id\" IS NOT NULL)\n    OR (\"cantelop_observability\".\"logs\".\"request_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"attempt_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"trace_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"span_id\" IS NULL AND \"cantelop_observability\".\"logs\".\"session_id\" IS NOT NULL AND \"cantelop_observability\".\"logs\".\"sandbox_id\" IS NOT NULL)"
+        },
+        "logs_severity_check": {
+          "name": "logs_severity_check",
+          "value": "length(\"cantelop_observability\".\"logs\".\"severity\") BETWEEN 1 AND 32"
+        },
+        "logs_body_check": {
+          "name": "logs_body_check",
+          "value": "length(\"cantelop_observability\".\"logs\".\"body\") BETWEEN 1 AND 16384"
+        },
+        "logs_attributes_check": {
+          "name": "logs_attributes_check",
+          "value": "jsonb_typeof(\"cantelop_observability\".\"logs\".\"attributes\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.message_attempts": {
+      "name": "message_attempts",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sandbox_id": {
+          "name": "sandbox_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "span_id": {
+          "name": "span_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "queued_at": {
+          "name": "queued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "routed_at": {
+          "name": "routed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "handler_started_at": {
+          "name": "handler_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "handler_finished_at": {
+          "name": "handler_finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quiescent_at": {
+          "name": "quiescent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generation": {
+          "name": "generation",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "incomplete": {
+          "name": "incomplete",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "message_attempts_sandbox_queued": {
+          "name": "message_attempts_sandbox_queued",
+          "columns": [
+            {
+              "expression": "sandbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "queued_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "message_attempts_app_queued": {
+          "name": "message_attempts_app_queued",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "queued_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "message_attempts_message_id_messages_id_fk": {
+          "name": "message_attempts_message_id_messages_id_fk",
+          "tableFrom": "message_attempts",
+          "tableTo": "messages",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "message_attempts_sandbox_id_sandboxes_id_fk": {
+          "name": "message_attempts_sandbox_id_sandboxes_id_fk",
+          "tableFrom": "message_attempts",
+          "tableTo": "sandboxes",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "sandbox_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "message_attempts_message_attempt_unique": {
+          "name": "message_attempts_message_attempt_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "message_id",
+            "attempt"
+          ]
+        },
+        "message_attempts_span_unique": {
+          "name": "message_attempts_span_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "span_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "message_attempts_id_check": {
+          "name": "message_attempts_id_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"id\" ~ '^att_[0-9a-f]{32}$'"
+        },
+        "message_attempts_app_id_check": {
+          "name": "message_attempts_app_id_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"app_id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "message_attempts_attempt_check": {
+          "name": "message_attempts_attempt_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"attempt\" BETWEEN 1 AND 100"
+        },
+        "message_attempts_trace_id_check": {
+          "name": "message_attempts_trace_id_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"trace_id\" ~ '^[0-9a-f]{32}$' AND \"cantelop_observability\".\"message_attempts\".\"trace_id\" <> repeat('0', 32)"
+        },
+        "message_attempts_span_id_check": {
+          "name": "message_attempts_span_id_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"span_id\" ~ '^[0-9a-f]{16}$' AND \"cantelop_observability\".\"message_attempts\".\"span_id\" <> repeat('0', 16)"
+        },
+        "message_attempts_generation_check": {
+          "name": "message_attempts_generation_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"generation\" IS NULL OR \"cantelop_observability\".\"message_attempts\".\"generation\" BETWEEN 1 AND 9007199254740991"
+        },
+        "message_attempts_outcome_check": {
+          "name": "message_attempts_outcome_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"outcome\" IN ('pending', 'completed', 'failed')"
+        },
+        "message_attempts_error_code_check": {
+          "name": "message_attempts_error_code_check",
+          "value": "\"cantelop_observability\".\"message_attempts\".\"error_code\" IS NULL OR \"cantelop_observability\".\"message_attempts\".\"error_code\" ~ '^[a-z][a-z0-9_]{0,63}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.messages": {
+      "name": "messages",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "messages_session_accepted": {
+          "name": "messages_session_accepted",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "accepted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_request": {
+          "name": "messages_request",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "messages_session_id_sessions_id_fk": {
+          "name": "messages_session_id_sessions_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "sessions",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "messages_id_check": {
+          "name": "messages_id_check",
+          "value": "\"cantelop_observability\".\"messages\".\"id\" ~ '^msg_[0-9a-f]{32}$'"
+        },
+        "messages_app_id_check": {
+          "name": "messages_app_id_check",
+          "value": "\"cantelop_observability\".\"messages\".\"app_id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "messages_workspace_id_check": {
+          "name": "messages_workspace_id_check",
+          "value": "\"cantelop_observability\".\"messages\".\"workspace_id\" ~ '^wsp_[0-9a-f]{32}$'"
+        },
+        "messages_request_id_check": {
+          "name": "messages_request_id_check",
+          "value": "\"cantelop_observability\".\"messages\".\"request_id\" IS NULL OR \"cantelop_observability\".\"messages\".\"request_id\" ~ '^req_[0-9a-f]{32}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.requests": {
+      "name": "requests",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_us": {
+          "name": "duration_us",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "incomplete": {
+          "name": "incomplete",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "requests_app_received": {
+          "name": "requests_app_received",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "requests_id_check": {
+          "name": "requests_id_check",
+          "value": "\"cantelop_observability\".\"requests\".\"id\" ~ '^req_[0-9a-f]{32}$'"
+        },
+        "requests_app_id_check": {
+          "name": "requests_app_id_check",
+          "value": "\"cantelop_observability\".\"requests\".\"app_id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "requests_workspace_id_check": {
+          "name": "requests_workspace_id_check",
+          "value": "\"cantelop_observability\".\"requests\".\"workspace_id\" IS NULL OR \"cantelop_observability\".\"requests\".\"workspace_id\" ~ '^wsp_[0-9a-f]{32}$'"
+        },
+        "requests_trace_id_check": {
+          "name": "requests_trace_id_check",
+          "value": "\"cantelop_observability\".\"requests\".\"trace_id\" ~ '^[0-9a-f]{32}$' AND \"cantelop_observability\".\"requests\".\"trace_id\" <> repeat('0', 32)"
+        },
+        "requests_status_code_check": {
+          "name": "requests_status_code_check",
+          "value": "\"cantelop_observability\".\"requests\".\"status_code\" IS NULL OR \"cantelop_observability\".\"requests\".\"status_code\" BETWEEN 100 AND 599"
+        },
+        "requests_duration_check": {
+          "name": "requests_duration_check",
+          "value": "\"cantelop_observability\".\"requests\".\"duration_us\" IS NULL OR \"cantelop_observability\".\"requests\".\"duration_us\" >= 0"
+        },
+        "requests_completed_check": {
+          "name": "requests_completed_check",
+          "value": "\"cantelop_observability\".\"requests\".\"completed_at\" IS NULL OR \"cantelop_observability\".\"requests\".\"completed_at\" >= \"cantelop_observability\".\"requests\".\"received_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.retention_state": {
+      "name": "retention_state",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "last_run_at": {
+          "name": "last_run_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "retention_state_singleton_check": {
+          "name": "retention_state_singleton_check",
+          "value": "\"cantelop_observability\".\"retention_state\".\"id\" = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.sandboxes": {
+      "name": "sandboxes",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "concrete_session_id": {
+          "name": "concrete_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_id": {
+          "name": "build_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allocated_at": {
+          "name": "allocated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terminated_at": {
+          "name": "terminated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "sandboxes_session_allocated": {
+          "name": "sandboxes_session_allocated",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "allocated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sandboxes_app_allocated": {
+          "name": "sandboxes_app_allocated",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "allocated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sandboxes_session_id_sessions_id_fk": {
+          "name": "sandboxes_session_id_sessions_id_fk",
+          "tableFrom": "sandboxes",
+          "tableTo": "sessions",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sandboxes_id_check": {
+          "name": "sandboxes_id_check",
+          "value": "\"cantelop_observability\".\"sandboxes\".\"id\" ~ '^sbx-[0-9a-f]{32}$'"
+        },
+        "sandboxes_app_id_check": {
+          "name": "sandboxes_app_id_check",
+          "value": "\"cantelop_observability\".\"sandboxes\".\"app_id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "sandboxes_workspace_id_check": {
+          "name": "sandboxes_workspace_id_check",
+          "value": "\"cantelop_observability\".\"sandboxes\".\"workspace_id\" ~ '^wsp_[0-9a-f]{32}$'"
+        },
+        "sandboxes_concrete_session_id_check": {
+          "name": "sandboxes_concrete_session_id_check",
+          "value": "\"cantelop_observability\".\"sandboxes\".\"concrete_session_id\" IS NULL OR \"cantelop_observability\".\"sandboxes\".\"concrete_session_id\" ~ '^ses_[A-Za-z0-9][A-Za-z0-9_-]{0,59}$'"
+        },
+        "sandboxes_terminated_check": {
+          "name": "sandboxes_terminated_check",
+          "value": "\"cantelop_observability\".\"sandboxes\".\"terminated_at\" IS NULL OR \"cantelop_observability\".\"sandboxes\".\"terminated_at\" >= \"cantelop_observability\".\"sandboxes\".\"allocated_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.sessions": {
+      "name": "sessions",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "logical_session_id": {
+          "name": "logical_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "sessions_app_seen": {
+          "name": "sessions_app_seen",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sessions_logical_unique": {
+          "name": "sessions_logical_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "app_id",
+            "workspace_id",
+            "logical_session_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "sessions_app_id_check": {
+          "name": "sessions_app_id_check",
+          "value": "\"cantelop_observability\".\"sessions\".\"app_id\" ~ '^app_[0-9a-f]{32}$'"
+        },
+        "sessions_workspace_id_check": {
+          "name": "sessions_workspace_id_check",
+          "value": "\"cantelop_observability\".\"sessions\".\"workspace_id\" ~ '^wsp_[0-9a-f]{32}$'"
+        },
+        "sessions_logical_id_check": {
+          "name": "sessions_logical_id_check",
+          "value": "\"cantelop_observability\".\"sessions\".\"logical_session_id\" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'"
+        },
+        "sessions_seen_check": {
+          "name": "sessions_seen_check",
+          "value": "\"cantelop_observability\".\"sessions\".\"last_seen_at\" >= \"cantelop_observability\".\"sessions\".\"first_seen_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "cantelop_observability.spans": {
+      "name": "spans",
+      "schema": "cantelop_observability",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_span_id": {
+          "name": "parent_span_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attributes": {
+          "name": "attributes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "spans_attempt_started": {
+          "name": "spans_attempt_started",
+          "columns": [
+            {
+              "expression": "attempt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "spans_trace_started": {
+          "name": "spans_trace_started",
+          "columns": [
+            {
+              "expression": "trace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "spans_attempt_id_message_attempts_id_fk": {
+          "name": "spans_attempt_id_message_attempts_id_fk",
+          "tableFrom": "spans",
+          "tableTo": "message_attempts",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "attempt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "spans_parent_span_id_spans_id_fk": {
+          "name": "spans_parent_span_id_spans_id_fk",
+          "tableFrom": "spans",
+          "tableTo": "spans",
+          "schemaTo": "cantelop_observability",
+          "columnsFrom": [
+            "parent_span_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "spans_id_check": {
+          "name": "spans_id_check",
+          "value": "\"cantelop_observability\".\"spans\".\"id\" ~ '^[0-9a-f]{16}$' AND \"cantelop_observability\".\"spans\".\"id\" <> repeat('0', 16)"
+        },
+        "spans_trace_id_check": {
+          "name": "spans_trace_id_check",
+          "value": "\"cantelop_observability\".\"spans\".\"trace_id\" ~ '^[0-9a-f]{32}$' AND \"cantelop_observability\".\"spans\".\"trace_id\" <> repeat('0', 32)"
+        },
+        "spans_name_check": {
+          "name": "spans_name_check",
+          "value": "length(\"cantelop_observability\".\"spans\".\"name\") BETWEEN 1 AND 256"
+        },
+        "spans_kind_check": {
+          "name": "spans_kind_check",
+          "value": "\"cantelop_observability\".\"spans\".\"kind\" IN ('internal', 'client', 'server')"
+        },
+        "spans_status_check": {
+          "name": "spans_status_check",
+          "value": "\"cantelop_observability\".\"spans\".\"status\" IN ('unset', 'ok', 'error')"
+        },
+        "spans_finished_check": {
+          "name": "spans_finished_check",
+          "value": "\"cantelop_observability\".\"spans\".\"finished_at\" IS NULL OR \"cantelop_observability\".\"spans\".\"finished_at\" >= \"cantelop_observability\".\"spans\".\"started_at\""
+        },
+        "spans_attributes_check": {
+          "name": "spans_attributes_check",
+          "value": "jsonb_typeof(\"cantelop_observability\".\"spans\".\"attributes\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

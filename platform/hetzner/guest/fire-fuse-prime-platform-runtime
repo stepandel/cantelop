@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly runtime=/usr/local/lib/cantelop/bun
+readonly expected_version=1.3.10
+
+[[ -x "${runtime}" ]] || exit 1
+[[ "$("${runtime}" --version)" == "${expected_version}" ]] || exit 1
+
+# Exercise the exact built-in used by the SDK listener. The process exits
+# before the generic snapshot is taken; only customer-neutral executable and
+# module pages remain warm in the guest page cache.
+"${runtime}" --eval '
+  import { createServer } from "node:http";
+  const server = createServer();
+  server.listen(0, "127.0.0.1", () => server.close());
+'

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly mountpoint='/workspace'
+readonly attempts=300
+readonly retry_delay='0.1'
+
+for ((attempt = 1; attempt <= attempts; attempt++)); do
+  if /usr/bin/mountpoint --quiet "${mountpoint}"; then
+    exit 0
+  fi
+  sleep "${retry_delay}"
+done
+
+printf 'fire-fuse-wait-workspace: %s is not mounted\n' "${mountpoint}" >&2
+exit 1

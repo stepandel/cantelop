@@ -1,0 +1,8 @@
+---
+- name: Configure minio on the dedicated storage host
+  hosts: storage_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: storage_base
+    - role: minio_object

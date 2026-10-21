@@ -1,0 +1,5 @@
+---
+storage_backup_audit_program: >-
+  /usr/local/lib/fire-fuse/audit-storage-backups.py
+storage_backup_audit_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py

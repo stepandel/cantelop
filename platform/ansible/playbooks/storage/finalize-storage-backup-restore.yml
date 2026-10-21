@@ -1,0 +1,7 @@
+---
+- name: Finalize and validate isolated storage restore evidence
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_finalize_restore

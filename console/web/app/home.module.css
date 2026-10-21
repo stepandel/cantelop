@@ -1,0 +1,415 @@
+/* Home — the public front door.
+   Same grey ground, faces, and token palette as the rest of the site, set
+   on a wide 1430px measure because this page is looked at before it is
+   read. A headline and a picture, three features as panels that alternate
+   their picture side, then the two lists that say the product is moving:
+   the blog and the changelog. */
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.content {
+  box-sizing: border-box;
+  width: min(1430px, 100%);
+  margin: 0 auto;
+  padding: 0 var(--sp-6) calc(var(--sp-12) * 3);
+}
+
+/* ---- Hero ---- */
+
+.hero {
+  padding: calc(var(--sp-12) * 2) 0 calc(var(--sp-8) * 2);
+}
+
+.hero h1 {
+  margin: 0;
+  font: 500 clamp(2.25rem, 1.2rem + 3.2vw, 3.75rem)/1.08 var(--sans);
+  letter-spacing: -0.035em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.lede {
+  margin: var(--sp-6) 0 0;
+  max-width: 640px;
+  font: 400 clamp(1.0625rem, 0.95rem + 0.4vw, 1.25rem)/1.5 var(--sans);
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.ctaRow {
+  margin-top: var(--sp-8);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+/* The hero's way in is a size up from the bar's. Scoped under .ctaRow so it
+   outranks the shared .cta rule from the topbar module. */
+.ctaRow .ctaPrimary {
+  height: 40px;
+  padding: 0 var(--sp-6) 0 calc(var(--sp-4) + 4px);
+  font-size: 1rem;
+}
+
+.ctaSecondary {
+  color: var(--ink-soft);
+  font: 400 var(--fs-data) var(--sans);
+}
+.ctaSecondary:hover { color: var(--ink); }
+
+/* OAuth failures land back on the front door with ?error=…; this is the one
+   place they can be reported. */
+.authError {
+  margin: var(--sp-6) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  width: fit-content;
+  border: 1px solid var(--red-line);
+  border-radius: 4px;
+  background: var(--red-wash);
+  color: var(--red);
+  font: 400 var(--fs-support)/var(--lh-prose) var(--sans);
+}
+
+/* ---- Pictures ----
+   A picture sits on a white card with a hairline border, the same object a
+   figure is in the docs and blog, over a dot grid that fades toward the
+   edges: the dots echo the figures' orthogonal layout without competing
+   with their strokes. A figure set into it drops its own frame and caption,
+   the card being the frame. A slot still waiting on its picture keeps the
+   warm hatched ground, which reads as exactly that. */
+
+.visual {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--line-strong) 1px, transparent 1.5px);
+  background-size: 20px 20px;
+  background-position: center;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  pointer-events: none;
+}
+
+.visual[data-pending] {
+  border: 1px dashed var(--brand-line);
+  background-color: var(--brand-surface);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 13px,
+    color-mix(in srgb, var(--brand-line) 55%, transparent) 13px 14px
+  );
+}
+.visual[data-pending]::before { content: none; }
+
+.visualInner {
+  position: relative;
+  width: min(100%, 560px);
+  padding: var(--sp-8) var(--sp-6);
+  pointer-events: none;
+}
+.visualInner figure { margin: 0; --fig-scale: 1; }
+.visualInner figure > div { border: 0; border-radius: 0; background: none; }
+.visualInner figure > div > div { padding: 0; overflow: visible; }
+.visualInner figure svg { min-width: 0; }
+.visualInner figcaption { display: none; }
+
+.heroVisual { aspect-ratio: 1430 / 860; }
+
+/* A live demo is the slot: no ground of its own, the demo's card filling the
+   column top to bottom with its caption under it. The slot grows with the
+   demo when it opens into a chat. */
+.feature .visual[data-live] {
+  aspect-ratio: auto;
+  align-items: stretch;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  overflow: visible;
+}
+.visual[data-live]::before { content: none; }
+
+.visualLive {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.visualLive figure { flex: 1; display: flex; flex-direction: column; margin: 0; }
+.visualLive figure > div:first-child { flex: 1; }
+/* A code block fills the slot the same way, its lines starting at the top. */
+.visualLive > div:only-child:not(figure) { flex: 1; margin: 0; display: flex; flex-direction: column; }
+.visualLive > div:only-child:not(figure) > pre { flex: 1; }
+.heroVisual .visualInner { width: min(100%, 1040px); padding: var(--sp-12); }
+
+/* Three windows stacked on the card, each a screenshot framed the way a
+   window sits on a desk. Placed in percentages of the card so the stack
+   keeps its arrangement at any width; later windows sit in front. */
+.stack {
+  position: absolute;
+  inset: 0;
+}
+
+.stackWindow {
+  position: absolute;
+  display: block;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 2px 6px rgba(11, 46, 34, 0.05), 0 16px 40px rgba(11, 46, 34, 0.12);
+}
+
+.stackSlack { top: 5%; left: 4%; width: 56%; }
+.stackApp { top: 20%; right: 4%; width: 66%; }
+.stackTelegram { left: 8%; bottom: 4%; width: 44%; }
+
+/* ---- Features ---- */
+
+.features {
+  margin-top: calc(var(--sp-12) * 2);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--sp-12) * 2);
+}
+
+/* A panel on the ground: text in the narrow column, the picture inset in
+   the wide one. Every other panel flips, so the eye zigzags down the page. */
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: var(--sp-6);
+  padding: var(--sp-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+.feature[data-reverse="true"] { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.feature[data-reverse="true"] .featureText { order: 2; }
+
+.feature .visual { aspect-ratio: 1350 / 1030; }
+
+.featureText {
+  align-self: center;
+  max-width: 400px;
+  padding: var(--sp-12) var(--sp-12);
+  box-sizing: content-box;
+}
+
+.featureText h2 {
+  margin: 0;
+  font: 500 clamp(1.5rem, 1.1rem + 1vw, 2rem)/1.2 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.featureText p {
+  margin: var(--sp-4) 0 0;
+  font: 400 1.125rem/1.6 var(--sans);
+  color: var(--muted);
+}
+
+/* The accent marks the way onward. Cantaloupe itself is too light for small
+   text on the panel, so the link takes the amber step, which holds AA. */
+.featureLink {
+  display: inline-block;
+  margin-top: var(--sp-6);
+  color: var(--amber);
+  font: 400 var(--fs-data) var(--sans);
+}
+.featureLink:hover { color: var(--ink); text-decoration: none; }
+
+/* ---- Blog and changelog ---- */
+
+.listing { margin-top: calc(var(--sp-12) * 2.5); }
+
+.listingHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.listingHead h2 {
+  margin: 0;
+  font: 500 clamp(1.5rem, 1.1rem + 1vw, 2rem)/1.2 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.listingMore {
+  color: var(--ink-soft);
+  font: 400 var(--fs-data) var(--sans);
+}
+.listingMore:hover { color: var(--ink); text-decoration: none; }
+
+.date {
+  display: block;
+  color: var(--grey);
+  font: 400 var(--fs-support)/1.4 var(--mono);
+  font-variant-numeric: slashed-zero;
+}
+
+/* One row of posts: as many 280px-or-wider cards as the row holds, the rest
+   left to the blog. auto-fit sets the column count from the row's width;
+   the container queries below hide every card past it, at the same widths
+   the grid adds a column (n cards need n x 280 + (n - 1) x 24). Four is the
+   most the page's measure ever holds, and the page renders no more. */
+.posts {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-6);
+}
+@container (max-width: 1191px) { .post:nth-child(n + 4) { display: none; } }
+@container (max-width: 887px) { .post:nth-child(n + 3) { display: none; } }
+@container (max-width: 583px) { .post:nth-child(n + 2) { display: none; } }
+
+.postLink {
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  text-decoration: none;
+}
+.postLink:hover { color: var(--ink); text-decoration: none; }
+
+.postArt {
+  aspect-ratio: 16 / 10;
+  margin-bottom: var(--sp-4);
+  transition: border-color 0.15s;
+}
+.postLink:hover .postArt { border-color: var(--line-strong); }
+.postArt .visualInner { width: 100%; padding: var(--sp-4); }
+
+.postTitle {
+  margin: var(--sp-2) 0 0;
+  font: 500 1.0625rem/1.35 var(--sans);
+  color: var(--ink);
+  text-wrap: balance;
+}
+.postLink:hover .postTitle { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+.postSummary {
+  margin: var(--sp-2) 0 0;
+  font: 400 var(--fs-data)/1.55 var(--sans);
+  color: var(--muted);
+}
+
+/* One row that scrolls sideways. Cards are a fixed width so a card and a
+   half always shows at the right edge on a phone, which says there is more;
+   each snaps to the row's start. The scrollbar stays hidden; the cut-off
+   card at the edge says the row goes on. */
+.changes {
+  margin: 0;
+  padding: 0 0 var(--sp-2);
+  list-style: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(320px, 78vw);
+  gap: var(--sp-6);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.changes::-webkit-scrollbar { display: none; }
+.changes:focus-visible { outline-offset: 4px; }
+.change { scroll-snap-align: start; }
+
+
+.changeMeta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+/* Which SDK release carried the change: a quiet chip in the typed face. */
+.changeTag {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font: 400 var(--fs-label)/1.5 var(--mono);
+  white-space: nowrap;
+}
+
+.change {
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.changeTitle {
+  margin: var(--sp-2) 0 0;
+  font: 500 1.0625rem/1.35 var(--sans);
+  color: var(--ink);
+}
+
+.changeSummary {
+  margin: var(--sp-1) 0 0;
+  font: 400 var(--fs-data)/1.55 var(--sans);
+  color: var(--muted);
+}
+.changeSummary code { font-size: 0.8125rem; color: var(--body); }
+
+/* ---- Load sequence ---- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero > *, .heroVisual { animation: homeRise 0.5s cubic-bezier(0.22, 0.7, 0.3, 1) backwards; }
+  .hero > :nth-child(2) { animation-delay: 0.06s; }
+  .hero > :nth-child(3) { animation-delay: 0.12s; }
+  .hero > :nth-child(4) { animation-delay: 0.18s; }
+  .heroVisual { animation-delay: 0.24s; }
+}
+
+@keyframes homeRise {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 1100px) {
+  .featureText { padding: var(--sp-6); }
+}
+
+/* One column: the text always above its picture, whichever side it sat. */
+@media (max-width: 860px) {
+  .feature,
+  .feature[data-reverse="true"] { grid-template-columns: 1fr; }
+  .feature[data-reverse="true"] .featureText { order: 0; }
+  .featureText { max-width: none; padding: var(--sp-2) var(--sp-2) 0; }
+  .feature .visual { aspect-ratio: 16 / 10; }
+}
+
+@media (max-width: 560px) {
+  .content { padding: 0 var(--sp-4) calc(var(--sp-12) * 2); }
+  .hero { padding: var(--sp-12) 0 var(--sp-8); }
+  .heroVisual { aspect-ratio: 4 / 3; }
+  .heroVisual .visualInner { padding: var(--sp-2); }
+  .features { margin-top: var(--sp-12); gap: var(--sp-8); }
+  .feature { padding: var(--sp-4); }
+  .featureText p { font-size: 1rem; }
+  .listing { margin-top: calc(var(--sp-12) * 1.5); }
+  .ctaRow { gap: var(--sp-4); }
+}

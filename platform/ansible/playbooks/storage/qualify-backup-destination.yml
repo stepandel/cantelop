@@ -1,0 +1,10 @@
+---
+- name: Qualify the fire-fuse off-host backup destination
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_destination
+      vars:
+        storage_backup_destination_enabled: true
+    - role: storage_backup_qualify_destination

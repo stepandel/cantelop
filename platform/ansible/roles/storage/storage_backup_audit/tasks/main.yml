@@ -1,0 +1,97 @@
+---
+- name: Validate storage backup audit inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_audit_program
+        == '/usr/local/lib/fire-fuse/audit-storage-backups.py'
+      - >-
+        storage_backup_audit_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+    fail_msg: backup audit requires fixed trusted program and backup roots
+
+- name: Install exact storage backup audit programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - audit-storage-backups.py
+      - verify-storage-backup.py
+
+- name: Inspect installed storage backup audit programs
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - "{{ storage_backup_audit_program }}"
+    - "{{ storage_backup_audit_verifier }}"
+  register: storage_backup_audit_programs
+
+- name: Require trusted storage backup audit programs
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0755')
+      - item.stat.executable
+      - item.stat.checksum is match('^[0-9a-f]{64}$')
+    fail_msg: audit program {{ item.item }} failed trust checks
+  loop: "{{ storage_backup_audit_programs.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Audit local storage backups and transfer records
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_audit_program }}"
+      - --staging-root
+      - "{{ storage_backup_staging_root }}"
+      - --completed-root
+      - "{{ storage_backup_completed_root }}"
+  register: storage_backup_audit_command
+  changed_when: false
+  failed_when: storage_backup_audit_command.rc not in [0, 1]
+
+- name: Decode storage backup audit report
+  ansible.builtin.set_fact:
+    storage_backup_audit_report: >-
+      {{ storage_backup_audit_command.stdout | from_json }}
+
+- name: Require a complete storage backup audit report
+  ansible.builtin.assert:
+    that:
+      - >-
+        (storage_backup_audit_report.keys() | list | sort)
+        == ['counts', 'schema_version', 'sets', 'status']
+      - storage_backup_audit_report.schema_version | int == 1
+      - storage_backup_audit_report.status in ['clean', 'inconsistent']
+      - >-
+        (storage_backup_audit_report.counts.keys() | list | sort)
+        ==
+        ['complete_local', 'incomplete', 'inconsistent', 'transferred']
+      - storage_backup_audit_report.sets is sequence
+      - >-
+        storage_backup_audit_report.sets | length
+        ==
+        (
+          storage_backup_audit_report.counts.complete_local
+          + storage_backup_audit_report.counts.incomplete
+          + storage_backup_audit_report.counts.inconsistent
+          + storage_backup_audit_report.counts.transferred
+        )
+    fail_msg: backup audit returned an invalid report
+
+- name: Report storage backup inventory
+  ansible.builtin.debug:
+    var: storage_backup_audit_report
+
+- name: Reject inconsistent storage backup inventory
+  ansible.builtin.assert:
+    that:
+      - storage_backup_audit_report.status == 'clean'
+      - storage_backup_audit_report.counts.inconsistent | int == 0
+      - storage_backup_audit_command.rc == 0
+    fail_msg: >-
+      backup inventory contains inconsistent entries; no retention operation
+      is safe until the reported entries are investigated

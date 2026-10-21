@@ -1,0 +1,44 @@
+---
+# Provisioning installs the inventory-pinned binaries. Refuse to silently
+# replace a binary that local shipping installed until the inventory pins it.
+# The runtime is excluded: only the coordinated release checkpoints install it.
+- name: Refuse to revert locally shipped host software
+  hosts: fire_fuse_hosts:control_builder_hosts:storage_hosts
+  become: true
+  gather_facts: false
+  vars:
+    local_ship_pins:
+      /usr/local/bin/fire-fuse-gateway: [fire_fuse_gateway_binary_checksum]
+      /usr/local/bin/fire-fuse-async-dispatcher: [fire_fuse_async_dispatcher_binary_checksum]
+      /usr/local/bin/fire-fuse-observer: [fire_fuse_observer_binary_checksum]
+      /usr/local/bin/cantelop-build-materializer: [control_builder_binary_checksum]
+      /usr/local/bin/cantelop-control-worker: [cantelop_control_worker_binary_checksum]
+      /usr/local/bin/minio: [minio_object_server_checksum]
+      /usr/local/bin/juicefs: [juicefs_client_checksum, juicefs_volume_client_checksum]
+  tasks:
+    - name: Read locally shipped binaries that are still installed
+      ansible.builtin.script:
+        cmd: ../../scripts/ship-component.py installed
+        executable: /usr/bin/python3
+      register: local_ship_installed
+      changed_when: false
+      check_mode: false
+
+    - name: Require inventory pins for locally shipped binaries
+      ansible.builtin.assert:
+        that:
+          - >-
+            local_ship_allow_replace | default(false) | bool
+            or local_ship_pins.get(item.key, [])
+            | select('in', hostvars[inventory_hostname])
+            | map('extract', hostvars[inventory_hostname])
+            | reject('equalto', item.value.sha256) | list | length == 0
+        fail_msg: >-
+          {{ item.key }} was shipped locally from {{ item.value.source_commit }}
+          (sha256 {{ item.value.sha256 }}). Pin that artifact with
+          {{ local_ship_pins.get(item.key, []) | join(' or ') }} in the
+          inventory, or pass -e local_ship_allow_replace=true to replace it.
+        quiet: true
+      loop: "{{ local_ship_installed.stdout | from_json | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"

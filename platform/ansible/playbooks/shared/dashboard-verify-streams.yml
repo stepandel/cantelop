@@ -1,0 +1,62 @@
+---
+# Run independently after a validation-only change, or as dashboard.yml's
+# final step. Both children share one bounded retry window.
+- name: Require every child on the compute parent
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Wait for fresh CPU samples from streamed hosts
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - -c
+          - |
+            import http.client
+            import json
+            import sys
+            import time
+
+            healthy = True
+            for host in sys.argv[1].split(","):
+                connection = http.client.HTTPConnection("127.0.0.1", 19999, timeout=5)
+                try:
+                    connection.request("GET", f"/host/{host}/api/v1/chart?chart=system.cpu")
+                    response = connection.getresponse()
+                    if response.status != 200:
+                        print(f"{host}: HTTP {response.status}")
+                        healthy = False
+                        continue
+                    last_entry = int(json.load(response).get("last_entry", 0))
+                    age = time.time() - last_entry
+                    print(f"{host}: CPU sample age {age:.0f}s")
+                    if not 0 <= age <= 60:
+                        healthy = False
+                except (OSError, ValueError) as error:
+                    print(f"{host}: {error}")
+                    healthy = False
+                finally:
+                    connection.close()
+
+            sys.exit(0 if healthy else 1)
+          - >-
+            {{
+              ((['storage'] if groups.get('storage_hosts') else [])
+              + (['builder'] if groups.get('control_builder_hosts') else []))
+              | join(',')
+            }}
+      register: dashboard_child_cpu
+      changed_when: false
+      retries: 12
+      delay: 5
+      until: dashboard_child_cpu.rc == 0
+      when:
+        - not ansible_check_mode
+        - (groups.get('storage_hosts', []) | length > 0) or (groups.get('control_builder_hosts', []) | length > 0)
+
+    - name: Show streamed host sample ages
+      ansible.builtin.debug:
+        var: dashboard_child_cpu.stdout_lines
+      when:
+        - not ansible_check_mode
+        - dashboard_child_cpu is not skipped

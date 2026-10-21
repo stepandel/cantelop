@@ -1,0 +1,247 @@
+---
+- name: Validate transfer bookkeeping inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_record_transfer_verifier
+        == '/usr/local/lib/fire-fuse/verify-storage-backup.py'
+      - >-
+        storage_backup_transfer_set_id
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_transfer_evidence | default({}) is mapping
+      - >-
+        storage_backup_transfer_evidence.status
+        in
+        [
+          'transferred-and-verified',
+          'already-transferred-and-verified'
+        ]
+      - >-
+        storage_backup_transfer_evidence.set_id
+        == storage_backup_transfer_set_id
+      - storage_backup_transfer_evidence.artifacts | length == 4
+      - storage_backup_transfer_evidence.manifest.path == 'manifest.json'
+    fail_msg: >-
+      transfer bookkeeping requires complete verified remote evidence, a safe
+      set ID, and fixed trusted local paths
+
+- name: Create the root-only completed-backup index
+  ansible.builtin.file:
+    path: "{{ storage_backup_completed_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Record transfer bookkeeping paths
+  ansible.builtin.set_fact:
+    storage_backup_record_transfer_set_directory: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_transfer_set_id }}
+    storage_backup_record_transfer_manifest_path: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_transfer_set_id }}/manifest.json
+    storage_backup_record_transfer_path: >-
+      {{ storage_backup_completed_root }}/{{
+      storage_backup_transfer_set_id }}.json
+    storage_backup_record_transfer_partial_path: >-
+      {{ storage_backup_completed_root }}/.{{
+      storage_backup_transfer_set_id }}.json.partial
+
+- name: Inspect local transfer bookkeeping paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - "{{ storage_backup_record_transfer_manifest_path }}"
+    - "{{ storage_backup_record_transfer_path }}"
+    - "{{ storage_backup_record_transfer_partial_path }}"
+  register: storage_backup_record_transfer_paths
+
+- name: Require the unchanged trusted local manifest
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_record_transfer_paths.results[0].stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - >-
+        storage_backup_record_transfer_paths.results[0].stat.checksum
+        == storage_backup_transfer_evidence.manifest.sha256
+    fail_msg: local backup manifest changed after remote verification
+
+- name: Reject an ambiguous partial transfer record
+  ansible.builtin.assert:
+    that:
+      - not storage_backup_record_transfer_paths.results[2].stat.exists
+    fail_msg: >-
+      a partial transfer record exists; inspect it before retrying bookkeeping
+
+- name: Record the transfer bookkeeping time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%SZ
+  register: storage_backup_record_transfer_time
+  changed_when: false
+  when: not storage_backup_record_transfer_paths.results[1].stat.exists
+
+- name: Build the strict transfer bookkeeping document
+  ansible.builtin.set_fact:
+    storage_backup_record_transfer_document:
+      schema_version: 1
+      set_id: "{{ storage_backup_transfer_set_id }}"
+      recorded_at: "{{ storage_backup_record_transfer_time.stdout }}"
+      local:
+        set_directory: "{{ storage_backup_record_transfer_set_directory }}"
+        manifest_path: "{{ storage_backup_record_transfer_manifest_path }}"
+        manifest_sha256: "{{ storage_backup_transfer_evidence.manifest.sha256 }}"
+      remote:
+        endpoint_url: "{{ storage_backup_transfer_evidence.endpoint_url }}"
+        bucket: "{{ storage_backup_transfer_evidence.bucket }}"
+        prefix: "{{ storage_backup_transfer_evidence.remote_prefix }}"
+        artifacts: "{{ storage_backup_transfer_evidence.artifacts }}"
+        manifest: "{{ storage_backup_transfer_evidence.manifest }}"
+  when: not storage_backup_record_transfer_paths.results[1].stat.exists
+
+- name: Write the partial transfer bookkeeping record
+  ansible.builtin.copy:
+    content: "{{ storage_backup_record_transfer_document | to_nice_json }}\n"
+    dest: "{{ storage_backup_record_transfer_partial_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+  diff: false
+  when: not storage_backup_record_transfer_paths.results[1].stat.exists
+
+- name: Promote the transfer bookkeeping record atomically
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mv
+      - --no-target-directory
+      - "{{ storage_backup_record_transfer_partial_path }}"
+      - "{{ storage_backup_record_transfer_path }}"
+  changed_when: true
+  when: not storage_backup_record_transfer_paths.results[1].stat.exists
+
+- name: Read the completed transfer bookkeeping record
+  ansible.builtin.slurp:
+    src: "{{ storage_backup_record_transfer_path }}"
+  register: storage_backup_record_transfer_content
+
+- name: Decode the completed transfer bookkeeping record
+  ansible.builtin.set_fact:
+    storage_backup_record_transfer_existing: >-
+      {{
+        storage_backup_record_transfer_content.content
+        | b64decode
+        | from_json
+      }}
+
+- name: Require the exact transfer bookkeeping record
+  ansible.builtin.assert:
+    that:
+      - >-
+        (storage_backup_record_transfer_existing.keys() | list | sort)
+        == ['local', 'recorded_at', 'remote', 'schema_version', 'set_id']
+      - storage_backup_record_transfer_existing.schema_version | int == 1
+      - >-
+        storage_backup_record_transfer_existing.set_id
+        == storage_backup_transfer_set_id
+      - >-
+        storage_backup_record_transfer_existing.recorded_at
+        is match(
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+          ~ '[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+        )
+      - >-
+        (storage_backup_record_transfer_existing.local.keys() | list | sort)
+        == ['manifest_path', 'manifest_sha256', 'set_directory']
+      - >-
+        storage_backup_record_transfer_existing.local.set_directory
+        == storage_backup_record_transfer_set_directory
+      - >-
+        storage_backup_record_transfer_existing.local.manifest_path
+        == storage_backup_record_transfer_manifest_path
+      - >-
+        storage_backup_record_transfer_existing.local.manifest_sha256
+        == storage_backup_transfer_evidence.manifest.sha256
+      - >-
+        (storage_backup_record_transfer_existing.remote.keys() | list | sort)
+        ==
+        ['artifacts', 'bucket', 'endpoint_url', 'manifest', 'prefix']
+      - >-
+        storage_backup_record_transfer_existing.remote.endpoint_url
+        == storage_backup_transfer_evidence.endpoint_url
+      - >-
+        storage_backup_record_transfer_existing.remote.bucket
+        == storage_backup_transfer_evidence.bucket
+      - >-
+        storage_backup_record_transfer_existing.remote.prefix
+        == storage_backup_transfer_evidence.remote_prefix
+      - >-
+        storage_backup_record_transfer_existing.remote.artifacts
+        == storage_backup_transfer_evidence.artifacts
+      - >-
+        storage_backup_record_transfer_existing.remote.manifest
+        == storage_backup_transfer_evidence.manifest
+    fail_msg: >-
+      existing transfer bookkeeping does not match current verified evidence
+
+- name: Inspect the completed transfer bookkeeping record
+  ansible.builtin.stat:
+    path: "{{ storage_backup_record_transfer_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_record_transfer_stat
+
+- name: Require a trusted completed transfer bookkeeping record
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_record_transfer_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - storage_backup_record_transfer_stat.stat.size | int > 0
+      - >-
+        storage_backup_record_transfer_stat.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: completed transfer record failed trust checks
+
+- name: Reverify the locally recorded complete set
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_record_transfer_verifier }}"
+      - "{{ storage_backup_record_transfer_manifest_path }}"
+  register: storage_backup_record_transfer_verification
+  changed_when: false
+
+- name: Decode locally recorded complete-set verification
+  ansible.builtin.set_fact:
+    storage_backup_record_transfer_verification_result: >-
+      {{ storage_backup_record_transfer_verification.stdout | from_json }}
+
+- name: Require the locally recorded complete set
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_record_transfer_verification_result.status
+        == 'verified'
+      - >-
+        storage_backup_record_transfer_verification_result.set_id
+        == storage_backup_transfer_set_id
+      - >-
+        storage_backup_record_transfer_verification_result.artifacts
+        | int == 4
+    fail_msg: locally recorded backup set no longer verifies
+
+- name: Publish completed transfer bookkeeping
+  ansible.builtin.set_fact:
+    storage_backup_transfer_record:
+      schema_version: 1
+      set_id: "{{ storage_backup_transfer_set_id }}"
+      path: "{{ storage_backup_record_transfer_path }}"
+      size_bytes: "{{ storage_backup_record_transfer_stat.stat.size | int }}"
+      sha256: "{{ storage_backup_record_transfer_stat.stat.checksum }}"

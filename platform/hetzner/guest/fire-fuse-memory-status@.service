@@ -1,0 +1,8 @@
+[Unit]
+Description=Answer a private guest memory availability probe
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fire-fuse-memory-status
+StandardInput=socket
+StandardOutput=socket

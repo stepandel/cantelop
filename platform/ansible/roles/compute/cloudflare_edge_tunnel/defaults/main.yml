@@ -1,0 +1,11 @@
+---
+cloudflare_edge_tunnel_user: cloudflared
+cloudflare_edge_tunnel_group: cloudflared
+cloudflare_edge_tunnel_binary_artifact: ""
+cloudflare_edge_tunnel_binary_checksum: ""
+cloudflare_edge_tunnel_binary: /usr/local/bin/cloudflared
+cloudflare_edge_tunnel_token: ""
+cloudflare_edge_tunnel_config_directory: /etc/cloudflared
+cloudflare_edge_tunnel_token_file: /etc/cloudflared/cantelop-edge.token
+cloudflare_edge_tunnel_unit: /etc/systemd/system/cloudflared-cantelop-edge.service
+cloudflare_edge_tunnel_metrics_address: 127.0.0.1:20241

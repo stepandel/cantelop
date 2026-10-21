@@ -1,0 +1,114 @@
+---
+- name: Gate snapshot VM warmup on the Hetzner reference host
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: false
+  serial: 1
+  vars:
+    fire_fuse_benchmark_host_result_directory: /var/lib/fire-fuse/benchmark-results
+    warmup_policy_path: >-
+      {{ playbook_dir }}/../../../../tests/benchmarks/policies/hetzner-snapshot-warmup-v1.json
+    warmup_policy: "{{ lookup('file', warmup_policy_path) | from_json }}"
+  tasks:
+    - name: Validate startup gate inputs and policy
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - fire_fuse_benchmark_confirm | bool
+          - fire_fuse_benchmark_build_id is match('^sha256:[0-9a-f]{64}$')
+          - fire_fuse_benchmark_output_directory.startswith('/')
+          - fire_fuse_benchmark_host_result_directory == '/var/lib/fire-fuse/benchmark-results'
+          - warmup_policy.schema_version == 1
+          - warmup_policy.minimum_trials == 10
+          - warmup_policy.checks | length == 2
+          - warmup_policy.checks[0].name == 'vm-warmup-median'
+          - warmup_policy.checks[0].statistic == 'median'
+          - warmup_policy.checks[0].comparison == 'at_most'
+          - warmup_policy.checks[1].name == 'vm-warmup-p95'
+          - warmup_policy.checks[1].statistic == 'p95_nearest_rank'
+          - warmup_policy.checks[1].comparison == 'at_most'
+        fail_msg: startup gating requires the confirmed Hetzner profile and the tracked ten-trial policy
+
+    - name: Create the controller benchmark output directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_benchmark_output_directory }}"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+
+    - name: Create the host benchmark result directory
+      ansible.builtin.file:
+        path: "{{ fire_fuse_benchmark_host_result_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Run the dedicated startup gate
+      block:
+        - name: Allocate a temporary startup runner path
+          ansible.builtin.tempfile:
+            state: file
+            prefix: fire-fuse-startup-gate-
+          register: warmup_runner_file
+
+        - name: Install the startup runner for this invocation
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/../../scripts/benchmark-vm-warmup.py"
+            dest: "{{ warmup_runner_file.path }}"
+            owner: root
+            group: root
+            mode: '0700'
+
+        - name: Measure ten snapshot pool hits
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/python3
+              - "{{ warmup_runner_file.path }}"
+              - --build-id
+              - "{{ fire_fuse_benchmark_build_id }}"
+              - --output-directory
+              - "{{ fire_fuse_benchmark_host_result_directory }}"
+              - --trials
+              - '10'
+              - --median-limit-ns
+              - "{{ warmup_policy.checks[0].threshold | string }}"
+              - --p95-limit-ns
+              - "{{ warmup_policy.checks[1].threshold | string }}"
+          register: warmup_gate_command
+          changed_when: true
+          failed_when: false
+
+        - name: Report a startup runner crash
+          ansible.builtin.fail:
+            msg: >-
+              startup runner exited {{ warmup_gate_command.rc }} without a JSON
+              result: {{ warmup_gate_command.stderr | default('') | trim }}
+          when: not (warmup_gate_command.stdout | default('') | trim is match('^\{.*\}$'))
+
+        - name: Decode the startup gate result
+          ansible.builtin.set_fact:
+            warmup_gate_result: "{{ warmup_gate_command.stdout | from_json }}"
+
+        - name: Preserve startup gate evidence on the controller
+          ansible.builtin.fetch:
+            src: "{{ warmup_gate_result.path }}"
+            dest: >-
+              {{ fire_fuse_benchmark_output_directory }}/{{ inventory_hostname }}-{{
+              warmup_gate_result.series_id }}-startup-summary.json
+            flat: true
+
+        - name: Enforce the startup gate
+          ansible.builtin.assert:
+            that:
+              - warmup_gate_command.rc == 0
+              - warmup_gate_result.passed | bool
+              - warmup_gate_result.summary.samples == 10
+            fail_msg: startup gate failed; retained evidence is in the controller output directory
+      always:
+        - name: Remove the temporary startup runner
+          ansible.builtin.file:
+            path: "{{ warmup_runner_file.path }}"
+            state: absent
+          when: warmup_runner_file.path is defined

@@ -1,0 +1,32 @@
+bind 127.0.0.1 {{ redis_metadata_bind_address }}
+protected-mode yes
+port {{ redis_metadata_port }}
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+daemonize no
+supervised systemd
+loglevel notice
+logfile ""
+databases 16
+always-show-logo no
+
+dir {{ redis_metadata_data_directory }}
+dbfilename dump.rdb
+rdbcompression yes
+rdbchecksum yes
+save 900 1
+save 300 10
+save 60 10000
+stop-writes-on-bgsave-error yes
+
+appendonly yes
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+maxmemory {{ redis_metadata_maxmemory }}
+maxmemory-policy noeviction
+requirepass {{ redis_metadata_password }}

@@ -1,0 +1,91 @@
+---
+- name: Run the complete isolated storage restore qualification
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Validate complete restore qualification input
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - >-
+            storage_backup_qualify_restore_set_id
+            is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+        fail_msg: complete restore qualification requires a transferred set ID
+
+    - name: Materialize exact off-host restore inputs
+      ansible.builtin.include_role:
+        name: storage_backup_materialize_restore
+      vars:
+        storage_backup_materialize_restore_set_id: >-
+          {{ storage_backup_qualify_restore_set_id }}
+
+    - name: Bind the generated rehearsal ID for remaining stages
+      ansible.builtin.set_fact:
+        storage_backup_qualify_restore_rehearsal_id: >-
+          {{ storage_backup_materialize_restore_evidence.rehearsal_id }}
+
+    - name: Require a generated isolated rehearsal ID
+      ansible.builtin.assert:
+        that:
+          - >-
+            storage_backup_qualify_restore_rehearsal_id
+            is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+        fail_msg: materialization did not produce an isolated rehearsal ID
+
+    - name: Extract the isolated MinIO snapshot
+      ansible.builtin.include_role:
+        name: storage_backup_extract_minio_restore
+      vars:
+        storage_backup_extract_minio_restore_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Start and qualify isolated MinIO
+      ansible.builtin.include_role:
+        name: storage_backup_start_minio_restore
+      vars:
+        storage_backup_start_minio_restore_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Copy the verified MinIO recovery bucket
+      ansible.builtin.include_role:
+        name: storage_backup_copy_minio_restore
+      vars:
+        storage_backup_copy_minio_restore_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Qualify the isolated Redis persistence snapshot
+      ansible.builtin.include_role:
+        name: storage_backup_restore_redis_snapshot
+      vars:
+        storage_backup_restore_redis_snapshot_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Restore and qualify portable JuiceFS metadata
+      ansible.builtin.include_role:
+        name: storage_backup_restore_metadata
+      vars:
+        storage_backup_restore_metadata_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Qualify the restored JuiceFS cold remount
+      ansible.builtin.include_role:
+        name: storage_backup_qualify_restore_mount
+      vars:
+        storage_backup_qualify_restore_mount_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Finalize canonical restore evidence
+      ansible.builtin.include_role:
+        name: storage_backup_finalize_restore
+      vars:
+        storage_backup_finalize_restore_rehearsal_id: >-
+          {{ storage_backup_qualify_restore_rehearsal_id }}
+
+    - name: Report complete restore qualification
+      ansible.builtin.debug:
+        msg:
+          status: "{{ storage_backup_finalize_restore_result.status }}"
+          set_id: "{{ storage_backup_qualify_restore_set_id }}"
+          rehearsal_id: "{{ storage_backup_qualify_restore_rehearsal_id }}"
+          cleanup_required: true

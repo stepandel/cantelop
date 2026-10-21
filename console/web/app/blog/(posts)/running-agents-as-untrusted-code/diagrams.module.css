@@ -1,0 +1,3 @@
+/* The overview follows the boundaries list, so it stands further off than
+   a figure that follows a paragraph. */
+.lead { margin-top: var(--sp-12); }

@@ -1,0 +1,9 @@
+---
+- name: Install the fire-fuse storage backup destination boundary
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_destination
+      vars:
+        storage_backup_destination_enabled: true

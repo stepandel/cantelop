@@ -1,0 +1,12 @@
+{
+  "args": [
+    "/bin/sleep",
+    "3600"
+  ],
+  "env": [
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  ],
+  "working_directory": "/",
+  "uid": 65534,
+  "gid": 65534
+}

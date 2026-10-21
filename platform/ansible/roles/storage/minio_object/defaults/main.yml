@@ -1,0 +1,27 @@
+---
+minio_object_server_artifact: ""
+minio_object_server_checksum: ""
+
+minio_object_client_release: RELEASE.2025-08-13T08-35-41Z
+minio_object_client_url: >-
+  https://dl.min.io/client/mc/release/linux-amd64/mc.{{
+  minio_object_client_release }}
+minio_object_client_checksum: >-
+  sha256:01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891
+
+minio_object_server_binary: /usr/local/bin/minio
+minio_object_client_binary: /usr/local/bin/mc
+minio_object_user: minio
+minio_object_group: minio
+minio_object_bind_address: 10.78.0.2
+minio_object_api_port: 9000
+minio_object_console_address: 127.0.0.1
+minio_object_console_port: 9001
+minio_object_root_user: firefuseadmin
+minio_object_juicefs_access_key: juicefs
+minio_object_bucket: fire-fuse-workspaces
+minio_object_data_directory: /var/lib/fire-fuse/minio
+minio_object_environment_file: /etc/fire-fuse/minio.env
+minio_object_service: fire-fuse-minio.service
+minio_object_allow_credential_rotation: false
+minio_object_consumer_service: fire-fuse.service

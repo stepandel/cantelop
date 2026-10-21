@@ -1,0 +1,7 @@
+---
+- name: Preserve the current Fire Fuse release before production upgrade
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: fire_fuse_prepare_upgrade

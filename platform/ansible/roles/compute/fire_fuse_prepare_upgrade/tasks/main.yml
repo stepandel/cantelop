@@ -1,0 +1,135 @@
+---
+- name: Validate production upgrade snapshot inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - fire_fuse_prepare_upgrade_confirm == 'PREPARE FIRE-FUSE PRODUCTION UPGRADE'
+      - fire_fuse_prepare_upgrade_id is match('^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9.-]{0,63}$')
+      - fire_fuse_prepare_upgrade_service == 'fire-fuse.service'
+      - fire_fuse_prepare_upgrade_root == '/var/lib/fire-fuse/release-rollbacks'
+      - fire_fuse_prepare_upgrade_files | length == 13
+      - fire_fuse_prepare_upgrade_files | map(attribute='name') | unique | length == 13
+      - fire_fuse_prepare_upgrade_files | map(attribute='source') | unique | length == 13
+      - fire_fuse_prepare_upgrade_files | map(attribute='snapshot') | unique | length == 13
+    fail_msg: >-
+      preparing an upgrade requires the exact approval, a unique timestamped
+      upgrade ID, normal mode, and the fixed Fire Fuse rollback allowlist
+
+- name: Read service state before upgrade snapshot
+  ansible.builtin.service_facts:
+
+- name: Require cleanly stopped and disabled Fire Fuse
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(fire_fuse_prepare_upgrade_service, {}).get('state', 'not-found') in ['stopped', 'unknown']
+      - ansible_facts.services.get(fire_fuse_prepare_upgrade_service, {}).get('status', 'not-found') == 'disabled'
+    fail_msg: stop and disable Fire Fuse cleanly before preparing an upgrade
+
+- name: Inspect lifecycle database sidecars
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: fire_fuse_prepare_upgrade_sidecars
+  loop:
+    - /var/lib/fire-fuse/state/state.db-journal
+    - /var/lib/fire-fuse/state/state.db-wal
+    - /var/lib/fire-fuse/state/state.db-shm
+
+- name: Require a cleanly closed lifecycle database
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_prepare_upgrade_sidecars.results | selectattr('stat.exists') | list | length == 0
+    fail_msg: lifecycle state must have no journal, WAL, or shared-memory sidecars
+
+- name: Inspect current release and recovery material
+  ansible.builtin.stat:
+    path: "{{ item.source }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: fire_fuse_prepare_upgrade_live_files
+  loop: "{{ fire_fuse_prepare_upgrade_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted current release and recovery material
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', modes=item.item.modes)
+      - item.stat.size | default(0) > 0
+      - item.stat.checksum | default('') is match('^[0-9a-f]{64}$')
+    fail_msg: "{{ item.item.name }} is not trusted rollback material"
+  loop: "{{ fire_fuse_prepare_upgrade_live_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Derive upgrade snapshot paths
+  ansible.builtin.set_fact:
+    fire_fuse_prepare_upgrade_directory: >-
+      {{ fire_fuse_prepare_upgrade_root ~ '/' ~ fire_fuse_prepare_upgrade_id }}
+
+- name: Refuse an existing upgrade snapshot ID
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_prepare_upgrade_directory }}"
+    follow: false
+  register: fire_fuse_prepare_upgrade_existing
+
+- name: Require an unused upgrade snapshot ID
+  ansible.builtin.assert:
+    that:
+      - not fire_fuse_prepare_upgrade_existing.stat.exists
+    fail_msg: choose a new upgrade ID; rollback snapshots are create-only
+
+- name: Create root-only upgrade snapshot directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ fire_fuse_prepare_upgrade_directory }}"
+    - "{{ fire_fuse_prepare_upgrade_directory }}/files"
+
+- name: Copy current release and recovery material
+  ansible.builtin.copy:
+    src: "{{ item.source }}"
+    dest: "{{ fire_fuse_prepare_upgrade_directory }}/files/{{ item.snapshot }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ fire_fuse_prepare_upgrade_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Write rollback manifest
+  ansible.builtin.template:
+    src: manifest.json.j2
+    dest: "{{ fire_fuse_prepare_upgrade_directory }}/manifest.json"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Verify copied rollback material
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_prepare_upgrade_directory }}/files/{{ item.item.snapshot }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: fire_fuse_prepare_upgrade_copies
+  loop: "{{ fire_fuse_prepare_upgrade_live_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Require exact rollback copies
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0600')
+      - item.stat.checksum == item.item.stat.checksum
+    fail_msg: "rollback copy for {{ item.item.item.name }} failed verification"
+  loop: "{{ fire_fuse_prepare_upgrade_copies.results }}"
+  loop_control:
+    label: "{{ item.item.item.name }}"

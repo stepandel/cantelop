@@ -1,0 +1,11 @@
+---
+# Apply key and peer changes in place: restarting wg-quick would also restart
+# every unit that Requires= it (Redis, MinIO, and the compute JuiceFS mounts).
+- name: Apply storage WireGuard configuration
+  ansible.builtin.command:
+    argv:
+      - /bin/bash
+      - -c
+      - wg syncconf wg-storage <(wg-quick strip wg-storage)
+  changed_when: true
+  when: not ansible_check_mode

@@ -1,0 +1,27 @@
+[Unit]
+Description=MinIO object storage for Fire Fuse JuiceFS
+Requires=wg-quick@wg-storage.service
+After=wg-quick@wg-storage.service
+
+[Service]
+Type=notify
+User={{ minio_object_user }}
+Group={{ minio_object_group }}
+EnvironmentFile={{ minio_object_environment_file }}
+ExecStart={{ minio_object_server_binary }} server --address {{ minio_object_bind_address }}:{{ minio_object_api_port }} --console-address {{ minio_object_console_address }}:{{ minio_object_console_port }} {{ minio_object_data_directory }}
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+LimitNOFILE=65536
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths={{ minio_object_data_directory }}
+
+[Install]
+WantedBy=multi-user.target

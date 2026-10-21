@@ -1,0 +1,3 @@
+---
+storage_backup_record_transfer_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py

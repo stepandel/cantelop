@@ -1,0 +1,515 @@
+---
+- name: Recheck stopped compute before storage capture stage
+  ansible.builtin.include_role:
+    name: storage_backup_assert_compute_stopped
+
+- name: Validate Redis persistence capture inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_capture_redis_data_directory
+        == '/var/lib/fire-fuse/redis'
+      - storage_backup_capture_redis_filename == 'redis-persistence.tar.gz'
+      - storage_backup_capture_redis_service == 'fire-fuse-redis.service'
+      - >-
+        storage_backup_capture_redis_fire_fuse_service
+        == 'fire-fuse.service'
+      - storage_backup_capture_redis_bind_address == '10.78.0.2'
+      - storage_backup_capture_redis_port | int == 6379
+      - storage_backup_capture_redis_cli == '/usr/bin/redis-cli'
+      - storage_backup_capture_redis_wait_attempts | int >= 1
+      - storage_backup_capture_redis_wait_attempts | int <= 300
+      - storage_backup_capture_redis_wait_delay_seconds | int >= 1
+      - storage_backup_capture_redis_wait_delay_seconds | int <= 10
+      - >-
+        (redis_metadata_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - storage_backup_capture_maintenance | default({}) is mapping
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'schema_version', 0
+        ) | int == 1
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'fire_fuse_state', ''
+        ) == 'stopped'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'redis_state', ''
+        ) == 'running'
+      - storage_backup_capture_metadata_artifact | default({}) is mapping
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'component', ''
+        ) == 'juicefs_metadata'
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'sha256', ''
+        ) is match('^[0-9a-f]{64}$')
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'source_path', ''
+        )
+        ==
+        (
+          (storage_backup_capture_set_directory | default(''))
+          ~ '/metadata.dump'
+        )
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'size_bytes', 0
+        ) | int > 0
+      - >-
+        (storage_backup_capture_set_directory | default(''))
+        ==
+        (
+          storage_backup_staging_root ~ '/'
+          ~ storage_backup_capture_set_id
+        )
+      - >-
+        storage_backup_capture_set_id
+        is match(
+          '^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$'
+        )
+    fail_msg: >-
+      Redis persistence capture requires the successful maintenance and
+      metadata-capture facts, fixed trusted paths and services, and the active
+      Redis credential
+  no_log: true
+
+- name: Read service state before Redis persistence capture
+  ansible.builtin.service_facts:
+
+- name: Require the Redis capture maintenance boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_compute_stopped | default(false)
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_redis_service, {}
+        ).get('state', 'not-found') == 'running'
+    fail_msg: Redis capture requires fire-fuse stopped and Redis running
+
+- name: Inspect the Redis persistence directory
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_redis_data_directory }}"
+    follow: false
+  register: storage_backup_capture_redis_directory
+
+- name: Require the trusted Redis persistence directory
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_directory.stat
+        is trusted_directory(owner='redis', group='redis', mode='0750')
+    fail_msg: Redis persistence directory failed trust checks
+
+- name: Inspect the captured JuiceFS metadata prerequisite
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_metadata_artifact.source_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_redis_metadata_stat
+
+- name: Require the unchanged JuiceFS metadata prerequisite
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_metadata_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - >-
+        storage_backup_capture_redis_metadata_stat.stat.size | int
+        == storage_backup_capture_metadata_artifact.size_bytes | int
+      - >-
+        storage_backup_capture_redis_metadata_stat.stat.checksum
+        == storage_backup_capture_metadata_artifact.sha256
+    fail_msg: captured JuiceFS metadata changed before Redis capture
+
+- name: Record Redis persistence artifact paths
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_partial_path: >-
+      {{ storage_backup_capture_set_directory }}/.redis-persistence.tar.gz.partial
+    storage_backup_capture_redis_path: >-
+      {{ storage_backup_capture_set_directory }}/{{
+      storage_backup_capture_redis_filename }}
+
+- name: Inspect the proposed Redis persistence artifact paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ storage_backup_capture_redis_partial_path }}"
+    - "{{ storage_backup_capture_redis_path }}"
+  register: storage_backup_capture_redis_existing_artifacts
+
+- name: Require new Redis persistence artifact paths
+  ansible.builtin.assert:
+    that:
+      - not item.stat.exists
+    fail_msg: >-
+      Redis persistence artifact path {{ item.item }} already exists; refusing
+      to overwrite or ambiguously resume
+  loop: "{{ storage_backup_capture_redis_existing_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Request a synchronous Redis RDB checkpoint
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_redis_cli }}"
+      - --no-auth-warning
+      - -h
+      - "{{ storage_backup_capture_redis_bind_address }}"
+      - -p
+      - "{{ storage_backup_capture_redis_port | string }}"
+      - SAVE
+  environment:
+    REDISCLI_AUTH: "{{ redis_metadata_password }}"
+  register: storage_backup_capture_redis_save
+  changed_when: true
+  no_log: true
+
+- name: Require the Redis checkpoint acknowledgement
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_redis_save.stdout == 'OK'
+    fail_msg: Redis did not acknowledge its synchronous checkpoint
+  no_log: true
+
+- name: Wait for stable healthy Redis persistence
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_redis_cli }}"
+      - --no-auth-warning
+      - -h
+      - "{{ storage_backup_capture_redis_bind_address }}"
+      - -p
+      - "{{ storage_backup_capture_redis_port | string }}"
+      - INFO
+      - persistence
+  environment:
+    REDISCLI_AUTH: "{{ redis_metadata_password }}"
+  register: storage_backup_capture_redis_persistence_before
+  changed_when: false
+  retries: "{{ storage_backup_capture_redis_wait_attempts }}"
+  delay: "{{ storage_backup_capture_redis_wait_delay_seconds }}"
+  until:
+    - >-
+      storage_backup_capture_redis_persistence_before.stdout
+      is search('(?m)^rdb_bgsave_in_progress:0\r?$')
+    - >-
+      storage_backup_capture_redis_persistence_before.stdout
+      is search('(?m)^aof_rewrite_in_progress:0\r?$')
+    - >-
+      storage_backup_capture_redis_persistence_before.stdout
+      is search('(?m)^rdb_changes_since_last_save:0\r?$')
+  no_log: true
+
+- name: Require healthy Redis RDB and AOF persistence
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_persistence_before.stdout
+        is search('(?m)^rdb_last_bgsave_status:ok\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_before.stdout
+        is search('(?m)^aof_enabled:1\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_before.stdout
+        is search('(?m)^aof_last_bgrewrite_status:ok\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_before.stdout
+        is search('(?m)^aof_last_write_status:ok\r?$')
+    fail_msg: Redis reported an unhealthy RDB or AOF persistence state
+  no_log: true
+
+- name: Inventory Redis persistence entries
+  ansible.builtin.find:
+    paths:
+      - "{{ storage_backup_capture_redis_data_directory }}"
+    recurse: true
+    file_type: any
+    follow: false
+    hidden: true
+  register: storage_backup_capture_redis_entries
+
+- name: Require regular trusted Redis persistence entries
+  ansible.builtin.assert:
+    that:
+      - not (item.islnk | default(false))
+      - (item.isreg | default(false)) or (item.isdir | default(false))
+      - item.pw_name | default('') == 'redis'
+      - item.gr_name | default('') == 'redis'
+    fail_msg: Redis persistence entry {{ item.path }} failed trust checks
+  loop: "{{ storage_backup_capture_redis_entries.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Checksum Redis persistence files before archiving
+  ansible.builtin.find:
+    paths:
+      - "{{ storage_backup_capture_redis_data_directory }}"
+    recurse: true
+    file_type: file
+    follow: false
+    hidden: true
+    get_checksum: true
+  register: storage_backup_capture_redis_files_before
+
+- name: Require RDB and AOF persistence files
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_redis_files_before.matched | int >= 3
+      - >-
+        'dump.rdb'
+        in
+        (
+          storage_backup_capture_redis_files_before.files
+          | map(attribute='path')
+          | map('regex_replace',
+                '^' ~ storage_backup_capture_redis_data_directory ~ '/', '')
+          | list
+        )
+      - >-
+        (
+          storage_backup_capture_redis_files_before.files
+          | map(attribute='path')
+          | map('regex_replace',
+                '^' ~ storage_backup_capture_redis_data_directory ~ '/', '')
+          | select('match', '^appendonlydir/.+')
+          | list
+          | length
+        ) >= 2
+    fail_msg: Redis persistence snapshot requires dump.rdb and multi-part AOF
+
+- name: Initialize the pre-archive Redis file inventory
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_inventory_before: []
+
+- name: Record the pre-archive Redis file inventory
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_inventory_before: >-
+      {{
+        storage_backup_capture_redis_inventory_before
+        +
+        [
+          {
+            'path': (
+              item.path
+              | regex_replace(
+                '^' ~ storage_backup_capture_redis_data_directory ~ '/',
+                ''
+              )
+            ),
+            'size': item.size | int,
+            'checksum': item.checksum
+          }
+        ]
+      }}
+  loop: "{{ storage_backup_capture_redis_files_before.files | sort(attribute='path') }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Archive the stable Redis persistence directory
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/tar
+      - --create
+      - --gzip
+      - --file
+      - "{{ storage_backup_capture_redis_partial_path }}"
+      - --directory
+      - "{{ storage_backup_capture_redis_data_directory }}"
+      - .
+  changed_when: true
+
+- name: Restrict the partial Redis persistence artifact
+  ansible.builtin.file:
+    path: "{{ storage_backup_capture_redis_partial_path }}"
+    state: file
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Checksum Redis persistence files after archiving
+  ansible.builtin.find:
+    paths:
+      - "{{ storage_backup_capture_redis_data_directory }}"
+    recurse: true
+    file_type: file
+    follow: false
+    hidden: true
+    get_checksum: true
+  register: storage_backup_capture_redis_files_after
+
+- name: Initialize the post-archive Redis file inventory
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_inventory_after: []
+
+- name: Record the post-archive Redis file inventory
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_inventory_after: >-
+      {{
+        storage_backup_capture_redis_inventory_after
+        +
+        [
+          {
+            'path': (
+              item.path
+              | regex_replace(
+                '^' ~ storage_backup_capture_redis_data_directory ~ '/',
+                ''
+              )
+            ),
+            'size': item.size | int,
+            'checksum': item.checksum
+          }
+        ]
+      }}
+  loop: "{{ storage_backup_capture_redis_files_after.files | sort(attribute='path') }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Require unchanged Redis persistence source files
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_inventory_after
+        == storage_backup_capture_redis_inventory_before
+    fail_msg: Redis persistence files changed while their archive was created
+
+- name: Recheck Redis persistence state after archiving
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_redis_cli }}"
+      - --no-auth-warning
+      - -h
+      - "{{ storage_backup_capture_redis_bind_address }}"
+      - -p
+      - "{{ storage_backup_capture_redis_port | string }}"
+      - INFO
+      - persistence
+  environment:
+    REDISCLI_AUTH: "{{ redis_metadata_password }}"
+  register: storage_backup_capture_redis_persistence_after
+  changed_when: false
+  no_log: true
+
+- name: Require Redis to remain quiescent after archiving
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_persistence_after.stdout
+        is search('(?m)^rdb_bgsave_in_progress:0\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_after.stdout
+        is search('(?m)^aof_rewrite_in_progress:0\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_after.stdout
+        is search('(?m)^rdb_changes_since_last_save:0\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_after.stdout
+        is search('(?m)^rdb_last_bgsave_status:ok\r?$')
+      - >-
+        storage_backup_capture_redis_persistence_after.stdout
+        is search('(?m)^aof_last_write_status:ok\r?$')
+    fail_msg: Redis persistence state changed or became unhealthy while archiving
+  no_log: true
+
+- name: Validate the Redis persistence archive contents
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/tar
+      - --list
+      - --gzip
+      - --file
+      - "{{ storage_backup_capture_redis_partial_path }}"
+  register: storage_backup_capture_redis_archive_listing
+  changed_when: false
+
+- name: Require RDB and AOF entries in the archive
+  ansible.builtin.assert:
+    that:
+      - >-
+        './dump.rdb'
+        in storage_backup_capture_redis_archive_listing.stdout_lines
+      - >-
+        storage_backup_capture_redis_archive_listing.stdout_lines
+        | select('match', '^\./appendonlydir/.+')
+        | list
+        | length >= 2
+    fail_msg: Redis persistence archive omitted required RDB or AOF entries
+
+- name: Promote the verified Redis persistence artifact atomically
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mv
+      - --no-target-directory
+      - "{{ storage_backup_capture_redis_partial_path }}"
+      - "{{ storage_backup_capture_redis_path }}"
+  changed_when: true
+
+- name: Inspect the promoted Redis persistence artifact
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_redis_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_redis_artifact_stat
+
+- name: Require a complete trusted Redis persistence artifact
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_artifact_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - storage_backup_capture_redis_artifact_stat.stat.size | int > 0
+      - >-
+        storage_backup_capture_redis_artifact_stat.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: promoted Redis persistence archive failed integrity checks
+
+- name: Read the Redis server version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_redis_cli }}"
+      - --no-auth-warning
+      - -h
+      - "{{ storage_backup_capture_redis_bind_address }}"
+      - -p
+      - "{{ storage_backup_capture_redis_port | string }}"
+      - INFO
+      - server
+  environment:
+    REDISCLI_AUTH: "{{ redis_metadata_password }}"
+  register: storage_backup_capture_redis_server_info
+  changed_when: false
+  no_log: true
+
+- name: Extract the Redis server version
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_version: >-
+      {{
+        storage_backup_capture_redis_server_info.stdout
+        | regex_search('(?m)^redis_version:([^\r\n]+)', '\1')
+        | first
+      }}
+  no_log: true
+
+- name: Require a valid Redis server version
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_redis_version
+        is match('^[0-9]+\.[0-9]+\.[0-9]+.*$')
+    fail_msg: Redis did not report a valid server version
+
+- name: Publish the Redis persistence artifact
+  ansible.builtin.set_fact:
+    storage_backup_capture_redis_artifact:
+      component: redis_persistence
+      path: "{{ storage_backup_capture_redis_filename }}"
+      source_path: "{{ storage_backup_capture_redis_path }}"
+      size_bytes: "{{ storage_backup_capture_redis_artifact_stat.stat.size | int }}"
+      sha256: "{{ storage_backup_capture_redis_artifact_stat.stat.checksum }}"

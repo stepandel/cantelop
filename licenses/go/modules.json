@@ -1,0 +1,152 @@
+{
+  "schema_version": 2,
+  "requirements": [
+    "github.com/coder/websocket@v1.8.14",
+    "github.com/dustin/go-humanize@v1.0.1",
+    "github.com/google/uuid@v1.6.0",
+    "github.com/mattn/go-isatty@v0.0.20",
+    "github.com/ncruces/go-strftime@v1.0.0",
+    "github.com/remyoudompheng/bigfft@v0.0.0-20230129092748-24d4a6f8daec",
+    "golang.org/x/sys@v0.46.0",
+    "modernc.org/libc@v1.74.1",
+    "modernc.org/mathutil@v1.7.1",
+    "modernc.org/memory@v1.11.0",
+    "modernc.org/sqlite@v1.54.0"
+  ],
+  "generator": "github.com/google/go-licenses/v2@v2.0.1",
+  "scope": "non-test Go packages in this repository across Linux/Darwin amd64/arm64",
+  "modules": [
+    {
+      "module": "github.com/coder/websocket",
+      "version": "v1.8.14",
+      "license": "ISC",
+      "license_url": "https://github.com/coder/websocket/blob/v1.8.14/LICENSE.txt",
+      "notices": [
+        {
+          "path": "github.com/coder/websocket/LICENSE.txt",
+          "sha256": "cc0975a5f6305145bdd7b41ce9479632fdac3870e6ac4281f28017f18c767c4e"
+        }
+      ]
+    },
+    {
+      "module": "github.com/dustin/go-humanize",
+      "version": "v1.0.1",
+      "license": "MIT",
+      "license_url": "https://github.com/dustin/go-humanize/blob/v1.0.1/LICENSE",
+      "notices": [
+        {
+          "path": "github.com/dustin/go-humanize/LICENSE",
+          "sha256": "a973b4498c13eb74baa2a8e5c351426a6826f2fcdd909916dbe53ee2e755fd71"
+        }
+      ]
+    },
+    {
+      "module": "github.com/google/uuid",
+      "version": "v1.6.0",
+      "license": "BSD-3-Clause",
+      "license_url": "https://github.com/google/uuid/blob/v1.6.0/LICENSE",
+      "notices": [
+        {
+          "path": "github.com/google/uuid/LICENSE",
+          "sha256": "0a8d61ed3cbfd5312326e8126c31ce9c627a283adc99131b56896d29ada04b2d"
+        }
+      ]
+    },
+    {
+      "module": "github.com/mattn/go-isatty",
+      "version": "v0.0.20",
+      "license": "MIT",
+      "license_url": "https://github.com/mattn/go-isatty/blob/v0.0.20/LICENSE",
+      "notices": [
+        {
+          "path": "github.com/mattn/go-isatty/LICENSE",
+          "sha256": "08eab1118c80885fa1fa6a6dd7303f65a379fcb3733e063d20d1bbc2c76e6fa1"
+        }
+      ]
+    },
+    {
+      "module": "github.com/ncruces/go-strftime",
+      "version": "v1.0.0",
+      "license": "MIT",
+      "license_url": "https://github.com/ncruces/go-strftime/blob/v1.0.0/LICENSE",
+      "notices": [
+        {
+          "path": "github.com/ncruces/go-strftime/LICENSE",
+          "sha256": "38ae43959daf953a393a585b2988672cb65a5a541aca0d0be5e72595a0a16883"
+        }
+      ]
+    },
+    {
+      "module": "github.com/remyoudompheng/bigfft",
+      "version": "v0.0.0-20230129092748-24d4a6f8daec",
+      "license": "BSD-3-Clause",
+      "license_url": "https://github.com/remyoudompheng/bigfft/blob/24d4a6f8daec/LICENSE",
+      "notices": [
+        {
+          "path": "github.com/remyoudompheng/bigfft/LICENSE",
+          "sha256": "dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d"
+        }
+      ]
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.46.0",
+      "license": "BSD-3-Clause",
+      "license_url": "https://cs.opensource.google/go/x/sys/+/v0.46.0:LICENSE",
+      "notices": [
+        {
+          "path": "golang.org/x/sys/unix/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ]
+    },
+    {
+      "module": "modernc.org/libc",
+      "version": "v1.74.1",
+      "license": "BSD-3-Clause",
+      "license_url": "https://gitlab.com/cznic/libc/-/blob/v1.74.1/LICENSE",
+      "notices": [
+        {
+          "path": "modernc.org/libc/LICENSE",
+          "sha256": "95ff867eb55a56935fa7492406cfa953fb7c13ca73f4c0a86ae05756b4605600"
+        }
+      ]
+    },
+    {
+      "module": "modernc.org/mathutil",
+      "version": "v1.7.1",
+      "license": "BSD-3-Clause",
+      "license_url": "https://gitlab.com/cznic/mathutil/-/blob/v1.7.1/LICENSE",
+      "notices": [
+        {
+          "path": "modernc.org/mathutil/LICENSE",
+          "sha256": "bfa9bf72a72ca009fd62a8f84fca3dca67e51d93af96352723646599898b6cf5"
+        }
+      ]
+    },
+    {
+      "module": "modernc.org/memory",
+      "version": "v1.11.0",
+      "license": "BSD-3-Clause",
+      "license_url": "https://gitlab.com/cznic/memory/-/blob/v1.11.0/LICENSE",
+      "notices": [
+        {
+          "path": "modernc.org/memory/LICENSE",
+          "sha256": "59895e669f48f168b6b858358f6005779cdf40a265f7828813061b56af67b496"
+        }
+      ]
+    },
+    {
+      "module": "modernc.org/sqlite",
+      "version": "v1.54.0",
+      "license": "BSD-3-Clause",
+      "license_url": "https://gitlab.com/cznic/sqlite/-/blob/v1.54.0/LICENSE",
+      "notices": [
+        {
+          "path": "modernc.org/sqlite/LICENSE",
+          "sha256": "c6fe05491a60ae13bcd223088d2705e36dede24e5587226231d2459ada5c4822"
+        }
+      ]
+    }
+  ]
+}

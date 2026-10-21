@@ -1,0 +1,7 @@
+---
+- name: Copy the isolated MinIO snapshot into a recovery bucket
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_copy_minio_restore

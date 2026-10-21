@@ -1,0 +1,27 @@
+{
+  "schema_version": 3,
+  "artifacts": [
+{% for artifact in fire_fuse_stage_artifacts %}
+    {
+      "name": {{ artifact.name | to_json }},
+      "staged_path": {{ (fire_fuse_stage_directory ~ '/' ~ artifact.staged_name) | to_json }},
+      "destination": {{ artifact.destination | to_json }},
+      "sha256": {{ artifact.checksum | to_json }},
+      "mode": {{ artifact.mode | to_json }}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ],
+  "image_catalog": {
+    "base_sha256": {{ fire_fuse_stage_existing_catalog_sha256 | to_json }},
+    "staged_path": {{ (fire_fuse_stage_directory ~ '/image-catalog.json') | to_json }},
+    "destination": {{ fire_fuse_stage_image_catalog_destination | to_json }},
+    "mode": "0640",
+    "sha256": {{ fire_fuse_stage_image_catalog_sha256 | to_json }}
+  },
+  "config": {
+    "staged_path": {{ (fire_fuse_stage_directory ~ '/config.json') | to_json }},
+    "destination": {{ fire_fuse_stage_config_destination | to_json }},
+    "mode": "0640",
+    "sha256": {{ fire_fuse_stage_config_sha256 | to_json }}
+  }
+}

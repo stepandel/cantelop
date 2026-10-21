@@ -1,0 +1,7 @@
+---
+- name: Qualify the fire-fuse JuiceFS volume on the host
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - role: juicefs_smoke

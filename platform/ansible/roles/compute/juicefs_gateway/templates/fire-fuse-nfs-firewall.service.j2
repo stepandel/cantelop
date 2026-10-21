@@ -1,0 +1,12 @@
+[Unit]
+Description=Default-deny firewall boundary for fire-fuse workspace NFS
+Before={{ juicefs_gateway_nfs_service }}
+Before=fire-fuse.service
+
+[Service]
+Type=oneshot
+ExecStart={{ juicefs_gateway_nfs_firewall_script }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

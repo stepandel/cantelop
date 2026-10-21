@@ -1,0 +1,123 @@
+/* The figure grammar. Every diagram on the docs and blog is an inline SVG
+   drawn with these primitives, so the same shapes mean the same things on
+   every page. The look is a clean whiteboard: one confident stroke weight,
+   soft fills that say what kind of thing a shape is, rounded corners, open
+   arrowheads, and room around everything. Every box has a border, solid or
+   dashed; a fill alone never draws an edge. There is one line weight, for
+   borders and connectors alike, and a box carries a title and nothing else.
+   Type has one weight and two sizes: a name at 16, a note at 13.
+
+     component  a thing — white card, ink stroke
+     subject    the one thing the paragraph is about — cantaloupe wash
+     durable    a store that outlives the compute around it — phthalo wash
+     absent     gone or not yet here — dashed grey stroke, muted text
+     solid      shared substrate — ink fill, white text
+     context    where things sit — a soft panel with a lighter solid border
+                and a corner label, never a dashed box
+     connector  a line with an open arrowhead and its label on the line
+     blocked    a red line that stops at a boundary with a cross
+
+   Colors come from the tokens. Sizes are in the drawing's own units, and a
+   drawing renders at --fig-scale of them, so a 13px note reads at about
+   10.5px; below its floor width it scrolls rather than shrinking further. */
+
+.figure {
+  --fig-stroke: 2px;
+  --fig-scale: 0.8;
+  --fig-subject: #fce6d3;
+  --fig-durable: #dfe9e3;
+  --fig-panel: #f4f3ef;
+  margin: var(--sp-8) 0;
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+/* A figure sits in a frame, the same object a code block is: a white panel
+   with a hairline border on the page ground, so a drawing reads as one
+   thing set into the text rather than shapes floating between paragraphs.
+   The caption sits under the frame as plain text. */
+.frame {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* Under the measure the drawing scrolls sideways rather than shrinking its
+   type out of legibility. */
+.scroll {
+  overflow-x: auto;
+  padding: var(--sp-8) var(--sp-6);
+}
+
+/* A drawing is set at --fig-scale of the size it is drawn at, so it sits in
+   the frame with room around it rather than filling the measure edge to
+   edge. It never grows past the frame, and never shrinks below the width
+   where its smallest labels stop being legible — there it scrolls. */
+.svg {
+  display: block;
+  width: min(100%, calc(var(--fig-w) * var(--fig-scale) * 1px));
+  min-width: 400px;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* The caption is read, not scanned, so it takes the prose's text face at
+   its small-print size. */
+.caption {
+  margin-top: var(--sp-3);
+  color: var(--muted);
+  text-align: center;
+  font: 400 var(--fs-read-small)/var(--lh-prose) var(--sans);
+}
+
+/* ---- Nodes ---- */
+
+.node > rect { fill: var(--surface); stroke: var(--ink); stroke-width: var(--fig-stroke); }
+.subject > rect { fill: var(--fig-subject); }
+.durable > rect { fill: var(--fig-durable); }
+.absent > rect { fill: none; stroke: var(--grey); stroke-dasharray: 6 5; }
+.solid > rect { fill: var(--ink); }
+.absent > .title { fill: var(--muted); }
+.solid > .title { fill: var(--surface); }
+
+/* ---- Context ---- */
+
+/* The panel's border is lighter than a node's, so what sits in it stays
+   the first thing the eye finds. */
+.context > rect { fill: var(--fig-panel); stroke: var(--line-strong); stroke-width: var(--fig-stroke); }
+.wall { fill: var(--line); stroke: var(--grey); stroke-width: var(--fig-stroke); }
+.funnel { fill: var(--line); }
+
+/* ---- Connectors ---- */
+
+.connector > path,
+.connector > polyline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: var(--fig-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dashed path { stroke-dasharray: 5 5; }
+.quiet path, .quiet polyline { stroke: var(--line-strong); }
+.blocked path, .blocked polyline { stroke: var(--red); }
+.cross line { stroke: var(--red); stroke-width: var(--fig-stroke); stroke-linecap: round; }
+
+/* A label sits on its line in a knockout of the ground behind it. */
+.knockout { fill: var(--surface); }
+.knockout.onPanel { fill: var(--fig-panel); }
+.blocked .connectorLabel { fill: var(--red); }
+
+/* ---- Type ----
+   One weight, two sizes. Hierarchy comes from size and color, never from
+   weight: a name is ink, a note is muted. */
+
+.name, .note { font-weight: 500; }
+.name { font-size: 16px; fill: var(--ink); }
+.note { font-size: 13px; fill: var(--muted); }
+.note.red { fill: var(--red); }
+
+@media (max-width: 560px) {
+  .scroll { padding: var(--sp-6) var(--sp-4); }
+}

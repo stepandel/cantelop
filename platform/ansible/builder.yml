@@ -1,0 +1,8 @@
+---
+# Converge the builder host: the builder-to-compute tunnel (both peers), then
+# the image materializer and control worker. The control worker qualifies the
+# compute ingress, so deploy compute.yml first.
+- import_playbook: playbooks/ship/provisioning-guard.yml
+- import_playbook: playbooks/shared/wireguard.yml
+- import_playbook: playbooks/builder/prepare-control-builder.yml
+- import_playbook: playbooks/builder/control-worker.yml

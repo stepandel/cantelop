@@ -1,0 +1,11 @@
+[Unit]
+Description=Fire Fuse generic snapshot guest
+Documentation=https://github.com/stepandel/cantelop
+Requires=fire-fuse-assignment-agent.service
+Requires=fire-fuse-platform-runtime-prime.service
+Requires=fire-fuse-memory-status.socket
+After=fire-fuse-assignment-agent.service
+After=fire-fuse-platform-runtime-prime.service
+Wants=ssh.service
+After=ssh.service
+AllowIsolate=yes

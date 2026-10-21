@@ -1,0 +1,1 @@
+ALTER TABLE "cantelop_control"."operations" ADD COLUMN "progress" text;

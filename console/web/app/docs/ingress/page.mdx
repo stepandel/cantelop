@@ -1,0 +1,169 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/ingress" },
+  title: "Ingress", description: "How requests reach a Cantelop App: the generated Edge Worker's command paths for your backend, declared webhooks, and an optional homepage.",
+};
+
+# Ingress
+
+Every App is served at `https://<name>.cantelop.dev` by an Edge Worker that
+Cantelop generates from your App definition. You do not write HTTP routes,
+middleware, or a router. The Worker serves three kinds of request:
+
+- **`POST /commands/{command}`** carries every call your backend makes through
+  the SDK, one path per command: `session.dispatch()` posts to
+  `/commands/dispatch`, `session.request()` to `/commands/request`, and so on. They
+  require the App's integration credential.
+- **Webhooks** under `/webhooks/` are routes you declare on the App, for
+  providers such as GitHub or Slack that deliver events directly.
+- **A homepage** at `/` is optional public HTML for the App's hostname.
+
+Any other path is not served. Browser-facing routes, user sign-in, and
+authorization belong to your own backend, which then calls the App.
+
+## Commands from your backend
+
+Import the App from your definition and select a Workspace and Session.
+Each method sends one command to its own path under `/commands/`:
+
+```ts title="server.ts"
+import { agent } from "./src/cantelop.js";
+
+export async function chat(userId: string, sessionId: string, prompt: string) {
+  // Authenticate the user first; the Workspace is yours to choose.
+  const session = agent
+    .workspace({ slug: userId })
+    .session({ id: sessionId, keepAliveSeconds: 300 });
+  const message = await session.dispatch({ prompt });
+  return { sessionId: session.id, messageId: message.id };
+}
+```
+
+`dispatch` returns once the message is durably admitted, not when the agent
+finishes. `steer`, `request`, `cancel`, `stop`, and `stream` follow the
+same pattern; see the [SDK guide](https://github.com/stepandel/cantelop-sdk#integrate-from-an-application-backend)
+for each one.
+
+The SDK also defines `view`, but durable views are not yet available on hosted
+Cantelop; see [Session runtime](/docs/session-runtime#durable-views).
+
+The SDK resolves the App's Edge URL and integration credential by App name:
+from the profile `cantelop dev` or `cantelop deploy` records, or from
+`CANTELOP_APP_SLUG` and `CANTELOP_INTEGRATION_TOKEN` on a hosted backend.
+`cantelop app credentials` prints those values, and
+`cantelop app credentials rotate` replaces the token with a grace period. The
+token authorizes every Workspace and Session of the App, so keep it on the
+server and never ship it to a browser.
+
+Bundle your backend with the SDK's compiler transform, or import the compiled
+client that the CLI writes to `.cantelop/client/`, so Sandbox-only
+dependencies stay out of it. Each compiled App also sends its runtime identity;
+a backend built from different App code than the live release is refused with
+`session_runtime_mismatch` (409) rather than sending commands it cannot run.
+
+## Webhooks
+
+Declare webhook routes on the App. Each is an exact path under `/webhooks/`
+with one `GET` or `POST` method:
+
+```ts title="src/cantelop.ts"
+import { CantelopClient } from "@cantelop/sdk";
+import { receive } from "./agent.js";
+import { handleGitHub } from "./github.js";
+
+const cantelop = new CantelopClient();
+
+export const agent = cantelop.app({
+  name: "pr-qa",
+  runtime: { receive },
+  webhooks: {
+    "/webhooks/github": { method: "POST", handle: handleGitHub },
+  },
+  environment: {
+    GITHUB_WEBHOOK_SECRET: { secret: true, required: true },
+  },
+});
+```
+
+A handler receives the request, the App, and its declared environment, and
+returns a standard `Response`:
+
+```ts title="src/github.ts"
+import type { WebhookContext } from "@cantelop/sdk";
+
+export async function handleGitHub({ request, app, env }: WebhookContext<{ prompt: string }>) {
+  // verifyAndParse is your code: check the provider's signature first.
+  const event = await verifyAndParse(request, env.GITHUB_WEBHOOK_SECRET);
+  await app.workspace({ slug: event.repository })
+    .session({ id: event.sessionId })
+    .dispatch({ prompt: event.prompt }, { id: event.messageId, signal: request.signal });
+  return new Response(null, { status: 202 });
+}
+```
+
+- **Verify every request.** Cantelop does not authenticate provider
+  deliveries; the handler checks the signature before using the App.
+- **Use the context's `app`.** It runs commands inside the Edge Worker without
+  an integration token. Do not import the enclosing App instead.
+- **Acknowledge on admission.** Return success after `dispatch` or `steer`
+  accepts the message, not after the agent finishes. Agent replies to the
+  provider are separate outbound calls from the runtime.
+- **Make retries idempotent.** Map a provider's delivery ID to a stable
+  message ID (`msg_` plus 32 hexadecimal characters) so a redelivery is not
+  admitted twice.
+- **Limits.** Bodies are limited to 1 MiB (413 above that), wrong methods
+  receive 405, and an unhandled error returns a generic `webhook_failed` 500.
+  A required declared value that is unset returns `app_environment_missing`
+  (503) before the handler runs.
+
+Register `https://<name>.cantelop.dev/webhooks/github` with the provider after
+deploying. The handler's code runs only in the Edge Worker; it is removed from
+the Sandbox and from your backend build.
+
+## Homepage
+
+An App can serve public HTML at `/`:
+
+```ts title="src/cantelop.ts"
+export const agent = cantelop.app({
+  name: "pr-qa",
+  runtime: { receive },
+  homepage: ({ app }) => new Response(`<h1>${app.name}</h1>`, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  }),
+});
+```
+
+`GET` and `HEAD` invoke it; other methods receive 405. It has no static asset
+serving: inline assets or host them elsewhere. Without `homepage`, `/` is not
+served.
+
+## Ingress in the console
+
+The App's **Ingress** page lists what the live release serves. First come the
+SDK commands, each named by the call that sends it (`session.dispatch()`,
+`message.status()`, `workspace.resolve()`…) beside its calls, errors, failed
+Session work, median latency, and last call. Below them are the homepage and
+each declared webhook, then any requests to undeclared paths.
+
+Each row links to its own page. Beside the HTTP numbers, that page shows what
+became of the work its requests started: how many messages reached Sessions,
+whether their attempts completed, failed, or are still pending, how long they
+took to start and finish, and the most common error codes. Its recent calls
+list the latest requests, or only the failed ones, each with the Session it
+reached. Open a call to follow it through its trace in place: the message it
+delivered, each attempt, the Sandbox it ran on, and the handler's spans and
+logs. A `202` says a message was accepted; this is where you see whether the
+work behind it succeeded.
+
+The console can send a test request to a webhook or the homepage, with your own
+query string, headers, and body. The App sees an ordinary public request
+carrying `X-Cantelop-Console: 1`, and its answer is shown beside the trace of
+the work it set in motion. Commands need the integration credential, so
+exercise them through the SDK instead.
+
+Every response carries `X-Cantelop-Request-ID`, the identity of that request
+in Traces.
+
+See the [SDK webhook guide](https://github.com/stepandel/cantelop-sdk/blob/main/docs/webhooks.md)
+and the [GitHub example](https://github.com/stepandel/cantelop-sdk/blob/main/examples/github/README.md)
+for complete implementations.

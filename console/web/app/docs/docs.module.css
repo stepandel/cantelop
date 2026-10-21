@@ -1,0 +1,124 @@
+/* The docs shell keeps navigation beside the reading surface. Page content
+   continues to use the shared, bounded Prose component. */
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  align-items: start;
+}
+
+.content { min-width: 0; }
+
+.sidebar {
+  position: sticky;
+  top: 48px;
+  height: calc(100dvh - 48px);
+  overflow-y: auto;
+  /* Level with the reading measure's top padding, so the nav's title and
+     the page's title share a baseline region. */
+  padding: var(--sp-12) var(--sp-4);
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.navTitle {
+  margin: 0 0 var(--sp-4);
+  padding: 0 var(--sp-3);
+  color: var(--grey);
+  font: 400 var(--fs-label) var(--sans);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.docsnav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.docsnavLink {
+  display: block;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  font: 400 var(--fs-data)/var(--lh-prose) var(--sans);
+  text-decoration: none;
+}
+
+.docsnavLink:hover {
+  background: var(--panel);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.docsnavLink[aria-current="page"] {
+  border-left-color: var(--ink);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.sdkLink {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-6);
+  padding: var(--sp-4) var(--sp-3) 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font: 400 var(--fs-support)/var(--lh-prose) var(--sans);
+}
+
+.navToggle { display: none; }
+
+.skipLink {
+  position: fixed;
+  top: var(--sp-2);
+  left: var(--sp-4);
+  z-index: 3;
+  transform: translateY(-200%);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg);
+  color: var(--ink);
+}
+.skipLink:focus { transform: translateY(0); }
+
+@media (max-width: 800px) {
+  .body { display: block; }
+
+  .sidebar {
+    height: auto;
+    max-height: calc(100dvh - 48px);
+    z-index: 1;
+    padding: 0 var(--sp-4);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .navTitle { display: none; }
+
+  .navToggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    padding: var(--sp-3) 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 400 var(--fs-data) var(--sans);
+    cursor: pointer;
+  }
+
+  .sidebar[data-expanded="false"] .navContent { display: none; }
+  .navContent { padding-bottom: var(--sp-4); }
+  .docsnavLink { min-height: 44px; }
+  .content { scroll-margin-top: 92px; }
+}

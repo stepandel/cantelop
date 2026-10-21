@@ -1,0 +1,31 @@
+[Unit]
+Description=Isolated MinIO restore rehearsal {{ storage_backup_start_minio_restore_rehearsal_id }}
+After=network.target
+
+[Service]
+Type=notify
+User={{ storage_backup_start_minio_restore_user }}
+Group={{ storage_backup_start_minio_restore_group }}
+EnvironmentFile={{ storage_backup_start_minio_restore_environment_file }}
+ExecStart={{ storage_backup_start_minio_restore_binary }} server --address 127.0.0.1:{{ storage_backup_start_minio_restore_api_port }} --console-address 127.0.0.1:{{ storage_backup_start_minio_restore_console_port }} /run/{{ storage_backup_start_minio_restore_runtime_directory }}/data
+Restart=no
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+LimitNOFILE=65536
+RuntimeDirectory={{ storage_backup_start_minio_restore_runtime_directory }}
+RuntimeDirectoryMode=0700
+
+BindPaths={{ storage_backup_start_minio_restore_data_directory }}:/run/{{ storage_backup_start_minio_restore_runtime_directory }}/data
+IPAddressDeny=any
+IPAddressAllow=localhost
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/{{ storage_backup_start_minio_restore_runtime_directory }}/data
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

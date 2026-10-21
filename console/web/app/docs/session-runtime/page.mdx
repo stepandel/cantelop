@@ -1,0 +1,217 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/session-runtime" },
+  title: "Session runtime", description: "Declare the agent runtime that runs inside each Cantelop Session Sandbox: a harness factory, a receive handler, or the packaged Claude Code runtime.",
+};
+
+# Session runtime
+
+Each Session runs your agent in its own Sandbox process. Declare that
+runtime on the App with `runtime`. The build bundles it, with its
+dependencies, into the Sandbox only; your backend and the Edge Worker never
+load it.
+
+## Harness factory
+
+The usual runtime is `{ create }`: a factory that runs once per Session
+incarnation and returns a harness with `queue`, `steer`, and `cancel`:
+
+```ts title="src/cantelop.ts"
+import { CantelopClient } from "@cantelop/sdk";
+import { create } from "./agent.js";
+import type { Message, Event, Reply, View } from "./contracts.js";
+
+const cantelop = new CantelopClient();
+
+export const agent = cantelop.app<Message, Event, Reply, View>({
+  name: "hello",
+  runtime: { create },
+  environment: {
+    OPENAI_API_KEY: { secret: true, required: true },
+  },
+});
+```
+
+Here, `runAgent` is your provider integration. This harness runs one turn at a
+time, and steers by interrupting the current turn:
+
+```ts title="src/agent.ts"
+import type {
+  SessionHarness, SessionHarnessContext, SessionHarnessWorkContext,
+} from "@cantelop/sdk/session";
+import { runAgent } from "./provider.js";
+import type { Message, Event, Reply, View } from "./contracts.js";
+
+type Work = SessionHarnessWorkContext<Message, Event, View>;
+
+export function create({ session, env }: SessionHarnessContext): SessionHarness<Message, Event, Reply, View> {
+  let tail: Promise<unknown> = Promise.resolve();
+  let active: AbortController | undefined;
+
+  function run(message: Message, work: Work): Promise<Reply> {
+    const turn = tail.then(async () => {
+      active = new AbortController();
+      try {
+        const answer = await runAgent(message.prompt, {
+          sessionId: session.id,
+          apiKey: env.OPENAI_API_KEY,
+          signal: AbortSignal.any([work.signal, active.signal]),
+        });
+        await work.output.send({ type: "done", answer });
+        return { answer };
+      } finally {
+        active = undefined;
+      }
+    });
+    tail = turn.catch(() => {});
+    return turn;
+  }
+
+  return {
+    queue: run,
+    async steer(message, work) {
+      active?.abort();
+      await run(message, work);
+    },
+    cancel() {
+      active?.abort();
+      return active !== undefined;
+    },
+  };
+}
+```
+
+- **`queue`** receives `session.dispatch()` and `session.request()` input. It
+  resolves after that work and its cleanup; its return value is the reply to
+  `request()`.
+- **`steer`** receives `session.steer()`. The harness decides what steering
+  means: native input, or interrupt-and-resume as above.
+- **`cancel`** receives `session.cancel()`. Signal the active operation, keep
+  waiting input, and return `false` when idle.
+
+The SDK keeps intake responsive while these promises are pending. Harness
+memory belongs to one incarnation: when the Sandbox is released, persist what
+you need in the [Workspace](/docs/workspaces) or its database, and supply
+credentials through the App's [environment](/docs/environments).
+
+## Durable views
+
+Durable views (`view.commit()` and `session.view()`) are part of SDK 1.0, but
+are not yet available on hosted Cantelop. The following applies to local
+development and platform implementations that support them. Persist hosted
+application state in [Workspace files or its database](/docs/workspaces).
+
+`work.view.commit(state)` stores a typed projection of the Session, durably
+and atomically with its position in the output stream. Your backend reads it
+without opening the Workspace or starting a Sandbox, then follows newer output:
+
+```ts title="src/agent.ts"
+await work.view.commit({ lastAnswer: answer });
+```
+
+```ts title="server.ts"
+const session = agent.workspace({ slug: userId }).session({ id: sessionId });
+const snapshot = await session.view();
+render(snapshot.state);
+for await (const event of session.stream({ after: snapshot.cursor })) {
+  apply(event.data);
+}
+```
+
+Views survive `stop()` and Sandbox restarts. A Session that has never committed
+one returns `session_view_not_found`. A view is a read model, not a replacement
+for your own state and recovery.
+
+## Receive handler
+
+For custom orchestration, use `runtime: { receive }` instead. Each message is
+handled in order; move long-running work into `context.activity` to keep
+intake responsive:
+
+```ts title="src/agent.ts"
+import type { SessionContext } from "@cantelop/sdk/session";
+import type { Message, Event, Reply } from "./contracts.js";
+
+export async function receive(context: SessionContext<Message, Event, Reply>) {
+  const state = await updateApplicationState(context.message.payload);
+  context.reply(state);
+}
+```
+
+`onActivate` restores state once per incarnation, and `onRecover` opts into
+recovery on a replacement Sandbox. Successful `receive` acknowledges intake; it
+does not mean a durable job has finished.
+
+## Packaged Claude Code runtime
+
+`@cantelop/sdk/harnesses/claude` runs the stock Claude Code CLI with durable
+queueing, steering, cancellation, snapshots, and recovery. Declare its settings
+in code:
+
+```ts title="src/cantelop.ts"
+import { CantelopClient } from "@cantelop/sdk";
+import { createClaudeRuntime, claudeAuth, claudeDockerfile } from "@cantelop/sdk/harnesses/claude";
+import type {
+  ClaudeSessionCommand, ClaudeSessionEvent, ClaudeSessionReply,
+} from "@cantelop/sdk/harnesses/claude/protocol";
+
+const cantelop = new CantelopClient();
+
+export const agent = cantelop.app<ClaudeSessionCommand, ClaudeSessionEvent, ClaudeSessionReply>({
+  name: "claude-agent",
+  runtime: createClaudeRuntime({
+    permissionMode: "dontAsk",
+    tools: ["Read"],
+    allowedTools: ["Read"],
+    model: "sonnet",
+    systemPrompt: "Investigate issues and report your findings.",
+    maxTurns: 24,
+  }),
+  auth: claudeAuth,
+  dockerfile: claudeDockerfile,
+});
+```
+
+Dispatch `{ type: "queue", id, text }` to start a task. `auth: claudeAuth`
+lets each Workspace sign in with its user's own Claude subscription, and
+`claudeDockerfile` is the SDK-maintained image with the pinned CLI. The
+[Claude Code guide](/guides/claude-code) builds a complete App on it.
+
+See the [SDK runtime guide](https://github.com/stepandel/cantelop-sdk#define-the-runtime)
+for harness contracts, activities, and the Codex and OpenCode harnesses.
+
+## Runtime configuration
+
+Add a Dockerfile when your agent needs extra tools, native libraries, or files
+in its runtime image. Otherwise, use the default image.
+
+For example, create `docker/Dockerfile` to make Python available to your agent:
+
+```dockerfile title="docker/Dockerfile"
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates python3 \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+Reference it from the App definition:
+
+```ts title="src/cantelop.ts"
+export const agent = cantelop.app({
+  name: "hello",
+  runtime: { create },
+  dockerfile: "docker/Dockerfile",
+});
+```
+
+Use `RUN` to install packages and `COPY` to add assets under `/opt/app`.
+Keep image files out of `/workspace`, which is reserved for persistent data.
+Dockerfile paths and `COPY` sources are relative to the directory containing
+`cantelop.json`; put `.dockerignore` there too. No Bun installation or startup
+command is needed.
+
+Test with `cantelop dev --container`, restarting after edits, then deploy with
+`cantelop deploy`.
+
+See the [SDK runtime compilation guide](https://github.com/stepandel/cantelop-sdk/blob/main/docs/runtime-definitions.md)
+for per-App image and environment declarations and the [CLI reference](/docs/cli) for command options.

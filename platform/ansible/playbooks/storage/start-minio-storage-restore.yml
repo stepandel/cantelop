@@ -1,0 +1,7 @@
+---
+- name: Start and qualify isolated MinIO for a restore rehearsal
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_start_minio_restore

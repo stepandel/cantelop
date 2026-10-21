@@ -1,0 +1,432 @@
+---
+- name: Validate MinIO rotation credentials
+  ansible.builtin.assert:
+    that:
+      - >-
+        (minio_object_juicefs_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (storage_rotate_minio_previous_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        minio_object_juicefs_secret_key
+        != storage_rotate_minio_previous_secret_key
+    fail_msg: >-
+      MinIO rotation requires different previous and replacement
+      64-character lowercase hexadecimal Vault secrets
+  no_log: true
+
+- name: Validate MinIO rotation inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - storage_rotate_minio_service == 'fire-fuse.service'
+      - storage_rotate_minio_minio_service == 'fire-fuse-minio.service'
+      - >-
+        storage_rotate_minio_metadata_url_file
+        == '/etc/fire-fuse/juicefs-meta-url'
+      - storage_rotate_minio_juicefs_binary == '/usr/local/bin/juicefs'
+      - storage_rotate_minio_client_binary == '/usr/local/bin/mc'
+      - storage_rotate_minio_bind_address == '10.78.0.2'
+      - storage_rotate_minio_api_port | int == 9000
+      - storage_rotate_minio_access_key == 'juicefs'
+      - storage_rotate_minio_bucket == 'fire-fuse-workspaces'
+      - storage_rotate_minio_listen_address == '127.0.0.1'
+      - storage_rotate_minio_listen_port | int == 8080
+      - storage_rotate_minio_readiness_attempts | int >= 1
+      - storage_rotate_minio_readiness_attempts | int <= 120
+      - storage_rotate_minio_readiness_delay_seconds | int >= 1
+      - storage_rotate_minio_readiness_delay_seconds | int <= 10
+      - >-
+        (minio_object_service | default('fire-fuse-minio.service'))
+        == storage_rotate_minio_minio_service
+      - >-
+        (minio_object_consumer_service | default('fire-fuse.service'))
+        == storage_rotate_minio_service
+      - >-
+        (minio_object_client_binary | default('/usr/local/bin/mc'))
+        == storage_rotate_minio_client_binary
+      - >-
+        (minio_object_bind_address | default('10.78.0.2'))
+        == storage_rotate_minio_bind_address
+      - >-
+        (minio_object_api_port | default(9000) | int)
+        == (storage_rotate_minio_api_port | int)
+      - >-
+        (minio_object_juicefs_access_key | default('juicefs'))
+        == storage_rotate_minio_access_key
+      - >-
+        (minio_object_bucket | default('fire-fuse-workspaces'))
+        == storage_rotate_minio_bucket
+      - >-
+        (
+          juicefs_smoke_metadata_url_file
+          | default('/etc/fire-fuse/juicefs-meta-url')
+        )
+        == storage_rotate_minio_metadata_url_file
+      - >-
+        (juicefs_smoke_binary | default('/usr/local/bin/juicefs'))
+        == storage_rotate_minio_juicefs_binary
+    fail_msg: >-
+      MinIO rotation requires a normal Ansible run, fixed trusted storage
+      services and paths, the loopback API, and bounded readiness retries
+
+- name: Inspect MinIO rotation files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    get_checksum: false
+  register: storage_rotate_minio_file_stats
+  loop: "{{ storage_rotate_minio_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted MinIO rotation files
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) | int > 0
+    fail_msg: MinIO rotation file {{ item.item.name }} failed trust checks
+  loop: "{{ storage_rotate_minio_file_stats.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Read the JuiceFS metadata URL for MinIO rotation
+  ansible.builtin.slurp:
+    src: "{{ storage_rotate_minio_metadata_url_file }}"
+  register: storage_rotate_minio_metadata_url_file_content
+  no_log: true
+
+- name: Record the JuiceFS metadata URL for MinIO rotation
+  ansible.builtin.set_fact:
+    storage_rotate_minio_metadata_url: >-
+      {{
+        storage_rotate_minio_metadata_url_file_content.content
+        | b64decode
+        | trim
+      }}
+  no_log: true
+
+- name: Require the private Redis metadata URL
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_rotate_minio_metadata_url
+        is match(
+          '^redis://:[0-9a-f]{64}@10\.78\.0\.2:6379/1$'
+        )
+    fail_msg: >-
+      MinIO rotation requires the expected authenticated private Redis metadata
+      URL
+  no_log: true
+
+- name: Require exactly one compute host for credential rotation
+  ansible.builtin.assert:
+    that:
+      - groups['fire_fuse_hosts'] | length == 1
+
+- name: Check active compute service before credential rotation
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-active, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_rotate_minio_compute_state
+  changed_when: false
+  failed_when: storage_rotate_minio_compute_state.rc != 0 or storage_rotate_minio_compute_state.stdout != 'active'
+
+- name: Check enabled compute service before credential rotation
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-enabled, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_rotate_minio_compute_enablement
+  changed_when: false
+  failed_when: storage_rotate_minio_compute_enablement.rc != 0 or storage_rotate_minio_compute_enablement.stdout != 'enabled'
+
+- name: Read service state before MinIO rotation
+  ansible.builtin.service_facts:
+
+- name: Require active MinIO and fire-fuse services
+  ansible.builtin.assert:
+    that:
+      - storage_rotate_minio_compute_state.stdout == 'active'
+      - storage_rotate_minio_compute_enablement.stdout == 'enabled'
+      - >-
+        ansible_facts.services.get(
+          storage_rotate_minio_minio_service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_rotate_minio_minio_service, {}
+        ).get('status', 'not-found') == 'enabled'
+    fail_msg: >-
+      MinIO rotation requires fire-fuse and MinIO to be running and enabled
+      before the maintenance window
+
+- name: Require fire-fuse readiness before MinIO rotation
+  ansible.builtin.uri:
+    url: >-
+      http://{{ storage_rotate_minio_listen_address }}:{{
+      storage_rotate_minio_listen_port }}/readyz
+    method: GET
+    status_code: 200
+    return_content: false
+    use_proxy: false
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+- name: Inventory live microVMs before MinIO rotation
+  ansible.builtin.uri:
+    url: >-
+      http://{{ storage_rotate_minio_listen_address }}:{{
+      storage_rotate_minio_listen_port }}/v1/sandboxes
+    method: GET
+    status_code: 200
+    return_content: true
+    use_proxy: false
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_rotate_minio_vm_inventory
+  changed_when: false
+
+- name: Require fire-fuse to be drained before MinIO rotation
+  ansible.builtin.assert:
+    that:
+      - storage_rotate_minio_vm_inventory.json['items'] is defined
+      - >-
+        storage_rotate_minio_vm_inventory.json['items']
+        | map(attribute='state')
+        | difference(['failed', 'terminated'])
+        | length == 0
+    fail_msg: >-
+      MinIO rotation refuses to stop fire-fuse while a microVM is starting,
+      running, or stopping
+
+- name: Verify the previous MinIO credential
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_rotate_minio_client_binary }}"
+      - stat
+      - "previous/{{ storage_rotate_minio_bucket }}"
+  environment:
+    MC_HOST_previous: >-
+      http://{{ storage_rotate_minio_access_key }}:{{
+      storage_rotate_minio_previous_secret_key }}@{{
+      storage_rotate_minio_bind_address }}:{{
+      storage_rotate_minio_api_port }}
+  changed_when: false
+  no_log: true
+
+- name: Test the replacement MinIO credential before rotation
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_rotate_minio_client_binary }}"
+      - stat
+      - "replacement/{{ storage_rotate_minio_bucket }}"
+  environment:
+    MC_HOST_replacement: >-
+      http://{{ storage_rotate_minio_access_key }}:{{
+      minio_object_juicefs_secret_key }}@{{
+      storage_rotate_minio_bind_address }}:{{
+      storage_rotate_minio_api_port }}
+  register: storage_rotate_minio_replacement_before
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Require an inactive replacement MinIO credential
+  ansible.builtin.assert:
+    that:
+      - storage_rotate_minio_replacement_before.rc != 0
+    fail_msg: >-
+      the replacement MinIO credential is already active; refusing a rotation
+      whose previous state cannot be proven
+  no_log: true
+
+- name: Qualify JuiceFS before MinIO rotation
+  ansible.builtin.include_role:
+    name: juicefs_smoke
+
+- name: Rotate and qualify the MinIO credential
+  block:
+    - name: Stop fire-fuse for MinIO rotation
+      ansible.builtin.systemd_service:
+        name: "{{ storage_rotate_minio_service }}"
+        state: stopped
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Stop compute workspace exports for credential rotation
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - nfs-kernel-server.service
+        - fire-fuse-juicefs-admin.service
+        - fire-fuse-juicefs-gateway.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Verify compute is stopped for credential rotation
+      ansible.builtin.include_role:
+        name: storage_backup_assert_compute_stopped
+
+    - name: Require no compute JuiceFS mounts for credential rotation
+      ansible.builtin.command:
+        argv: [/usr/bin/findmnt, --raw, --noheadings, --types, fuse.juicefs,fuse.juicefs-workspace-v1, --output, TARGET]
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_rotate_minio_host_mounts
+      changed_when: false
+      failed_when: storage_rotate_minio_host_mounts.rc not in [0, 1] or storage_rotate_minio_host_mounts.stdout | trim | length > 0
+
+    - name: Apply the replacement MinIO credential
+      ansible.builtin.include_role:
+        name: minio_object
+      vars:
+        minio_object_allow_credential_rotation: true
+
+    - name: Store the replacement credential in JuiceFS metadata
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_rotate_minio_juicefs_binary }}"
+          - config
+          - --yes
+          - --access-key-env
+          - --secret-key-env
+          - redis://10.78.0.2:6379/1
+      environment:
+        META_PASSWORD: >-
+          {{ storage_rotate_minio_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+        ACCESS_KEY: "{{ storage_rotate_minio_access_key }}"
+        SECRET_KEY: "{{ minio_object_juicefs_secret_key }}"
+      changed_when: true
+      no_log: true
+
+    - name: Qualify JuiceFS with the replacement MinIO credential
+      ansible.builtin.include_role:
+        name: juicefs_smoke
+
+    - name: Start fire-fuse after MinIO rotation
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - fire-fuse-juicefs-gateway.service
+        - fire-fuse-juicefs-admin.service
+        - nfs-kernel-server.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Start compute after credential rotation
+      ansible.builtin.systemd_service:
+        name: "{{ storage_rotate_minio_service }}"
+        state: started
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Require fire-fuse readiness after MinIO rotation
+      ansible.builtin.uri:
+        url: >-
+          http://{{ storage_rotate_minio_listen_address }}:{{
+          storage_rotate_minio_listen_port }}/readyz
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_rotate_minio_readiness
+      retries: "{{ storage_rotate_minio_readiness_attempts }}"
+      delay: "{{ storage_rotate_minio_readiness_delay_seconds }}"
+      until: storage_rotate_minio_readiness.status | default(0) == 200
+
+  rescue:
+    - name: Stop fire-fuse for MinIO rotation rollback
+      ansible.builtin.systemd_service:
+        name: "{{ storage_rotate_minio_service }}"
+        state: stopped
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Stop compute workspace exports for credential rotation
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - nfs-kernel-server.service
+        - fire-fuse-juicefs-admin.service
+        - fire-fuse-juicefs-gateway.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Verify compute is stopped for credential rotation
+      ansible.builtin.include_role:
+        name: storage_backup_assert_compute_stopped
+
+    - name: Require no compute JuiceFS mounts for credential rotation
+      ansible.builtin.command:
+        argv: [/usr/bin/findmnt, --raw, --noheadings, --types, fuse.juicefs,fuse.juicefs-workspace-v1, --output, TARGET]
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_rotate_minio_host_mounts
+      changed_when: false
+      failed_when: storage_rotate_minio_host_mounts.rc not in [0, 1] or storage_rotate_minio_host_mounts.stdout | trim | length > 0
+
+    - name: Restore the previous MinIO credential
+      ansible.builtin.include_role:
+        name: minio_object
+      vars:
+        minio_object_allow_credential_rotation: true
+        minio_object_juicefs_secret_key: >-
+          {{ storage_rotate_minio_previous_secret_key }}
+
+    - name: Restore the previous credential in JuiceFS metadata
+      ansible.builtin.command:
+        argv:
+          - "{{ storage_rotate_minio_juicefs_binary }}"
+          - config
+          - --yes
+          - --access-key-env
+          - --secret-key-env
+          - redis://10.78.0.2:6379/1
+      environment:
+        META_PASSWORD: >-
+          {{ storage_rotate_minio_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+        ACCESS_KEY: "{{ storage_rotate_minio_access_key }}"
+        SECRET_KEY: "{{ storage_rotate_minio_previous_secret_key }}"
+      changed_when: true
+      no_log: true
+
+    - name: Qualify JuiceFS after MinIO rotation rollback
+      ansible.builtin.include_role:
+        name: juicefs_smoke
+
+    - name: Restore fire-fuse after failed MinIO rotation
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - fire-fuse-juicefs-gateway.service
+        - fire-fuse-juicefs-admin.service
+        - nfs-kernel-server.service
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Start compute after credential rotation
+      ansible.builtin.systemd_service:
+        name: "{{ storage_rotate_minio_service }}"
+        state: started
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+
+    - name: Require fire-fuse readiness after MinIO rollback
+      ansible.builtin.uri:
+        url: >-
+          http://{{ storage_rotate_minio_listen_address }}:{{
+          storage_rotate_minio_listen_port }}/readyz
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+      register: storage_rotate_minio_rollback_readiness
+      retries: "{{ storage_rotate_minio_readiness_attempts }}"
+      delay: "{{ storage_rotate_minio_readiness_delay_seconds }}"
+      until: >-
+        storage_rotate_minio_rollback_readiness.status
+        | default(0) == 200
+
+    - name: Report rolled-back MinIO rotation failure
+      ansible.builtin.fail:
+        msg: >-
+          MinIO credential rotation or its qualification failed; the previous
+          MinIO and JuiceFS credentials were restored, the host data path
+          passed its smoke test, and fire-fuse returned to ready

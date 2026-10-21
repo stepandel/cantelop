@@ -1,0 +1,17 @@
+---
+- name: Enter or restore the compute maintenance boundary
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Drain compute or restore the recorded services
+      ansible.builtin.script:
+        cmd: >-
+          ../../scripts/ship-component.py {{ ship_action | quote }}
+          --component {{ ship_component | quote }}
+          --revision {{ ship_revision | quote }}
+          --run-id {{ ship_run_id | quote }}
+          --drain-seconds {{ ship_drain_seconds | int }}
+        executable: /usr/bin/python3
+      register: ship_result
+      changed_when: (ship_result.stdout | from_json).changed

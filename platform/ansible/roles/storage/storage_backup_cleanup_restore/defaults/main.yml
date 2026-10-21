@@ -1,0 +1,9 @@
+---
+storage_backup_cleanup_restore_set_id: ""
+storage_backup_cleanup_restore_rehearsal_id: ""
+storage_backup_cleanup_restore_record_root: >-
+  /var/lib/fire-fuse/storage-backups/restore-cleanups
+storage_backup_cleanup_restore_mountpoint_root: /mnt/fire-fuse-restores
+storage_backup_cleanup_restore_cache_root: /var/cache/fire-fuse-restores
+storage_backup_cleanup_restore_validator: >-
+  /usr/local/lib/fire-fuse/validate-storage-backup-restore-evidence.py

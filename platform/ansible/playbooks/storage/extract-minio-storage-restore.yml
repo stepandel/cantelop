@@ -1,0 +1,7 @@
+---
+- name: Extract one materialized MinIO snapshot for restore rehearsal
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_extract_minio_restore

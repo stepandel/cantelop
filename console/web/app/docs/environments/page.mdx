@@ -1,0 +1,52 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/environments" },
+  title: "Environments", description: "Declare Cantelop App configuration in code and manage the variables and secrets shared with the Edge Worker and new Sessions.",
+};
+
+# Environments
+
+App configuration is shared by the App's generated Edge Worker (webhooks and the
+homepage) and newly started Sessions. Declare it in code with the `environment`
+option of `cantelop.app`, using the credential names your provider expects:
+
+```ts title="src/cantelop.ts"
+export const app = cantelop.app({
+  name: "hello",
+  runtime: { create: createHarness },
+  environment: {
+    LOG_LEVEL: { default: "info", required: true },
+    CODEX_API_KEY: { secret: true, required: true },
+  },
+});
+```
+
+- `default` supplies a local value. It cannot be used for secrets.
+- `secret` declares an encrypted production secret.
+- `required` tells `cantelop doctor` to check the name and storage kind in production,
+  and blocks activating a release while a required value is missing.
+
+These declarations never set production values. Locally, `cantelop dev` reads
+`.env` beside the manifest; its values override defaults and are never uploaded.
+Names beginning with `CANTELOP_` are reserved.
+
+Import declared values while deploying, or sync them without a release:
+
+```shell
+$ cantelop deploy --env-file .env
+$ cantelop env sync --env-file .env.production
+```
+
+Only declared names are imported, and entries marked `secret` are stored as secrets.
+To set single values instead, find your App ID with `cantelop app list`, then:
+
+```shell
+$ cantelop app env set APP_ID LOG_LEVEL=info
+$ printf %s "$CODEX_API_KEY" | cantelop app secret set APP_ID CODEX_API_KEY
+$ cantelop doctor
+```
+
+Replace `APP_ID` with your App's ID. `doctor` checks the App named in the
+manifest and exits non-zero if a check fails.
+
+See the [CLI reference](/docs/cli) for listing, updating, and removing values,
+then continue to [deployment](/docs/deploy).

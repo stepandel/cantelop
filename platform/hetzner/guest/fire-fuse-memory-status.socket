@@ -1,0 +1,10 @@
+[Unit]
+Description=Expose private guest memory availability
+
+[Socket]
+ListenStream=0.0.0.0:19095
+BindToDevice=eth0
+Accept=yes
+NoDelay=yes
+MaxConnections=16
+MaxConnectionsPerSource=4

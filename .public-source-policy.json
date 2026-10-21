@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "private_prefixes": [
+    ".claude/",
+    "docs/history/",
+    "tests/benchmarks/history/",
+    "tests/benchmarks/session-activation/history/",
+    "platform/ansible/inventory/staging/group_vars/all/"
+  ],
+  "private_files": [
+    "platform/ansible/inventory/staging/group_vars/fire_fuse_hosts.yml"
+  ],
+  "ignored_directories": [
+    ".git",
+    "node_modules",
+    ".next",
+    "__pycache__",
+    ".venv",
+    "dist",
+    "bin",
+    "build",
+    ".turbo",
+    ".vercel",
+    ".terraform",
+    ".cantelop",
+    ".pytest_cache",
+    ".impeccable",
+    ".idea",
+    ".vscode"
+  ],
+  "ignored_files": [
+    "cantelop",
+    "config.json",
+    "config.local.json",
+    "platform/ansible/inventory/staging/hosts.yml"
+  ],
+  "ignored_file_patterns": [
+    ".DS_Store",
+    ".env",
+    "*.pyc",
+    "*.pyo",
+    "*.tsbuildinfo",
+    "next-env.d.ts",
+    "*.tfstate",
+    "*.tfstate.*",
+    "terraform.tfvars",
+    "*.vault.yml",
+    "*.vault-pass"
+  ]
+}

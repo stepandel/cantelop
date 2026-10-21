@@ -1,0 +1,8 @@
+[Unit]
+Description=Prime the platform Bun runtime before generic snapshot creation
+Before=fire-fuse-assignment-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fire-fuse-prime-platform-runtime
+RemainAfterExit=yes

@@ -1,0 +1,14 @@
+---
+# Fixed paths shared by the storage_backup_* roles, which depend on this role.
+# Role vars outrank inventory and play vars, so only extra vars can replace
+# them, and tasks/main.yml refuses that before any dependent role runs.
+storage_backup_staging_root: /var/lib/fire-fuse/storage-backups/staging
+storage_backup_completed_root: /var/lib/fire-fuse/storage-backups/completed
+storage_backup_evidence_root: /var/lib/fire-fuse/storage-backups/restores
+storage_backup_restore_root: /var/lib/fire-fuse/storage-restores/staging
+storage_backup_program_directory: /usr/local/lib/fire-fuse
+
+# Controller copy of platform/ansible/scripts. Every role sits at
+# roles/<group>/<role>, so this resolves the same from any of them.
+storage_backup_script_source: "{{ role_path }}/../../../scripts"
+storage_backup_script_module: storage_script_common.py

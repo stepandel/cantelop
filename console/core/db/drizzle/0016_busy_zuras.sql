@@ -1,0 +1,2 @@
+ALTER TABLE "cantelop_control"."operations" DROP CONSTRAINT "operations_kind_check";--> statement-breakpoint
+ALTER TABLE "cantelop_control"."operations" ADD CONSTRAINT "operations_kind_check" CHECK ("cantelop_control"."operations"."kind" IN ('register_app', 'register_workspace', 'archive_workspace', 'purge_workspace', 'sync_config', 'deploy_api', 'materialize_build', 'archive_app', 'cancel_release'));

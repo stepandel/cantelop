@@ -1,0 +1,8 @@
+---
+juicefs_smoke_release: "1.4.0"
+juicefs_smoke_binary: /usr/local/bin/juicefs
+juicefs_smoke_metadata_url_file: /etc/fire-fuse/juicefs-meta-url
+juicefs_smoke_mountpoint: /mnt/fire-fuse-juicefs-smoke
+juicefs_smoke_cache_directory: /var/cache/fire-fuse-juicefs-smoke
+juicefs_smoke_cache_size_mib: 64
+juicefs_smoke_helper: /usr/local/lib/fire-fuse/juicefs-smoke

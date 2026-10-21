@@ -1,0 +1,340 @@
+---
+- name: Validate snapshot bundle build inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - fire_fuse_snapshot_stage_directory == '/var/lib/fire-fuse/staged-release'
+      - >-
+        fire_fuse_snapshot_builder_binary
+        == fire_fuse_snapshot_stage_directory ~ '/fire-fuse-snapshot'
+      - >-
+        fire_fuse_snapshot_config
+        == fire_fuse_snapshot_stage_directory ~ '/snapshot-build-config.json'
+      - >-
+        fire_fuse_snapshot_runtime_directory
+        == '/var/lib/fire-fuse/snapshot-build-runtime'
+      - fire_fuse_snapshot_root == '/var/lib/fire-fuse/snapshots'
+      - >-
+        fire_fuse_snapshot_placeholder.startswith(
+          fire_fuse_snapshot_root ~ '/'
+        )
+      - fire_fuse_snapshot_placeholder != fire_fuse_snapshot_root
+      - fire_fuse_snapshot_bundle.startswith(fire_fuse_snapshot_root ~ '/')
+      - fire_fuse_snapshot_bundle != fire_fuse_snapshot_root
+      - fire_fuse_snapshot_bundle != fire_fuse_snapshot_placeholder
+      - fire_fuse_snapshot_placeholder_bytes | int >= 1048576
+      - fire_fuse_snapshot_assignment_protocol | int == 2
+    fail_msg: >-
+      snapshot creation requires fixed staged binaries and paths, a safe
+      default 4-vCPU/512-MiB profile with 4-GiB hotplug and a positive placeholder
+
+- name: Inspect the staged release directory and manifest
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    checksum_algorithm: sha256
+  register: fire_fuse_snapshot_stage_metadata
+  loop:
+    - path: "{{ fire_fuse_snapshot_stage_directory }}"
+      mode: "0750"
+      kind: directory
+    - path: "{{ fire_fuse_snapshot_stage_directory }}/release.json"
+      mode: "0640"
+      kind: file
+    - path: "{{ fire_fuse_snapshot_stage_directory }}/config.json"
+      mode: "0640"
+      kind: file
+    - path: "{{ fire_fuse_snapshot_stage_directory }}/image-catalog.json"
+      mode: "0640"
+      kind: file
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Require trusted staged release metadata
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.kind == 'directory'
+          and item.stat
+          is trusted_directory(owner='root', group='root', mode=item.item.mode)
+        )
+        or (
+          item.item.kind == 'file'
+          and item.stat
+          is trusted_file(owner='root', group='root', mode=item.item.mode)
+        )
+    fail_msg: snapshot staged release metadata is not trusted
+  loop: "{{ fire_fuse_snapshot_stage_metadata.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Read the staged release contract
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  register: fire_fuse_snapshot_stage_documents
+  loop:
+    - "{{ fire_fuse_snapshot_stage_directory }}/release.json"
+    - "{{ fire_fuse_snapshot_stage_directory }}/config.json"
+
+- name: Decode the staged release contract
+  ansible.builtin.set_fact:
+    fire_fuse_snapshot_release: >-
+      {{ fire_fuse_snapshot_stage_documents.results[0].content
+      | b64decode | from_json }}
+    fire_fuse_snapshot_staged_config: >-
+      {{ fire_fuse_snapshot_stage_documents.results[1].content
+      | b64decode | from_json }}
+
+- name: Require matching staged release metadata
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_snapshot_release.schema_version | int == 3
+      - >-
+        fire_fuse_snapshot_release.config.sha256
+        == fire_fuse_snapshot_stage_metadata.results[2].stat.checksum
+      - >-
+        fire_fuse_snapshot_release.image_catalog.sha256
+        == fire_fuse_snapshot_stage_metadata.results[3].stat.checksum
+      - >-
+        fire_fuse_snapshot_release.config.staged_path
+        == fire_fuse_snapshot_stage_directory ~ '/config.json'
+      - >-
+        fire_fuse_snapshot_release.image_catalog.staged_path
+        == fire_fuse_snapshot_stage_directory ~ '/image-catalog.json'
+      - >-
+        fire_fuse_snapshot_staged_config.profiles.default.snapshot_bundle
+        == fire_fuse_snapshot_bundle
+      - >-
+        fire_fuse_snapshot_staged_config.profiles.default.kernel_image
+        == '/var/lib/fire-fuse/images/vmlinux'
+      - >-
+        fire_fuse_snapshot_staged_config.profiles.default.rootfs_image
+        == '/var/lib/fire-fuse/images/ubuntu-24.ext4'
+    fail_msg: staged snapshot inputs do not match the release manifest
+
+- name: Inspect staged snapshot build artifacts
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_snapshot_stage_directory }}/{{ item.name }}"
+    follow: false
+    checksum_algorithm: sha256
+  register: fire_fuse_snapshot_artifacts
+  loop:
+    - {name: fire-fuse-snapshot, mode: "0755"}
+    - {name: firecracker, mode: "0755"}
+    - {name: jailer, mode: "0755"}
+    - {name: vmlinux, mode: "0644"}
+    - {name: ubuntu-24.ext4, mode: "0644"}
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require manifest-matched staged snapshot artifacts
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - >-
+        item.stat.checksum
+        == (fire_fuse_snapshot_release.artifacts
+        | selectattr('staged_path', 'equalto', fire_fuse_snapshot_stage_directory ~ '/' ~ item.item.name)
+        | first).sha256
+    fail_msg: staged snapshot build artifact is not trusted
+  loop: "{{ fire_fuse_snapshot_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Build the isolated snapshot builder configuration
+  ansible.builtin.set_fact:
+    fire_fuse_snapshot_build_config: >-
+      {{ fire_fuse_snapshot_staged_config | combine({
+        'firecracker_bin': fire_fuse_snapshot_stage_directory ~ '/firecracker',
+        'jailer_bin': fire_fuse_snapshot_stage_directory ~ '/jailer',
+        'runtime_dir': fire_fuse_snapshot_runtime_directory,
+        'image_catalog': fire_fuse_snapshot_stage_directory ~ '/image-catalog.json',
+        'profiles': {'default': fire_fuse_snapshot_staged_config.profiles.default
+          | combine({
+            'kernel_image': fire_fuse_snapshot_stage_directory ~ '/vmlinux',
+            'rootfs_image': fire_fuse_snapshot_stage_directory ~ '/ubuntu-24.ext4'
+          })}
+      }) }}
+
+- name: Create the isolated snapshot runtime directory
+  ansible.builtin.file:
+    path: "{{ fire_fuse_snapshot_runtime_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Write the isolated snapshot builder configuration
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_snapshot_build_config | to_nice_json }}\n"
+    dest: "{{ fire_fuse_snapshot_config }}"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Inspect snapshot builder prerequisites
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+  register: fire_fuse_snapshot_prerequisites
+  loop:
+    - name: configuration
+      path: "{{ fire_fuse_snapshot_config }}"
+      mode: "0640"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted snapshot builder prerequisites
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) > 0
+    fail_msg: snapshot prerequisite {{ item.item.name }} is not trusted
+  loop: "{{ fire_fuse_snapshot_prerequisites.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Create the trusted snapshot root
+  ansible.builtin.file:
+    path: "{{ fire_fuse_snapshot_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Inspect the container placeholder
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_snapshot_placeholder }}"
+    follow: false
+  register: fire_fuse_snapshot_placeholder_stat
+
+- name: Require an existing placeholder to match the fixed contract
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_snapshot_placeholder_stat.stat
+        is trusted_file(owner='root', group='root', mode='0644')
+      - >-
+        fire_fuse_snapshot_placeholder_stat.stat.size | default(0) | int
+        == fire_fuse_snapshot_placeholder_bytes | int
+    fail_msg: >-
+      the existing snapshot placeholder does not match the fixed contract
+  when: fire_fuse_snapshot_placeholder_stat.stat.exists | default(false)
+
+- name: Create the sparse container placeholder
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/truncate
+      - --size
+      - "{{ fire_fuse_snapshot_placeholder_bytes | string }}"
+      - "{{ fire_fuse_snapshot_placeholder }}"
+    creates: "{{ fire_fuse_snapshot_placeholder }}"
+  when: not (fire_fuse_snapshot_placeholder_stat.stat.exists | default(false))
+
+- name: Protect the container placeholder
+  ansible.builtin.file:
+    path: "{{ fire_fuse_snapshot_placeholder }}"
+    state: file
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Inspect the proposed snapshot bundle
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_snapshot_bundle }}"
+    follow: false
+  register: fire_fuse_snapshot_bundle_stat
+
+- name: Require an existing bundle to be a trusted immutable directory
+  ansible.builtin.assert:
+    that:
+      - >-
+        fire_fuse_snapshot_bundle_stat.stat
+        is trusted_directory(owner='root', group='root', mode='0700')
+    fail_msg: the existing snapshot bundle path is not trusted
+  when: fire_fuse_snapshot_bundle_stat.stat.exists | default(false)
+
+- name: Build the immutable snapshot bundle
+  ansible.builtin.command:
+    argv:
+      - "{{ fire_fuse_snapshot_builder_binary }}"
+      - -config
+      - "{{ fire_fuse_snapshot_config }}"
+      - -placeholder
+      - "{{ fire_fuse_snapshot_placeholder }}"
+      - -output
+      - "{{ fire_fuse_snapshot_bundle }}"
+    creates: "{{ fire_fuse_snapshot_bundle }}/manifest.json"
+  register: fire_fuse_snapshot_build
+
+- name: Inspect immutable snapshot bundle files
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_snapshot_bundle }}/{{ item.name }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: fire_fuse_snapshot_files
+  loop:
+    - name: manifest.json
+      mode: "0400"
+    - name: vmstate
+      mode: "0444"
+    - name: memory
+      mode: "0444"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted immutable snapshot bundle files
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.stat
+        is trusted_file(owner='root', group='root', mode=item.item.mode)
+      - item.stat.size | default(0) > 0
+      - item.stat.checksum | default('') is match('^[0-9a-f]{64}$')
+    fail_msg: snapshot bundle file {{ item.item.name }} is not trusted
+  loop: "{{ fire_fuse_snapshot_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Read the snapshot bundle manifest
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_snapshot_bundle }}/manifest.json"
+  register: fire_fuse_snapshot_manifest_contents
+
+- name: Decode the snapshot bundle manifest
+  ansible.builtin.set_fact:
+    fire_fuse_snapshot_manifest: >-
+      {{ fire_fuse_snapshot_manifest_contents.content | b64decode | from_json }}
+
+- name: Require snapshot manifest compatibility and file identities
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_snapshot_manifest.schema_version | int == 2
+      - >-
+        fire_fuse_snapshot_manifest.machine.vcpu_count | int == 4
+      - >-
+        fire_fuse_snapshot_manifest.machine.memory_mib | int == 512
+      - >-
+        fire_fuse_snapshot_manifest.machine.hotplug_memory_mib | int == 4096
+      - fire_fuse_snapshot_manifest.machine.interface_id == 'eth0'
+      - >-
+        fire_fuse_snapshot_manifest.guest.assignment_protocol | int
+        == fire_fuse_snapshot_assignment_protocol | int
+      - >-
+        fire_fuse_snapshot_manifest.files.state.sha256
+        == fire_fuse_snapshot_files.results[1].stat.checksum
+      - >-
+        fire_fuse_snapshot_manifest.files.state.size_bytes | int
+        == fire_fuse_snapshot_files.results[1].stat.size | int
+      - >-
+        fire_fuse_snapshot_manifest.files.memory.sha256
+        == fire_fuse_snapshot_files.results[2].stat.checksum
+      - >-
+        fire_fuse_snapshot_manifest.files.memory.size_bytes | int
+        == fire_fuse_snapshot_files.results[2].stat.size | int
+    fail_msg: the snapshot bundle manifest does not match its requested shape or files

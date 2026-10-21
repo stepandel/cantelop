@@ -1,0 +1,23 @@
+---
+storage_backup_transfer_set_id: ""
+storage_backup_transfer_directory: /etc/fire-fuse-storage
+storage_backup_transfer_config_file: >-
+  {{ storage_backup_transfer_directory }}/backup-destination.json
+storage_backup_transfer_credentials_file: >-
+  {{ storage_backup_transfer_directory }}/backup-s3-credentials.json
+storage_backup_transfer_program: >-
+  /usr/local/lib/fire-fuse/transfer-storage-backup.py
+storage_backup_transfer_verifier: >-
+  /usr/local/lib/fire-fuse/verify-storage-backup.py
+storage_backup_transfer_validator: >-
+  /usr/local/lib/fire-fuse/validate-storage-backup-destination.py
+storage_backup_transfer_read_qualifier: >-
+  /usr/local/lib/fire-fuse/qualify-storage-backup-destination.py
+storage_backup_transfer_write_qualifier: >-
+  /usr/local/lib/fire-fuse/qualify-storage-backup-destination-write.py
+storage_backup_transfer_mc_binary: /usr/local/bin/mc
+storage_backup_transfer_mc_checksum: >-
+  01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891
+storage_backup_transfer_minimum_retention_days: 14
+storage_backup_transfer_timeout_seconds: 86400
+storage_backup_transfer_lock_root: /run/lock

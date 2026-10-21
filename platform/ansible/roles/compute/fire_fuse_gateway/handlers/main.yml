@@ -1,0 +1,14 @@
+---
+- name: Restart fire-fuse gateway
+  ansible.builtin.systemd_service:
+    name: fire-fuse-gateway.service
+    state: restarted
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Restart fire-fuse asynchronous dispatcher
+  ansible.builtin.systemd_service:
+    name: fire-fuse-async-dispatcher.service
+    state: restarted
+    enabled: true
+  when: not ansible_check_mode

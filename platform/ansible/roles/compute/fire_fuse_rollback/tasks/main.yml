@@ -1,0 +1,138 @@
+---
+- name: Validate production rollback inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - fire_fuse_rollback_confirm == 'RESTORE FIRE-FUSE PRODUCTION ROLLBACK'
+      - fire_fuse_rollback_id is match('^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9.-]{0,63}$')
+      - fire_fuse_rollback_service == 'fire-fuse.service'
+      - fire_fuse_rollback_root == '/var/lib/fire-fuse/release-rollbacks'
+      - fire_fuse_rollback_files | length == 13
+    fail_msg: rollback requires exact approval, an upgrade ID, and normal mode
+
+- name: Read service state before rollback
+  ansible.builtin.service_facts:
+
+- name: Require stopped and disabled Fire Fuse before rollback
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(fire_fuse_rollback_service, {}).get('state', 'not-found') in ['stopped', 'unknown']
+      - ansible_facts.services.get(fire_fuse_rollback_service, {}).get('status', 'not-found') == 'disabled'
+    fail_msg: stop and disable Fire Fuse cleanly before rollback
+
+- name: Derive rollback snapshot directory
+  ansible.builtin.set_fact:
+    fire_fuse_rollback_directory: "{{ fire_fuse_rollback_root ~ '/' ~ fire_fuse_rollback_id }}"
+
+- name: Read rollback manifest
+  ansible.builtin.slurp:
+    src: "{{ fire_fuse_rollback_directory }}/manifest.json"
+  register: fire_fuse_rollback_manifest_contents
+
+- name: Decode rollback manifest
+  ansible.builtin.set_fact:
+    fire_fuse_rollback_manifest: >-
+      {{ fire_fuse_rollback_manifest_contents.content | b64decode | from_json }}
+
+- name: Require exact rollback manifest envelope
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_rollback_manifest.keys() | sort == ['files', 'schema_version', 'upgrade_id']
+      - fire_fuse_rollback_manifest.schema_version | type_debug == 'int'
+      - fire_fuse_rollback_manifest.schema_version | int == 1
+      - fire_fuse_rollback_manifest.upgrade_id == fire_fuse_rollback_id
+      - fire_fuse_rollback_manifest.files is sequence
+      - fire_fuse_rollback_manifest.files | length == 13
+    fail_msg: rollback manifest has an unsupported or mismatched envelope
+
+- name: Validate rollback manifest allowlist
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_rollback_declared | length == 1
+      - fire_fuse_rollback_declared[0].keys() | sort == ['destination', 'mode', 'name', 'sha256', 'snapshot']
+      - fire_fuse_rollback_declared[0].destination == item.destination
+      - fire_fuse_rollback_declared[0].snapshot == item.snapshot
+      - fire_fuse_rollback_declared[0].mode in item.modes
+      - fire_fuse_rollback_declared[0].sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: "rollback manifest entry {{ item.name }} escaped the fixed allowlist"
+  vars:
+    fire_fuse_rollback_declared: >-
+      {{ fire_fuse_rollback_manifest.files | selectattr('name', 'equalto', item.name) | list }}
+  loop: "{{ fire_fuse_rollback_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Inspect rollback snapshot files
+  ansible.builtin.stat:
+    path: "{{ fire_fuse_rollback_directory }}/{{ item.snapshot }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: fire_fuse_rollback_snapshot_files
+  loop: "{{ fire_fuse_rollback_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted rollback snapshot files
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0600')
+      - item.stat.checksum == fire_fuse_rollback_declared[0].sha256
+    fail_msg: "rollback snapshot {{ item.item.name }} failed integrity checks"
+  vars:
+    fire_fuse_rollback_declared: >-
+      {{ fire_fuse_rollback_manifest.files | selectattr('name', 'equalto', item.item.name) | list }}
+  loop: "{{ fire_fuse_rollback_snapshot_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Require no live SQLite sidecars before rollback
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: fire_fuse_rollback_sidecars
+  loop:
+    - /var/lib/fire-fuse/state/state.db-journal
+    - /var/lib/fire-fuse/state/state.db-wal
+    - /var/lib/fire-fuse/state/state.db-shm
+
+- name: Reject rollback with live SQLite sidecars
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_rollback_sidecars.results | selectattr('stat.exists') | list | length == 0
+    fail_msg: rollback requires cleanly closed lifecycle state
+
+- name: Restore the approved prior release and state
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_rollback_directory }}/{{ item.snapshot }}"
+    dest: "{{ item.destination }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "{{ fire_fuse_rollback_mode }}"
+  vars:
+    fire_fuse_rollback_mode: >-
+      {{ (fire_fuse_rollback_manifest.files
+      | selectattr('name', 'equalto', item.name) | first).mode }}
+  loop: "{{ fire_fuse_rollback_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Validate restored lifecycle state
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/fire-fuse
+      - -config
+      - /etc/fire-fuse/config.json
+      - -check-state-only
+  changed_when: false
+
+- name: Confirm Fire Fuse remains inactive after rollback
+  ansible.builtin.service_facts:
+
+- name: Require explicit activation after rollback
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[fire_fuse_rollback_service].state in ['stopped', 'unknown']
+      - ansible_facts.services[fire_fuse_rollback_service].status == 'disabled'
+    fail_msg: rollback must not activate Fire Fuse automatically

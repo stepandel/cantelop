@@ -1,0 +1,371 @@
+---
+- name: Recheck stopped compute before storage capture stage
+  ansible.builtin.include_role:
+    name: storage_backup_assert_compute_stopped
+
+- name: Validate encrypted restore-configuration inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_capture_restore_configuration_filename
+        == 'restore-secrets.vault'
+      - >-
+        storage_backup_capture_restore_configuration_vault_password_file
+        | default('')
+        | length > 0
+      - >-
+        storage_backup_capture_restore_configuration_vault_password_file
+        is match('^/.+$')
+      - >-
+        storage_backup_capture_restore_configuration_vault_binary
+        == 'ansible-vault'
+      - >-
+        storage_backup_capture_restore_configuration_fire_fuse_service
+        == 'fire-fuse.service'
+      - >-
+        storage_backup_capture_restore_configuration_minio_service
+        == 'fire-fuse-minio.service'
+      - >-
+        (storage_backup_capture_set_directory | default(''))
+        ==
+        (
+          storage_backup_staging_root ~ '/'
+          ~ (storage_backup_capture_set_id | default(''))
+        )
+      - >-
+        (storage_backup_capture_set_id | default(''))
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_capture_maintenance | default({}) is mapping
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'schema_version', 0
+        ) | int == 1
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'fire_fuse_state', ''
+        ) == 'stopped'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'volume_name', ''
+        ) == 'fire-fuse-workspaces'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'volume_uuid', ''
+        ) | length > 0
+      - >-
+        (storage_backup_capture_juicefs_version | default(''))
+        | length > 0
+      - >-
+        (storage_backup_capture_redis_version | default(''))
+        | length > 0
+      - >-
+        (storage_backup_capture_minio_version | default(''))
+        | length > 0
+      - >-
+        (storage_backup_capture_object_snapshot_id | default(''))
+        is match('^sha256:[0-9a-f]{64}$')
+      - juicefs_volume_client_checksum | default('') is match('^[0-9a-f]{64}$')
+      - minio_object_server_checksum | default('') is match('^[0-9a-f]{64}$')
+      - redis_metadata_database | int == 1
+      - minio_object_root_user == 'firefuseadmin'
+      - minio_object_juicefs_access_key == 'juicefs'
+      - minio_object_bucket == 'fire-fuse-workspaces'
+    fail_msg: >-
+      restore-configuration capture requires the complete preceding capture
+      facts, active storage credentials and pins, fixed source identities, and
+      a dedicated absolute controller Vault-password path
+  no_log: false
+
+- name: Validate encrypted restore-configuration secrets
+  ansible.builtin.assert:
+    that:
+      - >-
+        (redis_metadata_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (minio_object_root_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (minio_object_juicefs_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+    fail_msg: restore-configuration capture requires valid active credentials
+  no_log: true
+
+- name: Read service state before restore-configuration capture
+  ansible.builtin.service_facts:
+
+- name: Require the restore-configuration maintenance boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_compute_stopped | default(false)
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_restore_configuration_minio_service, {}
+        ).get('state', 'not-found') == 'running'
+    fail_msg: >-
+      restore-configuration capture requires fire-fuse stopped and MinIO
+      restored to service
+
+- name: Validate preceding backup artifact facts
+  ansible.builtin.assert:
+    that:
+      - item.fact | default({}) is mapping
+      - item.fact.get('component', '') == item.component
+      - item.fact.get('path', '') == item.path
+      - >-
+        item.fact.get('source_path', '')
+        == storage_backup_capture_set_directory ~ '/' ~ item.path
+      - item.fact.get('size_bytes', 0) | int > 0
+      - item.fact.get('sha256', '') is match('^[0-9a-f]{64}$')
+    fail_msg: preceding artifact {{ item.component }} has an invalid fact
+  loop:
+    - component: juicefs_metadata
+      path: metadata.dump
+      fact: "{{ storage_backup_capture_metadata_artifact | default({}) }}"
+    - component: redis_persistence
+      path: redis-persistence.tar.gz
+      fact: "{{ storage_backup_capture_redis_artifact | default({}) }}"
+    - component: minio_objects
+      path: minio-objects.tar
+      fact: "{{ storage_backup_capture_minio_artifact | default({}) }}"
+  loop_control:
+    label: "{{ item.component }}"
+
+- name: Revalidate preceding backup artifacts
+  ansible.builtin.stat:
+    path: "{{ item.source_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - "{{ storage_backup_capture_metadata_artifact }}"
+    - "{{ storage_backup_capture_redis_artifact }}"
+    - "{{ storage_backup_capture_minio_artifact }}"
+  register: storage_backup_capture_restore_configuration_prerequisite_stats
+  loop_control:
+    label: "{{ item.component }}"
+
+- name: Require unchanged preceding backup artifacts
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0600')
+      - item.stat.size | int == item.item.size_bytes | int
+      - item.stat.checksum == item.item.sha256
+    fail_msg: preceding artifact {{ item.item.component }} changed
+  loop: >-
+    {{ storage_backup_capture_restore_configuration_prerequisite_stats.results }}
+  loop_control:
+    label: "{{ item.item.component }}"
+
+- name: Inspect the restore Vault password on the controller
+  ansible.builtin.stat:
+    path: >-
+      {{ storage_backup_capture_restore_configuration_vault_password_file }}
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: storage_backup_capture_restore_configuration_password_stat
+  no_log: true
+
+- name: Require a private regular restore Vault password file
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_restore_configuration_password_stat.stat
+        is trusted_file(mode='0600')
+      - >-
+        storage_backup_capture_restore_configuration_password_stat.stat.size
+        | int >= 16
+      - >-
+        storage_backup_capture_restore_configuration_password_stat.stat.size
+        | int <= 1024
+    fail_msg: >-
+      the controller restore Vault password must be a nonempty mode-0600
+      regular file, not a symlink
+  no_log: true
+
+- name: Build the exact restore configuration
+  ansible.builtin.set_fact:
+    storage_backup_capture_restore_configuration_plaintext:
+      schema_version: 1
+      source:
+        set_id: "{{ storage_backup_capture_set_id }}"
+        volume_name: "{{ storage_backup_capture_maintenance.volume_name }}"
+        volume_uuid: "{{ storage_backup_capture_maintenance.volume_uuid }}"
+        object_snapshot_id: "{{ storage_backup_capture_object_snapshot_id }}"
+      juicefs:
+        version: "{{ storage_backup_capture_juicefs_version }}"
+        client_sha256: "{{ juicefs_volume_client_checksum }}"
+        storage: s3
+        bucket: "{{ minio_object_bucket }}"
+        access_key: "{{ minio_object_juicefs_access_key }}"
+        secret_key: "{{ minio_object_juicefs_secret_key }}"
+      redis:
+        version: "{{ storage_backup_capture_redis_version }}"
+        database: "{{ redis_metadata_database | int }}"
+        password: "{{ redis_metadata_password }}"
+      minio:
+        version: "{{ storage_backup_capture_minio_version }}"
+        server_sha256: "{{ minio_object_server_checksum }}"
+        root_user: "{{ minio_object_root_user }}"
+        root_password: "{{ minio_object_root_password }}"
+  no_log: true
+
+- name: Record encrypted restore-configuration artifact paths
+  ansible.builtin.set_fact:
+    storage_backup_capture_restore_configuration_partial_path: >-
+      {{ storage_backup_capture_set_directory }}/.restore-secrets.vault.partial
+    storage_backup_capture_restore_configuration_path: >-
+      {{ storage_backup_capture_set_directory }}/{{
+      storage_backup_capture_restore_configuration_filename }}
+
+- name: Inspect proposed restore-configuration artifact paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ storage_backup_capture_restore_configuration_partial_path }}"
+    - "{{ storage_backup_capture_restore_configuration_path }}"
+  register: storage_backup_capture_restore_configuration_existing_artifacts
+
+- name: Require new restore-configuration artifact paths
+  ansible.builtin.assert:
+    that:
+      - not item.stat.exists
+    fail_msg: >-
+      restore-configuration artifact path {{ item.item }} already exists;
+      refusing to overwrite or ambiguously resume
+  loop: >-
+    {{ storage_backup_capture_restore_configuration_existing_artifacts.results }}
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Encrypt the restore configuration without a plaintext file
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_restore_configuration_vault_binary }}"
+      - encrypt
+      - --vault-password-file
+      - >-
+        {{ storage_backup_capture_restore_configuration_vault_password_file }}
+      - --output
+      - "-"
+    stdin: >-
+      {{
+        storage_backup_capture_restore_configuration_plaintext
+        | to_nice_json
+      }}
+    stdin_add_newline: true
+  delegate_to: localhost
+  become: false
+  register: storage_backup_capture_restore_configuration_encrypted
+  changed_when: true
+  no_log: true
+
+- name: Require an Ansible Vault ciphertext
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_restore_configuration_encrypted.stdout
+        is match('^\$ANSIBLE_VAULT;1\.[12];AES256\n[0-9a-f\n]+$')
+      - >-
+        redis_metadata_password
+        not in storage_backup_capture_restore_configuration_encrypted.stdout
+      - >-
+        minio_object_root_password
+        not in storage_backup_capture_restore_configuration_encrypted.stdout
+      - >-
+        minio_object_juicefs_secret_key
+        not in storage_backup_capture_restore_configuration_encrypted.stdout
+    fail_msg: restore configuration was not safely encrypted by Ansible Vault
+  no_log: true
+
+- name: Decrypt the generated ciphertext in memory for verification
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_restore_configuration_vault_binary }}"
+      - decrypt
+      - --vault-password-file
+      - >-
+        {{ storage_backup_capture_restore_configuration_vault_password_file }}
+      - --output
+      - "-"
+    stdin: "{{ storage_backup_capture_restore_configuration_encrypted.stdout }}"
+    stdin_add_newline: true
+  delegate_to: localhost
+  become: false
+  register: storage_backup_capture_restore_configuration_decrypted
+  changed_when: false
+  no_log: true
+
+- name: Require an exact encryption round trip
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_restore_configuration_decrypted.stdout
+        | from_json
+        == storage_backup_capture_restore_configuration_plaintext
+    fail_msg: encrypted restore configuration failed its in-memory round trip
+  no_log: true
+
+- name: Install the verified encrypted restore configuration
+  ansible.builtin.copy:
+    content: >-
+      {{ storage_backup_capture_restore_configuration_encrypted.stdout }}
+    dest: "{{ storage_backup_capture_restore_configuration_partial_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+    decrypt: false
+  diff: false
+  no_log: true
+
+- name: Promote the encrypted restore configuration atomically
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mv
+      - --no-target-directory
+      - "{{ storage_backup_capture_restore_configuration_partial_path }}"
+      - "{{ storage_backup_capture_restore_configuration_path }}"
+  changed_when: true
+
+- name: Inspect the promoted encrypted restore configuration
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_restore_configuration_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_restore_configuration_artifact_stat
+
+- name: Require a complete trusted restore-configuration artifact
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_restore_configuration_artifact_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - >-
+        storage_backup_capture_restore_configuration_artifact_stat.stat.size
+        | int > 0
+      - >-
+        storage_backup_capture_restore_configuration_artifact_stat.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: promoted restore-configuration artifact failed integrity checks
+
+- name: Publish the encrypted restore-configuration artifact
+  ansible.builtin.set_fact:
+    storage_backup_capture_restore_configuration_artifact:
+      component: encrypted_restore_configuration
+      path: >-
+        {{ storage_backup_capture_restore_configuration_filename }}
+      source_path: >-
+        {{ storage_backup_capture_restore_configuration_path }}
+      size_bytes: >-
+        {{
+          storage_backup_capture_restore_configuration_artifact_stat.stat.size
+          | int
+        }}
+      sha256: >-
+        {{
+          storage_backup_capture_restore_configuration_artifact_stat.stat.checksum
+        }}

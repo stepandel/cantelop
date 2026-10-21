@@ -1,0 +1,6 @@
+---
+- name: Enforce the Hetzner provider-edge RPC and NFS boundary
+  hosts: fire_fuse_hosts
+  gather_facts: false
+  roles:
+    - role: hetzner_robot_firewall

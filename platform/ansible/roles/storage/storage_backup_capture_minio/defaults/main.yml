@@ -1,0 +1,11 @@
+---
+storage_backup_capture_minio_data_directory: /var/lib/fire-fuse/minio
+storage_backup_capture_minio_filename: minio-objects.tar
+storage_backup_capture_minio_service: fire-fuse-minio.service
+storage_backup_capture_minio_fire_fuse_service: fire-fuse.service
+storage_backup_capture_minio_binary: /usr/local/bin/minio
+storage_backup_capture_minio_bucket: fire-fuse-workspaces
+storage_backup_capture_minio_ready_url: >-
+  http://10.78.0.2:9000/minio/health/ready
+storage_backup_capture_minio_ready_attempts: 30
+storage_backup_capture_minio_ready_delay_seconds: 1

@@ -1,0 +1,325 @@
+---
+- name: Manage the Hetzner Robot edge firewall
+  delegate_to: localhost
+  become: false
+  run_once: true
+  block:
+    - name: Define the reviewed Hetzner Robot firewall policy
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_reviewed_input_rules:
+          - {name: "cantelop - deny tcp 111", ip_version: ipv4, protocol: tcp, dst_port: "111", action: discard}
+          - {name: "cantelop - deny udp 111", ip_version: ipv4, protocol: udp, dst_port: "111", action: discard}
+          - {name: "cantelop - deny tcp 2049", ip_version: ipv4, protocol: tcp, dst_port: "2049", action: discard}
+          - {name: "cantelop - deny udp 2049", ip_version: ipv4, protocol: udp, dst_port: "2049", action: discard}
+          - {name: "cantelop - deny tcp 111 v6", ip_version: ipv6, protocol: tcp, dst_port: "111", action: discard}
+          - {name: "cantelop - deny udp 111 v6", ip_version: ipv6, protocol: udp, dst_port: "111", action: discard}
+          - {name: "cantelop - deny tcp 2049 v6", ip_version: ipv6, protocol: tcp, dst_port: "2049", action: discard}
+          - {name: "cantelop - deny udp 2049 v6", ip_version: ipv6, protocol: udp, dst_port: "2049", action: discard}
+          - {name: "cantelop - accept remaining ingress", action: accept}
+        hetzner_robot_firewall_reviewed_output_rules:
+          - {name: "cantelop - accept egress", action: accept}
+        # Robot injects these provider-owned egress rules into every readback;
+        # expect them, but do not submit duplicate customer-owned copies.
+        hetzner_robot_firewall_provider_output_rules_normalized:
+          - {name: "Block mail ports", ip_version: ipv4, dst_ip: null, src_ip: null, dst_port: "25,465", src_port: null, protocol: tcp, tcp_flags: null, action: discard}
+          - {name: "Block mail ports", ip_version: ipv6, dst_ip: null, src_ip: null, dst_port: "25,465", src_port: null, protocol: tcp, tcp_flags: null, action: discard}
+        # This is the exact policy found on server 3043811 before this role was
+        # introduced. It is accepted only as a one-time migration source so the
+        # provider RPC/NFS denies can be added without weakening SMTP egress.
+        hetzner_robot_firewall_legacy_rules_normalized:
+          input:
+            - {name: "Allow all", ip_version: null, dst_ip: null, src_ip: null, dst_port: null, src_port: null, protocol: null, tcp_flags: null, action: accept}
+          output:
+            - {name: "Block mail ports", ip_version: ipv4, dst_ip: null, src_ip: null, dst_port: "25,465", src_port: null, protocol: tcp, tcp_flags: null, action: discard}
+            - {name: "Block mail ports", ip_version: ipv6, dst_ip: null, src_ip: null, dst_port: "25,465", src_port: null, protocol: tcp, tcp_flags: null, action: discard}
+            - {name: "Allow all", ip_version: null, dst_ip: null, src_ip: null, dst_port: null, src_port: null, protocol: null, tcp_flags: null, action: accept}
+
+    - name: Validate Hetzner Robot firewall configuration
+      ansible.builtin.assert:
+        that:
+          - hetzner_robot_firewall_server_number | int > 0
+          - hetzner_robot_firewall_user | length > 0
+          - hetzner_robot_firewall_password | length > 0
+          - "'\n' not in hetzner_robot_firewall_user"
+          - "'\r' not in hetzner_robot_firewall_user"
+          - "'\n' not in hetzner_robot_firewall_password"
+          - "'\r' not in hetzner_robot_firewall_password"
+          - hetzner_robot_firewall_input_rules | length <= 10
+          - hetzner_robot_firewall_output_rules | length <= 10
+          - hetzner_robot_firewall_input_rules == hetzner_robot_firewall_reviewed_input_rules
+          - hetzner_robot_firewall_output_rules == hetzner_robot_firewall_reviewed_output_rules
+        fail_msg: >-
+          Refusing to manage the Robot firewall with missing credentials, an
+          invalid server number, or a policy other than the reviewed RPC/NFS
+          edge boundary.
+      no_log: true
+
+    - name: Read the current Hetzner Robot firewall
+      ansible.builtin.uri:
+        url: "{{ hetzner_robot_firewall_api_url }}/firewall/{{ hetzner_robot_firewall_server_number }}"
+        method: GET
+        user: "{{ hetzner_robot_firewall_user }}"
+        password: "{{ hetzner_robot_firewall_password }}"
+        force_basic_auth: true
+        follow_redirects: none
+        validate_certs: true
+        return_content: true
+        status_code: 200
+        timeout: "{{ hetzner_robot_firewall_timeout_seconds }}"
+      register: hetzner_robot_firewall_current_response
+      check_mode: false
+      no_log: true
+
+    - name: Select the current Hetzner Robot firewall
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_current: >-
+          {{ hetzner_robot_firewall_current_response.json.firewall
+             | default(hetzner_robot_firewall_current_response.json, true) }}
+      no_log: true
+
+    - name: Initialize normalized Hetzner Robot rule sets
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_current_rules_normalized:
+          input: []
+          output: []
+        hetzner_robot_firewall_desired_rules_normalized:
+          input: []
+          output: "{{ hetzner_robot_firewall_provider_output_rules_normalized }}"
+      no_log: true
+
+    - name: Normalize current Hetzner Robot input rules
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_current_rules_normalized: >-
+          {{ hetzner_robot_firewall_current_rules_normalized | combine({
+               'input': hetzner_robot_firewall_current_rules_normalized.input + [{
+                 'name': rule.name | default(none),
+                 'ip_version': rule.ip_version | default(none),
+                 'dst_ip': rule.dst_ip | default(none),
+                 'src_ip': rule.src_ip | default(none),
+                 'dst_port': rule.dst_port | default(none),
+                 'src_port': rule.src_port | default(none),
+                 'protocol': rule.protocol | default(none),
+                 'tcp_flags': rule.tcp_flags | default(none),
+                 'action': rule.action | default(none)
+               }]
+             }) }}
+      loop: "{{ hetzner_robot_firewall_current.rules.input | default([]) }}"
+      loop_control:
+        loop_var: rule
+        label: "{{ rule.name | default('unnamed') }}"
+      no_log: true
+
+    - name: Normalize current Hetzner Robot output rules
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_current_rules_normalized: >-
+          {{ hetzner_robot_firewall_current_rules_normalized | combine({
+               'output': hetzner_robot_firewall_current_rules_normalized.output + [{
+                 'name': rule.name | default(none),
+                 'ip_version': rule.ip_version | default(none),
+                 'dst_ip': rule.dst_ip | default(none),
+                 'src_ip': rule.src_ip | default(none),
+                 'dst_port': rule.dst_port | default(none),
+                 'src_port': rule.src_port | default(none),
+                 'protocol': rule.protocol | default(none),
+                 'tcp_flags': rule.tcp_flags | default(none),
+                 'action': rule.action | default(none)
+               }]
+             }) }}
+      loop: "{{ hetzner_robot_firewall_current.rules.output | default([]) }}"
+      loop_control:
+        loop_var: rule
+        label: "{{ rule.name | default('unnamed') }}"
+      no_log: true
+
+    - name: Normalize desired Hetzner Robot input rules
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_desired_rules_normalized: >-
+          {{ hetzner_robot_firewall_desired_rules_normalized | combine({
+               'input': hetzner_robot_firewall_desired_rules_normalized.input + [{
+                 'name': rule.name | default(none),
+                 'ip_version': rule.ip_version | default(none),
+                 'dst_ip': rule.dst_ip | default(none),
+                 'src_ip': rule.src_ip | default(none),
+                 'dst_port': rule.dst_port | default(none),
+                 'src_port': rule.src_port | default(none),
+                 'protocol': rule.protocol | default(none),
+                 'tcp_flags': rule.tcp_flags | default(none),
+                 'action': rule.action | default(none)
+               }]
+             }) }}
+      loop: "{{ hetzner_robot_firewall_input_rules }}"
+      loop_control:
+        loop_var: rule
+        label: "{{ rule.name }}"
+      no_log: true
+
+    - name: Normalize desired Hetzner Robot output rules
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_desired_rules_normalized: >-
+          {{ hetzner_robot_firewall_desired_rules_normalized | combine({
+               'output': hetzner_robot_firewall_desired_rules_normalized.output + [{
+                 'name': rule.name | default(none),
+                 'ip_version': rule.ip_version | default(none),
+                 'dst_ip': rule.dst_ip | default(none),
+                 'src_ip': rule.src_ip | default(none),
+                 'dst_port': rule.dst_port | default(none),
+                 'src_port': rule.src_port | default(none),
+                 'protocol': rule.protocol | default(none),
+                 'tcp_flags': rule.tcp_flags | default(none),
+                 'action': rule.action | default(none)
+               }]
+             }) }}
+      loop: "{{ hetzner_robot_firewall_output_rules }}"
+      loop_control:
+        loop_var: rule
+        label: "{{ rule.name }}"
+      no_log: true
+
+    - name: Determine Hetzner Robot firewall drift
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_has_drift: >-
+          {{ hetzner_robot_firewall_current.status | default('disabled') != 'active'
+             or not (hetzner_robot_firewall_current.filter_ipv6 | default(false) | bool)
+             or not (hetzner_robot_firewall_current.whitelist_hos | default(false) | bool)
+             or hetzner_robot_firewall_current_rules_normalized != hetzner_robot_firewall_desired_rules_normalized }}
+        hetzner_robot_firewall_current_rules: >-
+          {{ (hetzner_robot_firewall_current.rules.input | default([]))
+             + (hetzner_robot_firewall_current.rules.output | default([])) }}
+        hetzner_robot_firewall_current_input_owned_count: >-
+          {{ hetzner_robot_firewall_current_rules_normalized.input
+             | rejectattr('name', 'none')
+             | selectattr('name', 'match', '^cantelop - ') | list | length }}
+        hetzner_robot_firewall_current_output_owned_count: >-
+          {{ hetzner_robot_firewall_current_rules_normalized.output
+             | rejectattr('name', 'none')
+             | selectattr('name', 'match', '^cantelop - ') | list | length }}
+        hetzner_robot_firewall_current_provider_output_rules: >-
+          {{ hetzner_robot_firewall_current_rules_normalized.output
+             | selectattr('name', 'equalto', 'Block mail ports') | list }}
+      no_log: true
+
+    - name: Refuse to overwrite an unmanaged Hetzner Robot firewall
+      ansible.builtin.assert:
+        that:
+          - >-
+            not hetzner_robot_firewall_has_drift
+            or (hetzner_robot_firewall_current.rules.input | default([]) | length == 0
+                and hetzner_robot_firewall_current.rules.output | default([]) | length == 0)
+            or hetzner_robot_firewall_current_rules_normalized == hetzner_robot_firewall_legacy_rules_normalized
+            or (hetzner_robot_firewall_current_input_owned_count
+                == hetzner_robot_firewall_current_rules_normalized.input | length
+                and hetzner_robot_firewall_current_provider_output_rules
+                == hetzner_robot_firewall_provider_output_rules_normalized
+                and (hetzner_robot_firewall_current_output_owned_count
+                     + hetzner_robot_firewall_current_provider_output_rules | length)
+                == hetzner_robot_firewall_current_rules_normalized.output | length)
+        fail_msg: >-
+          The server already has firewall rules not owned by Cantelop. Robot
+          updates replace the complete ruleset, so merge those rules into the
+          reviewed policy before applying this role.
+
+    - name: Build Hetzner Robot firewall update form
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_form:
+          status: active
+          filter_ipv6: "true"
+          whitelist_hos: "true"
+      no_log: true
+
+    - name: Add input rules to Hetzner Robot firewall update form
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_form: >-
+          {{ hetzner_robot_firewall_form | combine({
+               'rules[input][' ~ rule_index ~ '][name]': rule.name,
+               'rules[input][' ~ rule_index ~ '][action]': rule.action
+             }) }}
+      loop: "{{ hetzner_robot_firewall_input_rules }}"
+      loop_control:
+        index_var: rule_index
+        loop_var: rule
+        label: "{{ rule.name }}"
+      no_log: true
+
+    - name: Add input rule selectors to Hetzner Robot firewall update form
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_form: >-
+          {{ hetzner_robot_firewall_form | combine({
+               'rules[input][' ~ rule_index ~ '][ip_version]': rule.ip_version,
+               'rules[input][' ~ rule_index ~ '][protocol]': rule.protocol,
+               'rules[input][' ~ rule_index ~ '][dst_port]': rule.dst_port
+             }) }}
+      loop: "{{ hetzner_robot_firewall_input_rules }}"
+      loop_control:
+        index_var: rule_index
+        loop_var: rule
+        label: "{{ rule.name }}"
+      when: rule.action == 'discard'
+      no_log: true
+
+    - name: Add output rules to Hetzner Robot firewall update form
+      ansible.builtin.set_fact:
+        hetzner_robot_firewall_form: >-
+          {{ hetzner_robot_firewall_form | combine({
+               'rules[output][' ~ rule_index ~ '][name]': rule.name,
+               'rules[output][' ~ rule_index ~ '][action]': rule.action
+             }) }}
+      loop: "{{ hetzner_robot_firewall_output_rules }}"
+      loop_control:
+        index_var: rule_index
+        loop_var: rule
+        label: "{{ rule.name }}"
+      no_log: true
+
+    - name: Report Hetzner Robot firewall drift in check mode
+      ansible.builtin.debug:
+        msg: "Hetzner Robot firewall policy differs from the reviewed Cantelop boundary"
+      changed_when: hetzner_robot_firewall_has_drift
+      when: ansible_check_mode
+
+    - name: Apply Hetzner Robot firewall policy
+      ansible.builtin.uri:
+        url: "{{ hetzner_robot_firewall_api_url }}/firewall/{{ hetzner_robot_firewall_server_number }}"
+        method: POST
+        user: "{{ hetzner_robot_firewall_user }}"
+        password: "{{ hetzner_robot_firewall_password }}"
+        force_basic_auth: true
+        follow_redirects: none
+        validate_certs: true
+        body_format: form-urlencoded
+        body: "{{ hetzner_robot_firewall_form }}"
+        return_content: true
+        status_code:
+          - 200
+          - 201
+          - 202
+        timeout: "{{ hetzner_robot_firewall_timeout_seconds }}"
+      when:
+        - not ansible_check_mode
+        - hetzner_robot_firewall_has_drift
+      no_log: true
+      diff: false
+
+    - name: Verify the active Hetzner Robot firewall policy
+      ansible.builtin.uri:
+        url: "{{ hetzner_robot_firewall_api_url }}/firewall/{{ hetzner_robot_firewall_server_number }}"
+        method: GET
+        user: "{{ hetzner_robot_firewall_user }}"
+        password: "{{ hetzner_robot_firewall_password }}"
+        force_basic_auth: true
+        follow_redirects: none
+        validate_certs: true
+        return_content: true
+        status_code: 200
+        timeout: "{{ hetzner_robot_firewall_timeout_seconds }}"
+      register: hetzner_robot_firewall_verify_response
+      until:
+        - (hetzner_robot_firewall_verify_response.json.firewall.status | default('')) == 'active'
+        - hetzner_robot_firewall_verify_response.json.firewall.filter_ipv6 | default(false) | bool
+        - hetzner_robot_firewall_verify_response.json.firewall.whitelist_hos | default(false) | bool
+        - >-
+          (hetzner_robot_firewall_verify_response.json.firewall.rules | default({}))
+          == hetzner_robot_firewall_desired_rules_normalized
+      retries: "{{ hetzner_robot_firewall_verify_retries }}"
+      delay: "{{ hetzner_robot_firewall_verify_delay_seconds }}"
+      when: not ansible_check_mode
+      no_log: true

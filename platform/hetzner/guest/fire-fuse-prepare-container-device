@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly device='/dev/vdb'
+
+fail() {
+  printf 'fire-fuse-prepare-container-device: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ -b "${device}" ]] || fail "container root device is not a block device: ${device}"
+
+while read -r source _; do
+  [[ "${source}" != "${device}" ]] ||
+    fail "container root device is already mounted: ${device}"
+done < /proc/self/mounts
+
+/usr/sbin/blockdev --flushbufs "${device}" ||
+  fail "could not flush stale buffers for ${device}"
+size_bytes="$(/usr/sbin/blockdev --getsize64 "${device}")" ||
+  fail "could not read the size of ${device}"
+[[ "${size_bytes}" =~ ^[1-9][0-9]*$ ]] ||
+  fail "container root device has an invalid size: ${size_bytes}"

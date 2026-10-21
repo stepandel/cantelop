@@ -1,0 +1,1 @@
+ALTER TABLE "cantelop_control"."workspaces" ADD COLUMN "host_archived_at" timestamp with time zone;

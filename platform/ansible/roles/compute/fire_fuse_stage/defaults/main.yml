@@ -1,0 +1,115 @@
+---
+fire_fuse_stage_directory: /var/lib/fire-fuse/staged-release
+fire_fuse_stage_jailer_user: fire-fuse-jailer
+
+fire_fuse_stage_orchestrator_artifact: ""
+fire_fuse_stage_orchestrator_checksum: ""
+fire_fuse_stage_admin_artifact: ""
+fire_fuse_stage_admin_checksum: ""
+fire_fuse_stage_snapshot_builder_artifact: ""
+fire_fuse_stage_snapshot_builder_checksum: ""
+fire_fuse_stage_image_publisher_artifact: ""
+fire_fuse_stage_image_publisher_checksum: ""
+fire_fuse_stage_integration_artifact: ""
+fire_fuse_stage_integration_checksum: ""
+fire_fuse_stage_firecracker_artifact: ""
+fire_fuse_stage_firecracker_checksum: ""
+fire_fuse_stage_jailer_artifact: ""
+fire_fuse_stage_jailer_checksum: ""
+fire_fuse_stage_kernel_artifact: ""
+fire_fuse_stage_kernel_checksum: ""
+fire_fuse_stage_rootfs_artifact: ""
+fire_fuse_stage_rootfs_checksum: ""
+fire_fuse_stage_host_artifact_names: []
+fire_fuse_release_images: []
+
+fire_fuse_stage_base_artifacts:
+  - name: orchestrator
+    source: "{{ fire_fuse_stage_orchestrator_artifact }}"
+    checksum: "{{ fire_fuse_stage_orchestrator_checksum }}"
+    staged_name: fire-fuse
+    destination: /usr/local/bin/fire-fuse
+    mode: "0755"
+  - name: operator admin client
+    source: "{{ fire_fuse_stage_admin_artifact }}"
+    checksum: "{{ fire_fuse_stage_admin_checksum }}"
+    staged_name: cantelop
+    destination: /usr/local/bin/cantelop
+    mode: "0755"
+  - name: integration test
+    source: "{{ fire_fuse_stage_integration_artifact }}"
+    checksum: "{{ fire_fuse_stage_integration_checksum }}"
+    staged_name: fire-fuse-integration
+    destination: /usr/local/bin/fire-fuse-integration
+    mode: "0755"
+  - name: snapshot builder
+    source: "{{ fire_fuse_stage_snapshot_builder_artifact }}"
+    checksum: "{{ fire_fuse_stage_snapshot_builder_checksum }}"
+    staged_name: fire-fuse-snapshot
+    destination: /usr/local/bin/fire-fuse-snapshot
+    mode: "0755"
+  - name: image publisher
+    source: "{{ fire_fuse_stage_image_publisher_artifact }}"
+    checksum: "{{ fire_fuse_stage_image_publisher_checksum }}"
+    staged_name: fire-fuse-image
+    destination: /usr/local/bin/fire-fuse-image
+    mode: "0755"
+  - name: Firecracker
+    source: "{{ fire_fuse_stage_firecracker_artifact }}"
+    checksum: "{{ fire_fuse_stage_firecracker_checksum }}"
+    staged_name: firecracker
+    destination: /usr/local/lib/fire-fuse/firecracker
+    mode: "0755"
+  - name: jailer
+    source: "{{ fire_fuse_stage_jailer_artifact }}"
+    checksum: "{{ fire_fuse_stage_jailer_checksum }}"
+    staged_name: jailer
+    destination: /usr/local/lib/fire-fuse/jailer
+    mode: "0755"
+  - name: guest kernel
+    source: "{{ fire_fuse_stage_kernel_artifact }}"
+    checksum: "{{ fire_fuse_stage_kernel_checksum }}"
+    staged_name: vmlinux
+    destination: /var/lib/fire-fuse/images/vmlinux
+    mode: "0644"
+  - name: guest rootfs
+    source: "{{ fire_fuse_stage_rootfs_artifact }}"
+    checksum: "{{ fire_fuse_stage_rootfs_checksum }}"
+    staged_name: ubuntu-24.ext4
+    destination: /var/lib/fire-fuse/images/ubuntu-24.ext4
+    mode: "0644"
+
+fire_fuse_stage_config_destination: /etc/fire-fuse/config.json
+fire_fuse_stage_image_catalog_destination: /etc/fire-fuse/image-catalog.json
+fire_fuse_stage_config_encryption_key_destination: /etc/fire-fuse/config-encryption.key
+fire_fuse_stage_config_encryption_key: "{{ vault_fire_fuse_config_encryption_key | default('') }}"
+fire_fuse_stage_runtime_directory: /var/lib/fire-fuse/runtime
+fire_fuse_stage_state_database: /var/lib/fire-fuse/state/state.db
+fire_fuse_stage_address_pool: 172.31.0.0/16
+fire_fuse_stage_workspace_exportfs_bin: /usr/sbin/exportfs
+fire_fuse_stage_workspace_juicefs_bin: /usr/local/bin/juicefs
+fire_fuse_stage_workspace_mountpoint_bin: /usr/bin/mountpoint
+fire_fuse_stage_workspace_root: /var/lib/fire-fuse/workspaces
+fire_fuse_stage_workspace_admin_root: /var/lib/fire-fuse/workspace-admin
+
+fire_fuse_stage_limits:
+  max_vms: 50
+  max_total_memory_mib: 51200
+  max_concurrent_starts: 2
+fire_fuse_stage_host_pool:
+  slots_per_profile: 50
+
+fire_fuse_stage_timeouts:
+  startup: 30s
+  api_socket: 5s
+  guest_shutdown: 30s
+  shutdown_grace: 5s
+  shutdown_force: 5s
+  cleanup: 10s
+  http_request_read: 10s
+  http_idle: 30s
+  server_shutdown: 5s
+
+fire_fuse_stage_profile_name: default
+fire_fuse_stage_profile_boot_args: console=ttyS0 reboot=k panic=1 quiet memhp_default_state=online_movable systemd.show_status=false systemd.unit=fire-fuse-snapshot.target
+fire_fuse_stage_snapshot_bundle: /var/lib/fire-fuse/snapshots/default-4vcpu-512m-hotplug-4g

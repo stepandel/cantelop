@@ -1,0 +1,11 @@
+# Install ONLY on a dedicated managed host. This refuses unmanaged App
+# registrations and stops existing unmanaged Apps from sharing this host.
+[Unit]
+Requires=fire-fuse-managed-watchdog.service
+After=fire-fuse-managed-watchdog.service
+
+[Service]
+Environment=CANTELOP_MANAGED_HOST=true
+Environment=CANTELOP_MANAGED_WATCHDOG_HEARTBEAT=/run/fire-fuse-managed-watchdog/heartbeat
+EnvironmentFile=/etc/fire-fuse/managed-storage.env
+TimeoutStopSec=5s

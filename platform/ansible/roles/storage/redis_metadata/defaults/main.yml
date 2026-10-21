@@ -1,0 +1,13 @@
+---
+redis_metadata_bind_address: 10.78.0.2
+redis_metadata_port: 6379
+redis_metadata_database: 1
+redis_metadata_maxmemory: 8gb
+redis_metadata_service: fire-fuse-redis.service
+redis_metadata_stock_service: redis-server.service
+redis_metadata_data_directory: /var/lib/fire-fuse/redis
+redis_metadata_password_file: /etc/fire-fuse/redis-password
+redis_metadata_url_file: /etc/fire-fuse/juicefs-meta-url
+redis_metadata_config_file: /etc/redis/fire-fuse.conf
+redis_metadata_allow_password_rotation: false
+redis_metadata_consumer_service: fire-fuse.service

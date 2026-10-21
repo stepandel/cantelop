@@ -1,0 +1,15 @@
+---
+storage_backup_capture_restore_configuration_filename: restore-secrets.vault
+storage_backup_capture_restore_configuration_vault_password_file: ""
+storage_backup_capture_restore_configuration_vault_binary: ansible-vault
+storage_backup_capture_restore_configuration_fire_fuse_service: fire-fuse.service
+storage_backup_capture_restore_configuration_minio_service: >-
+  fire-fuse-minio.service
+
+# These fixed storage identities are repeated here because role defaults are
+# scoped to roles included by the current play. The capture play does not
+# include the provisioning roles that originally declared them.
+redis_metadata_database: 1
+minio_object_root_user: firefuseadmin
+minio_object_juicefs_access_key: juicefs
+minio_object_bucket: fire-fuse-workspaces

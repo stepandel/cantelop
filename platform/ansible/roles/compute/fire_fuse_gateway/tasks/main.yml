@@ -1,0 +1,322 @@
+---
+- name: Validate fire-fuse gateway inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+      - fire_fuse_gateway_user == 'fire-fuse-gateway'
+      - fire_fuse_gateway_group == 'fire-fuse-gateway'
+      - fire_fuse_gateway_binary_artifact.startswith('/')
+      - fire_fuse_gateway_binary_checksum is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_binary == '/usr/local/bin/fire-fuse-gateway'
+      - fire_fuse_async_dispatcher_binary_artifact.startswith('/')
+      - fire_fuse_async_dispatcher_binary_checksum is match('^[0-9a-f]{64}$')
+      - >-
+        fire_fuse_async_dispatcher_binary
+        == '/usr/local/bin/fire-fuse-async-dispatcher'
+      - fire_fuse_gateway_unit_source.startswith('/')
+      - >-
+        fire_fuse_gateway_unit
+        == '/etc/systemd/system/fire-fuse-gateway.service'
+      - fire_fuse_async_dispatcher_unit_source.startswith('/')
+      - >-
+        fire_fuse_async_dispatcher_unit
+        == '/etc/systemd/system/fire-fuse-async-dispatcher.service'
+      - >-
+        fire_fuse_gateway_config_directory
+        == '/etc/fire-fuse-gateway'
+      - fire_fuse_gateway_runtime_token_file == '/etc/fire-fuse-gateway/runtime-control.token'
+      - fire_fuse_gateway_product_token_file == '/etc/fire-fuse-gateway/product-control.token'
+      - fire_fuse_dispatcher_user == 'fire-fuse-dispatcher'
+      - fire_fuse_dispatcher_group == 'fire-fuse-dispatcher'
+      - fire_fuse_gateway_user != fire_fuse_dispatcher_user
+      - fire_fuse_gateway_group != fire_fuse_dispatcher_group
+      - fire_fuse_dispatcher_config_directory == '/etc/fire-fuse-dispatcher'
+      - fire_fuse_dispatcher_runtime_token_file == '/etc/fire-fuse-dispatcher/runtime-control.token'
+      - >-
+        fire_fuse_gateway_edge_token_file
+        == '/etc/fire-fuse-gateway/edge-ingress.token'
+      - >-
+        fire_fuse_observability_ingest_token_file
+        == '/etc/fire-fuse-dispatcher/observability-ingest.token'
+    fail_msg: >-
+      gateway deployment requires fixed loopback paths and checksum-pinned
+      artifacts
+
+- name: Validate the private edge ingress credential
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_gateway_edge_token is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      gateway deployment requires a dedicated 256-bit lowercase hexadecimal
+      edge ingress credential
+  no_log: true
+
+- name: Validate private gateway and dispatcher credentials
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_operator_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_compute_ingress_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_gateway_product_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_dispatcher_runtime_token is match('^[0-9a-f]{64}$')
+      - >-
+        [fire_fuse_operator_token, fire_fuse_compute_ingress_token,
+         fire_fuse_observer_runtime_token, fire_fuse_gateway_runtime_token,
+         fire_fuse_gateway_product_token, fire_fuse_dispatcher_runtime_token,
+         fire_fuse_gateway_edge_token, fire_fuse_observability_ingest_token]
+        | unique | length == 8
+    fail_msg: gateway and dispatcher credentials must be valid and mutually distinct
+  no_log: true
+
+- name: Validate the private observability ingestion credential
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_observability_ingest_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observability_ingest_token != fire_fuse_gateway_edge_token
+    fail_msg: >-
+      dispatcher deployment requires a dedicated 256-bit lowercase hexadecimal
+      observability ingestion credential
+  no_log: true
+
+- name: Inspect fire-fuse gateway controller artifacts
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_gateway_controller_artifacts
+  loop:
+    - name: gateway binary
+      path: "{{ fire_fuse_gateway_binary_artifact }}"
+      checksum: "{{ fire_fuse_gateway_binary_checksum }}"
+    - name: asynchronous dispatcher binary
+      path: "{{ fire_fuse_async_dispatcher_binary_artifact }}"
+      checksum: "{{ fire_fuse_async_dispatcher_binary_checksum }}"
+    - name: systemd unit
+      path: "{{ fire_fuse_gateway_unit_source }}"
+      checksum: ""
+    - name: asynchronous dispatcher systemd unit
+      path: "{{ fire_fuse_async_dispatcher_unit_source }}"
+      checksum: ""
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require regular checksum-pinned gateway artifacts
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: >-
+      {{ item.item.name }} must be a regular controller file with the declared
+      SHA-256 checksum
+  loop: "{{ fire_fuse_gateway_controller_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Create restricted gateway and dispatcher groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    system: true
+    state: present
+  loop:
+    - "{{ fire_fuse_gateway_group }}"
+    - "{{ fire_fuse_dispatcher_group }}"
+
+- name: Create restricted gateway and dispatcher users
+  ansible.builtin.user:
+    name: "{{ item.user }}"
+    group: "{{ item.group }}"
+    groups: []
+    append: false
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+  loop:
+    - user: "{{ fire_fuse_gateway_user }}"
+      group: "{{ fire_fuse_gateway_group }}"
+    - user: "{{ fire_fuse_dispatcher_user }}"
+      group: "{{ fire_fuse_dispatcher_group }}"
+  loop_control:
+    label: "{{ item.user }}"
+
+- name: Create private gateway and dispatcher configuration directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group }}"
+    mode: "0750"
+  loop:
+    - path: "{{ fire_fuse_gateway_config_directory }}"
+      group: "{{ fire_fuse_gateway_group }}"
+    - path: "{{ fire_fuse_dispatcher_config_directory }}"
+      group: "{{ fire_fuse_dispatcher_group }}"
+
+- name: Install the private edge ingress credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_gateway_edge_token }}\n"
+    dest: "{{ fire_fuse_gateway_edge_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_gateway_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse gateway
+
+- name: Install the private gateway runtime credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_gateway_runtime_token }}\n"
+    dest: "{{ fire_fuse_gateway_runtime_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_gateway_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse gateway
+
+- name: Install the private gateway product-control credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_gateway_product_token }}\n"
+    dest: "{{ fire_fuse_gateway_product_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_gateway_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse gateway
+
+- name: Remove retired mailbox configuration and dispatcher credential
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/fire-fuse-mailbox.conf
+    - /etc/fire-fuse-dispatcher/product-control.token
+
+- name: Install the private dispatcher runtime credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_dispatcher_runtime_token }}\n"
+    dest: "{{ fire_fuse_dispatcher_runtime_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_dispatcher_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse asynchronous dispatcher
+
+- name: Install the private observability ingestion credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_observability_ingest_token }}\n"
+    dest: "{{ fire_fuse_observability_ingest_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_dispatcher_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse asynchronous dispatcher
+
+- name: Install the checksum-pinned gateway binary
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_gateway_binary_artifact }}"
+    dest: "{{ fire_fuse_gateway_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart fire-fuse gateway
+
+- name: Install the checksum-pinned asynchronous dispatcher binary
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_async_dispatcher_binary_artifact }}"
+    dest: "{{ fire_fuse_async_dispatcher_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart fire-fuse asynchronous dispatcher
+
+- name: Install the fire-fuse gateway service
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_gateway_unit_source }}"
+    dest: "{{ fire_fuse_gateway_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fire-fuse gateway
+
+- name: Install the fire-fuse asynchronous dispatcher service
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_async_dispatcher_unit_source }}"
+    dest: "{{ fire_fuse_async_dispatcher_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fire-fuse asynchronous dispatcher
+
+- name: Inspect host services
+  ansible.builtin.service_facts:
+
+- name: Reload systemd for gateway validation
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Validate the gateway systemd unit
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemd-analyze
+      - verify
+      - "{{ item }}"
+  loop:
+    - "{{ fire_fuse_gateway_unit }}"
+    - "{{ fire_fuse_async_dispatcher_unit }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require the base fire-fuse service before gateway activation
+  ansible.builtin.assert:
+    that:
+      - "'fire-fuse.service' in ansible_facts.services"
+      - ansible_facts.services['fire-fuse.service'].state == 'running'
+      - ansible_facts.services['fire-fuse.service'].status == 'enabled'
+    fail_msg: >-
+      fire-fuse.service must be enabled and running before installing its
+      private edge gateway
+  when: not ansible_check_mode
+
+- name: Apply gateway configuration changes
+  ansible.builtin.meta: flush_handlers
+  when: not ansible_check_mode
+
+- name: Enable and start the fire-fuse gateway
+  ansible.builtin.systemd_service:
+    name: fire-fuse-gateway.service
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Enable and start the fire-fuse asynchronous dispatcher
+  ansible.builtin.systemd_service:
+    name: fire-fuse-async-dispatcher.service
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Require the loopback gateway to be ready
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8081/readyz
+    method: GET
+    status_code: 200
+    use_proxy: false
+  register: fire_fuse_gateway_readiness
+  retries: 20
+  delay: 1
+  until: fire_fuse_gateway_readiness.status == 200
+  when: not ansible_check_mode

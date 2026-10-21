@@ -1,0 +1,22 @@
+[Unit]
+Description=Observe the fire-fuse host JuiceFS gateway
+After={{ storage_observability_juicefs_service }}
+Requires={{ storage_observability_juicefs_service }}
+
+[Service]
+Type=oneshot
+ExecStart={{ storage_observability_juicefs_probe }}
+User=root
+Group=root
+UMask=0077
+SyslogIdentifier=fire-fuse-storage-observer
+RuntimeDirectory=fire-fuse-observability
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths={{ storage_observability_state_directory }}

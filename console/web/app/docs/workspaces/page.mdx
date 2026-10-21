@@ -1,0 +1,42 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/workspaces" },
+  title: "Workspaces", description: "Use persistent Cantelop Workspaces to keep agent files and state across Sandbox restarts and share them between Sessions.",
+};
+
+# Workspaces
+
+A Workspace is your agent's persistent filesystem, mounted at `/workspace`
+inside each Sandbox.
+
+- **Capability:** store files, generated artifacts, and saved agent state using
+  ordinary filesystem APIs. The Session process starts in `/workspace`, so
+  relative paths use persistent storage.
+- **Durability:** files survive Sandbox termination and are available to new
+  Sandboxes. In-memory state and temporary files outside the Workspace do not
+  persist; your agent must save and reload the state it needs.
+- **Sharing:** multiple Sessions can mount the same Workspace, including
+  Sandboxes running in parallel. They access the same files through
+  **NFS (Network File System)**, with concurrent reads and writes. Your
+  application coordinates conflicting writes.
+
+Workspaces belong to an App. Your backend selects one with
+`app.workspace({ slug })` and creates Session references from it with
+`.session({ id })`. The first dispatch, request, or explicit `resolve()`
+provisions the Workspace; the same slug
+in that App always reaches the same Workspace. A canonical
+`app.workspace({ id })` never provisions a replacement. Choose a user,
+account, or team as the owner; use separate Workspaces when their files should
+stay separate.
+
+Each Workspace also has a managed database shared by your backend
+(`workspace.database()`) and its Sessions (`context.database()`). Declare its
+schema in `db/schema.ts`; `cantelop database migrations WORKSPACE_ID` shows the
+migrations applied to one Workspace.
+
+The database is provisioned on first database access. Creating a Workspace or
+starting a Session that uses only files does not provision its database.
+
+See the [SDK guide](https://github.com/stepandel/cantelop-sdk#session-lifecycle-and-controls)
+for Workspace and Session references, and the
+[Workspace database guide](https://github.com/stepandel/cantelop-sdk/blob/main/docs/workspace-databases.md)
+for SQL, transactions, and credentials.

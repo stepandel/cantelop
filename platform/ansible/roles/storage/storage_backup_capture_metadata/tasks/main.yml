@@ -1,0 +1,359 @@
+---
+- name: Recheck stopped compute before storage capture stage
+  ansible.builtin.include_role:
+    name: storage_backup_assert_compute_stopped
+
+- name: Validate JuiceFS metadata capture inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_capture_set_id
+        is match(
+          '^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$'
+        )
+      - storage_backup_capture_metadata_filename == 'metadata.dump'
+      - >-
+        storage_backup_capture_metadata_juicefs_binary
+        == '/usr/local/bin/juicefs'
+      - >-
+        storage_backup_capture_metadata_fire_fuse_service
+        == 'fire-fuse.service'
+      - >-
+        storage_backup_capture_metadata_redis_service
+        == 'fire-fuse-redis.service'
+      - >-
+        storage_backup_capture_metadata_minio_service
+        == 'fire-fuse-minio.service'
+      - storage_backup_capture_maintenance | default({}) is mapping
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'schema_version', 0
+        ) | int == 1
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'fire_fuse_state', ''
+        ) == 'stopped'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'redis_state', ''
+        ) == 'running'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'minio_state', ''
+        ) == 'running'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'active_sessions', -1
+        ) | int == 0
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'volume_name', ''
+        ) | length > 0
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'volume_uuid', ''
+        ) | length > 0
+      - >-
+        (storage_backup_capture_metadata_url | default(''))
+        is match(
+          '^redis://:[0-9a-f]{64}@10\.78\.0\.2:6379/1$'
+        )
+      - >-
+        (minio_object_juicefs_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      JuiceFS metadata capture requires a safe unique backup-set ID, the
+      successful maintenance fact, fixed trusted paths and services, and the
+      active storage credentials
+  no_log: true
+
+- name: Read service state before JuiceFS metadata capture
+  ansible.builtin.service_facts:
+
+- name: Require the active backup maintenance service boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_compute_stopped | default(false)
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_metadata_redis_service, {}
+        ).get('state', 'not-found') == 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_metadata_minio_service, {}
+        ).get('state', 'not-found') == 'running'
+    fail_msg: >-
+      JuiceFS metadata capture requires fire-fuse stopped with Redis and MinIO
+      still running
+
+- name: Recheck host JuiceFS mounts before metadata capture
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/findmnt
+      - --raw
+      - --noheadings
+      - --types
+      - fuse.juicefs,fuse.juicefs-workspace-v1
+      - --output
+      - TARGET
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_backup_capture_metadata_host_mounts
+  changed_when: false
+  failed_when: storage_backup_capture_metadata_host_mounts.rc not in [0, 1]
+
+- name: Require no host JuiceFS mounts before metadata capture
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_metadata_host_mounts.stdout | trim | length == 0
+    fail_msg: a host JuiceFS mount appeared after backup maintenance entry
+
+- name: Recheck JuiceFS sessions before metadata capture
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_metadata_juicefs_binary }}"
+      - status
+      - redis://10.78.0.2:6379/1
+  environment:
+    META_PASSWORD: >-
+      {{ storage_backup_capture_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+  register: storage_backup_capture_metadata_status_command
+  changed_when: false
+  no_log: true
+
+- name: Decode JuiceFS pre-dump status
+  ansible.builtin.set_fact:
+    storage_backup_capture_metadata_status: >-
+      {{ storage_backup_capture_metadata_status_command.stdout | from_json }}
+  no_log: true
+
+- name: Record the metadata-capture session evaluation time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%S%z
+  register: storage_backup_capture_metadata_session_time
+  changed_when: false
+
+- name: Initialize metadata-capture active sessions
+  ansible.builtin.set_fact:
+    storage_backup_capture_metadata_active_sessions: []
+  no_log: true
+
+- name: Require the metadata-capture session collection
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_metadata_status.Sessions is sequence
+    fail_msg: JuiceFS status did not provide a session collection
+  no_log: true
+
+- name: Require parseable metadata-capture session expirations
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - >-
+        item.Expire
+        is match(
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+          ~ '[0-9]{2}:[0-9]{2}:[0-9]{2}'
+          ~ '[+-][0-9]{2}:[0-9]{2}$'
+        )
+  loop: "{{ storage_backup_capture_metadata_status.Sessions }}"
+  no_log: true
+
+- name: Record unexpired metadata-capture sessions
+  ansible.builtin.set_fact:
+    storage_backup_capture_metadata_active_sessions: >-
+      {{ storage_backup_capture_metadata_active_sessions + [item] }}
+  loop: "{{ storage_backup_capture_metadata_status.Sessions }}"
+  when: >-
+    (
+      (
+        item.Expire
+        | to_datetime('%Y-%m-%dT%H:%M:%S%z')
+      )
+      -
+      (
+        storage_backup_capture_metadata_session_time.stdout
+        | to_datetime('%Y-%m-%dT%H:%M:%S%z')
+      )
+    ).total_seconds() > 0
+  no_log: true
+
+- name: Require the same idle JuiceFS volume before metadata capture
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_metadata_status.Setting.Name
+        == storage_backup_capture_maintenance.volume_name
+      - >-
+        storage_backup_capture_metadata_status.Setting.UUID
+        == storage_backup_capture_maintenance.volume_uuid
+      - storage_backup_capture_metadata_status.Sessions is sequence
+      - storage_backup_capture_metadata_active_sessions | length == 0
+    fail_msg: >-
+      JuiceFS volume identity or session state changed after maintenance entry
+  no_log: true
+
+- name: Create the transient backup staging root
+  ansible.builtin.file:
+    path: "{{ storage_backup_staging_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Inspect the proposed backup-set staging directory
+  ansible.builtin.stat:
+    path: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_capture_set_id }}
+    follow: false
+  register: storage_backup_capture_metadata_set_directory
+
+- name: Require a new backup-set staging directory
+  ansible.builtin.assert:
+    that:
+      - not storage_backup_capture_metadata_set_directory.stat.exists
+    fail_msg: >-
+      backup-set staging directory already exists; refusing to overwrite or
+      ambiguously resume a prior capture
+
+- name: Create the root-only backup-set staging directory
+  ansible.builtin.file:
+    path: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_capture_set_id }}
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Record metadata capture paths
+  ansible.builtin.set_fact:
+    storage_backup_capture_set_directory: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_capture_set_id }}
+    storage_backup_capture_metadata_partial_path: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_capture_set_id }}/.metadata.dump.partial
+    storage_backup_capture_metadata_path: >-
+      {{ storage_backup_staging_root }}/{{
+      storage_backup_capture_set_id }}/{{
+      storage_backup_capture_metadata_filename }}
+
+- name: Capture the quiesced JuiceFS binary metadata dump
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_metadata_juicefs_binary }}"
+      - dump
+      - redis://10.78.0.2:6379/1
+      - "{{ storage_backup_capture_metadata_partial_path }}"
+      - --binary
+  environment:
+    META_PASSWORD: >-
+      {{ storage_backup_capture_metadata_url | regex_replace('^redis://:([0-9a-f]{64})@.*$', '\1') }}
+  changed_when: true
+  no_log: true
+
+- name: Restrict the partial metadata dump
+  ansible.builtin.file:
+    path: "{{ storage_backup_capture_metadata_partial_path }}"
+    state: file
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Search the metadata dump for known plaintext credentials
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/grep
+      - --binary-files=text
+      - --fixed-strings
+      - --quiet
+      - --file
+      - "-"
+      - "{{ storage_backup_capture_metadata_partial_path }}"
+    stdin: "{{ item }}"
+  loop:
+    - >-
+      {{
+        storage_backup_capture_metadata_url
+        | regex_replace(
+          '^redis://:([^@]+)@.*$',
+          '\1'
+        )
+      }}
+    - "{{ minio_object_juicefs_secret_key }}"
+  register: storage_backup_capture_metadata_secret_searches
+  changed_when: false
+  failed_when: >-
+    storage_backup_capture_metadata_secret_searches.rc not in [0, 1]
+  no_log: true
+
+- name: Require credentials to be absent from the metadata dump
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_metadata_secret_searches.results
+        | map(attribute='rc')
+        | list
+        | unique
+        == [1]
+    fail_msg: the JuiceFS metadata dump contains a known plaintext credential
+  no_log: true
+
+- name: Promote the verified metadata dump atomically
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mv
+      - --no-target-directory
+      - "{{ storage_backup_capture_metadata_partial_path }}"
+      - "{{ storage_backup_capture_metadata_path }}"
+  changed_when: true
+
+- name: Inspect the promoted JuiceFS metadata dump
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_metadata_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_metadata_stat
+
+- name: Require a complete trusted JuiceFS metadata artifact
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_metadata_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - storage_backup_capture_metadata_stat.stat.size | int > 0
+      - >-
+        storage_backup_capture_metadata_stat.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: promoted JuiceFS metadata dump failed integrity checks
+
+- name: Read the pinned JuiceFS client version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_metadata_juicefs_binary }}"
+      - version
+  register: storage_backup_capture_metadata_juicefs_version
+  changed_when: false
+
+- name: Publish the JuiceFS metadata artifact
+  ansible.builtin.set_fact:
+    storage_backup_capture_metadata_artifact:
+      component: juicefs_metadata
+      path: "{{ storage_backup_capture_metadata_filename }}"
+      source_path: "{{ storage_backup_capture_metadata_path }}"
+      size_bytes: "{{ storage_backup_capture_metadata_stat.stat.size | int }}"
+      sha256: "{{ storage_backup_capture_metadata_stat.stat.checksum }}"
+    storage_backup_capture_juicefs_version: >-
+      {{
+        (
+          storage_backup_capture_metadata_juicefs_version.stdout
+          ~ storage_backup_capture_metadata_juicefs_version.stderr
+        )
+        | trim
+      }}

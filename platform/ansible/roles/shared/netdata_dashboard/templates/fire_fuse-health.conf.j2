@@ -1,0 +1,83 @@
+{% if netdata_dashboard_node == 'compute' %}
+alarm: fire_fuse_not_ready
+    on: fire_fuse.health
+lookup: average -30s unaligned of fire_fuse
+ every: 10s
+  warn: $this < 1
+  info: fire-fuse has not passed its loopback readiness probe
+    to: silent
+
+alarm: juicefs_gateway_unavailable
+    on: fire_fuse.health
+lookup: average -2m unaligned of juicefs
+ every: 10s
+  warn: $this < 1
+  info: The host JuiceFS gateway has stopped publishing fresh metrics
+    to: silent
+
+alarm: juicefs_object_errors
+    on: fire_fuse.juicefs_operations
+lookup: sum -5m unaligned of object_errors
+ every: 30s
+  warn: $this > 0
+  info: The JuiceFS gateway reported object-store request errors
+    to: silent
+{% elif netdata_dashboard_node == 'storage' %}
+alarm: redis_backend_unavailable
+    on: fire_fuse.health
+lookup: average -2m unaligned of redis
+ every: 10s
+  warn: $this < 1
+  info: Redis has failed or stopped publishing fresh authenticated probes
+    to: silent
+
+alarm: minio_backend_unavailable
+    on: fire_fuse.health
+lookup: average -2m unaligned of minio
+ every: 10s
+  warn: $this < 1
+  info: MinIO has failed or stopped publishing fresh readiness probes
+    to: silent
+
+alarm: minio_capacity_available
+    on: fire_fuse.capacity_available
+lookup: average -5m unaligned of minio
+ every: 30s
+  warn: $this < {{ netdata_dashboard_minio_warning_available_percent }}
+  crit: $this < {{ netdata_dashboard_minio_critical_available_percent }}
+  info: MinIO backing filesystem available capacity is low
+    to: silent
+
+alarm: redis_capacity_available
+    on: fire_fuse.capacity_available
+lookup: average -5m unaligned of redis
+ every: 30s
+  warn: $this < {{ netdata_dashboard_redis_warning_available_percent }}
+  crit: $this < {{ netdata_dashboard_redis_critical_available_percent }}
+  info: Redis maxmemory headroom is low
+    to: silent
+
+alarm: redis_rejected_connections
+    on: fire_fuse.redis_rejections
+lookup: sum -5m unaligned of rejected
+ every: 30s
+  warn: $this > 0
+  info: Redis rejected one or more connections
+    to: silent
+{% elif netdata_dashboard_node == 'builder' %}
+alarm: control_worker_inactive
+    on: fire_fuse.health
+lookup: average -2m unaligned of control_worker
+ every: 10s
+  warn: $this < 1
+  info: The Cantelop control worker service is not active
+    to: silent
+
+alarm: build_materializer_inactive
+    on: fire_fuse.health
+lookup: average -2m unaligned of build_materializer
+ every: 10s
+  warn: $this < 1
+  info: The Cantelop build materializer service is not active
+    to: silent
+{% endif %}

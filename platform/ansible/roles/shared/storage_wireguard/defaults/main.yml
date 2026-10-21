@@ -1,0 +1,7 @@
+---
+storage_wireguard_address: ''
+storage_wireguard_peer_address: ''
+storage_wireguard_private_key: ''
+storage_wireguard_peer_public_key: ''
+storage_wireguard_endpoint: ''
+storage_wireguard_listen_port: 51821

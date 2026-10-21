@@ -1,0 +1,7 @@
+---
+- name: Transfer one complete fire-fuse storage backup off host
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_transfer

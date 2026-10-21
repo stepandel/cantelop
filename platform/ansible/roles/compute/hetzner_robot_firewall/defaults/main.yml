@@ -1,0 +1,65 @@
+---
+# The numeric server id shown by the Robot API. Do not use the server IP here.
+hetzner_robot_firewall_server_number: 0
+
+# Keep these values in Ansible Vault. They are intentionally not read from the
+# process environment, where accidental logging is harder to control.
+hetzner_robot_firewall_user: "{{ vault_hetzner_robot_user | default('') }}"
+hetzner_robot_firewall_password: "{{ vault_hetzner_robot_password | default('') }}"
+
+hetzner_robot_firewall_api_url: https://robot-ws.your-server.de
+hetzner_robot_firewall_timeout_seconds: 20
+hetzner_robot_firewall_verify_retries: 12
+hetzner_robot_firewall_verify_delay_seconds: 5
+
+# Robot firewalls are stateless and replace the entire rule set on update. This
+# deliberately narrow boundary drops public RPC/NFS traffic and accepts all
+# other traffic, preserving established SSH and web access. Host firewall rules
+# remain the primary service policy.
+hetzner_robot_firewall_input_rules:
+  - name: "cantelop - deny tcp 111"
+    ip_version: ipv4
+    protocol: tcp
+    dst_port: "111"
+    action: discard
+  - name: "cantelop - deny udp 111"
+    ip_version: ipv4
+    protocol: udp
+    dst_port: "111"
+    action: discard
+  - name: "cantelop - deny tcp 2049"
+    ip_version: ipv4
+    protocol: tcp
+    dst_port: "2049"
+    action: discard
+  - name: "cantelop - deny udp 2049"
+    ip_version: ipv4
+    protocol: udp
+    dst_port: "2049"
+    action: discard
+  - name: "cantelop - deny tcp 111 v6"
+    ip_version: ipv6
+    protocol: tcp
+    dst_port: "111"
+    action: discard
+  - name: "cantelop - deny udp 111 v6"
+    ip_version: ipv6
+    protocol: udp
+    dst_port: "111"
+    action: discard
+  - name: "cantelop - deny tcp 2049 v6"
+    ip_version: ipv6
+    protocol: tcp
+    dst_port: "2049"
+    action: discard
+  - name: "cantelop - deny udp 2049 v6"
+    ip_version: ipv6
+    protocol: udp
+    dst_port: "2049"
+    action: discard
+  - name: "cantelop - accept remaining ingress"
+    action: accept
+
+hetzner_robot_firewall_output_rules:
+  - name: "cantelop - accept egress"
+    action: accept

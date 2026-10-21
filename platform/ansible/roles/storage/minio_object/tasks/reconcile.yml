@@ -1,0 +1,152 @@
+---
+- name: Enable and start fire-fuse MinIO
+  ansible.builtin.systemd_service:
+    name: "{{ minio_object_service }}"
+    state: started
+    enabled: true
+
+- name: Wait for MinIO readiness
+  ansible.builtin.uri:
+    url: >-
+      http://{{ minio_object_bind_address }}:{{ minio_object_api_port
+      }}/minio/health/ready
+    method: GET
+    status_code: 200
+    return_content: false
+  register: minio_object_readiness
+  retries: 15
+  delay: 1
+  until: minio_object_readiness.status == 200
+
+- name: Inspect the JuiceFS bucket
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - stat
+      - "firefuse/{{ minio_object_bucket }}"
+  environment:
+    MC_HOST_firefuse: >-
+      http://{{ minio_object_root_user }}:{{ minio_object_root_password
+      }}@{{ minio_object_bind_address }}:{{ minio_object_api_port }}
+  register: minio_object_bucket_status
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Create the JuiceFS bucket
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - mb
+      - "firefuse/{{ minio_object_bucket }}"
+  environment:
+    MC_HOST_firefuse: >-
+      http://{{ minio_object_root_user }}:{{ minio_object_root_password
+      }}@{{ minio_object_bind_address }}:{{ minio_object_api_port }}
+  when: minio_object_bucket_status.rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Test the JuiceFS MinIO credential
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - stat
+      - "juicefs/{{ minio_object_bucket }}"
+  environment:
+    MC_HOST_juicefs: >-
+      http://{{ minio_object_juicefs_access_key }}:{{
+      minio_object_juicefs_secret_key }}@{{ minio_object_bind_address
+      }}:{{ minio_object_api_port }}
+  register: minio_object_juicefs_credential_status
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Inspect the existing JuiceFS MinIO user
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - admin
+      - user
+      - info
+      - firefuse
+      - "{{ minio_object_juicefs_access_key }}"
+  environment:
+    MC_HOST_firefuse: >-
+      http://{{ minio_object_root_user }}:{{ minio_object_root_password
+      }}@{{ minio_object_bind_address }}:{{ minio_object_api_port }}
+  register: minio_object_juicefs_user_status
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Require an explicit offline JuiceFS MinIO credential rotation
+  ansible.builtin.assert:
+    that:
+      - >-
+        minio_object_juicefs_user_status.rc != 0
+        or minio_object_juicefs_credential_status.rc == 0
+        or
+        (
+          minio_object_allow_credential_rotation
+          and storage_compute_stopped | default(false)
+        )
+    fail_msg: >-
+      the JuiceFS MinIO user already exists but the proposed credential cannot
+      access its bucket; rotation requires
+      minio_object_allow_credential_rotation=true and a confirmed-stopped
+      fire-fuse consumer service
+
+- name: Apply the JuiceFS MinIO user credential
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - admin
+      - user
+      - add
+      - firefuse
+    stdin: "{{ minio_object_juicefs_access_key }}\n{{ minio_object_juicefs_secret_key }}"
+  environment:
+    MC_HOST_firefuse: >-
+      http://{{ minio_object_root_user }}:{{ minio_object_root_password
+      }}@{{ minio_object_bind_address }}:{{ minio_object_api_port }}
+  when:
+    - >-
+      minio_object_juicefs_user_status.rc != 0
+      or minio_object_juicefs_credential_status.rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Attach read-write storage policy to the JuiceFS user
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - admin
+      - policy
+      - attach
+      - firefuse
+      - readwrite
+      - --user
+      - "{{ minio_object_juicefs_access_key }}"
+  environment:
+    MC_HOST_firefuse: >-
+      http://{{ minio_object_root_user }}:{{ minio_object_root_password
+      }}@{{ minio_object_bind_address }}:{{ minio_object_api_port }}
+  when: minio_object_juicefs_user_status.rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Verify JuiceFS bucket access
+  ansible.builtin.command:
+    argv:
+      - "{{ minio_object_client_binary }}"
+      - stat
+      - "juicefs/{{ minio_object_bucket }}"
+  environment:
+    MC_HOST_juicefs: >-
+      http://{{ minio_object_juicefs_access_key }}:{{
+      minio_object_juicefs_secret_key }}@{{ minio_object_bind_address
+      }}:{{ minio_object_api_port }}
+  changed_when: false
+  no_log: true

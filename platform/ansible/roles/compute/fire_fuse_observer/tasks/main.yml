@@ -1,0 +1,310 @@
+---
+- name: Validate fire-fuse observer inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+      - fire_fuse_observer_domain == 'apps.cantelop.dev'
+      - fire_fuse_observer_hostname == 'status.apps.cantelop.dev'
+      - fire_fuse_observer_user == 'fire-fuse-observer'
+      - fire_fuse_observer_group == 'fire-fuse-observer'
+      - fire_fuse_observer_binary_artifact.startswith('/')
+      - fire_fuse_observer_binary_checksum is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_binary == '/usr/local/bin/fire-fuse-observer'
+      - fire_fuse_observer_unit_source.startswith('/')
+      - fire_fuse_observer_unit == '/etc/systemd/system/fire-fuse-observer.service'
+      - fire_fuse_observer_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_token_directory == '/etc/fire-fuse-observer'
+      - fire_fuse_observer_token_file == '/etc/fire-fuse-observer/observer.token'
+      - fire_fuse_observer_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_runtime_token_file == '/etc/fire-fuse-observer/runtime-control.token'
+      - fire_fuse_session_mutation_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_session_mutation_token != fire_fuse_observer_token
+      - fire_fuse_session_mutation_token_file == '/etc/fire-fuse-observer/session-mutation.token'
+      - >-
+        [fire_fuse_observer_runtime_token, fire_fuse_observer_token,
+         fire_fuse_session_mutation_token] | unique | length == 3
+      - fire_fuse_observer_nginx_site == '/etc/nginx/sites-available/fire-fuse-observer'
+      - fire_fuse_observer_nginx_enabled == '/etc/nginx/sites-enabled/fire-fuse-observer'
+      - fire_fuse_observer_tls_certificate == '/etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem'
+      - fire_fuse_observer_tls_key == '/etc/letsencrypt/live/apps.cantelop.dev/privkey.pem'
+    fail_msg: >-
+      observer deployment requires fixed loopback and TLS paths, the dedicated
+      status hostname, a checksum-pinned binary, and a 64-character Vault token
+  no_log: true
+
+- name: Inspect fire-fuse observer controller artifacts
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: fire_fuse_observer_controller_artifacts
+  loop:
+    - name: observer binary
+      path: "{{ fire_fuse_observer_binary_artifact }}"
+      checksum: "{{ fire_fuse_observer_binary_checksum }}"
+    - name: systemd unit
+      path: "{{ fire_fuse_observer_unit_source }}"
+      checksum: ""
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require regular checksum-pinned observer artifacts
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file
+      - >-
+        item.item.checksum == ''
+        or item.stat.checksum | default('') == item.item.checksum
+    fail_msg: >-
+      {{ item.item.name }} must be a regular controller file with the declared
+      SHA-256 checksum
+  loop: "{{ fire_fuse_observer_controller_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Install observer host packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the restricted observer group
+  ansible.builtin.group:
+    name: "{{ fire_fuse_observer_group }}"
+    system: true
+    state: present
+
+- name: Create the restricted observer user
+  ansible.builtin.user:
+    name: "{{ fire_fuse_observer_user }}"
+    group: "{{ fire_fuse_observer_group }}"
+    groups: []
+    append: false
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Make the observer token directory traversable by its service
+  ansible.builtin.file:
+    path: "{{ fire_fuse_observer_token_directory }}"
+    state: directory
+    owner: root
+    group: "{{ fire_fuse_observer_group }}"
+    mode: "0750"
+
+- name: Install the checksum-pinned observer binary
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_observer_binary_artifact }}"
+    dest: "{{ fire_fuse_observer_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart fire-fuse observer
+
+- name: Install the private observer runtime credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_observer_runtime_token }}\n"
+    dest: "{{ fire_fuse_observer_runtime_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_observer_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse observer
+
+- name: Install the private observer token
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_observer_token }}\n"
+    dest: "{{ fire_fuse_observer_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_observer_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse observer
+
+- name: Install the private Session mutation token
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_session_mutation_token }}\n"
+    dest: "{{ fire_fuse_session_mutation_token_file }}"
+    owner: root
+    group: "{{ fire_fuse_observer_group }}"
+    mode: "0640"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse observer
+
+- name: Install the fire-fuse observer service
+  ansible.builtin.copy:
+    src: "{{ fire_fuse_observer_unit_source }}"
+    dest: "{{ fire_fuse_observer_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fire-fuse observer
+
+- name: Install the exact observer nginx site
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ fire_fuse_observer_nginx_site }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx observer
+
+- name: Enable the observer nginx site
+  ansible.builtin.file:
+    src: "{{ fire_fuse_observer_nginx_site }}"
+    dest: "{{ fire_fuse_observer_nginx_enabled }}"
+    state: link
+    force: true
+  notify: Reload nginx observer
+
+- name: Reload systemd for observer validation
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Validate the observer systemd unit
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemd-analyze
+      - verify
+      - "{{ fire_fuse_observer_unit }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Validate the observer nginx configuration
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/nginx
+      - -t
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Inspect observer service prerequisites
+  ansible.builtin.service_facts:
+
+- name: Require base and gateway services before observer activation
+  ansible.builtin.assert:
+    that:
+      - "'fire-fuse.service' in ansible_facts.services"
+      - ansible_facts.services['fire-fuse.service'].state == 'running'
+      - ansible_facts.services['fire-fuse.service'].status == 'enabled'
+      - "'fire-fuse-gateway.service' in ansible_facts.services"
+      - ansible_facts.services['fire-fuse-gateway.service'].state == 'running'
+      - ansible_facts.services['fire-fuse-gateway.service'].status == 'enabled'
+    fail_msg: >-
+      fire-fuse and fire-fuse-gateway must be enabled and running before the
+      observer is activated
+  when: not ansible_check_mode
+
+- name: Apply observer configuration changes
+  ansible.builtin.meta: flush_handlers
+  when: not ansible_check_mode
+
+- name: Enable and start the fire-fuse observer
+  ansible.builtin.systemd_service:
+    name: fire-fuse-observer.service
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Require an authenticated loopback snapshot
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8082/snapshot
+    method: GET
+    headers:
+      Authorization: "Bearer {{ fire_fuse_observer_token }}"
+    status_code: 200
+    return_content: true
+    use_proxy: false
+  register: fire_fuse_observer_snapshot
+  retries: 20
+  delay: 1
+  until:
+    - fire_fuse_observer_snapshot.status == 200
+    - fire_fuse_observer_snapshot.json.ready is boolean
+    - fire_fuse_observer_snapshot.json.sessions is iterable
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Require public TLS to reject an unauthenticated snapshot
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/curl
+      - --silent
+      - --show-error
+      - --max-time
+      - "10"
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_code}"
+      - --resolve
+      - "{{ fire_fuse_observer_hostname }}:443:127.0.0.1"
+      - "https://{{ fire_fuse_observer_hostname }}/snapshot"
+  register: fire_fuse_observer_tls_qualification
+  changed_when: false
+  retries: 10
+  delay: 1
+  until: fire_fuse_observer_tls_qualification.stdout == '401'
+  when: not ansible_check_mode
+
+- name: Require public TLS to reject unauthenticated database verification
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/curl
+      - --silent
+      - --show-error
+      - --max-time
+      - "10"
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_code}"
+      - --resolve
+      - "{{ fire_fuse_observer_hostname }}:443:127.0.0.1"
+      - "https://{{ fire_fuse_observer_hostname }}/sandboxes/sbx-00000000000000000000000000000000/database-access"
+  register: fire_fuse_observer_database_access_qualification
+  changed_when: false
+  retries: 10
+  delay: 1
+  until: fire_fuse_observer_database_access_qualification.stdout == '401'
+  when: not ansible_check_mode
+
+- name: Require an authenticated snapshot through public TLS
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/curl
+      - --silent
+      - --show-error
+      - --max-time
+      - "10"
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_code}"
+      - --config
+      - "-"
+      - --resolve
+      - "{{ fire_fuse_observer_hostname }}:443:127.0.0.1"
+      - "https://{{ fire_fuse_observer_hostname }}/snapshot"
+    stdin: "header = \"Authorization: Bearer {{ fire_fuse_observer_token }}\""
+  register: fire_fuse_observer_authenticated_qualification
+  changed_when: false
+  retries: 10
+  delay: 1
+  until: fire_fuse_observer_authenticated_qualification.stdout == '200'
+  no_log: true
+  when: not ansible_check_mode

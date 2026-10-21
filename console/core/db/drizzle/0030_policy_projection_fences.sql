@@ -1,0 +1,1 @@
+ALTER TABLE "cantelop_control"."fleet_policies" ADD COLUMN "source_fence" bigint DEFAULT 0 NOT NULL;

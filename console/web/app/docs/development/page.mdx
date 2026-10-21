@@ -1,0 +1,52 @@
+export const metadata = {
+  alternates: { canonical: "https://cantelop.com/docs/development" },
+  title: "Local development", description: "Run a Cantelop App's generated Edge Worker and Session runtime locally with cantelop dev, then test agent messages from your backend before deployment.",
+};
+
+# Local development
+
+`cantelop dev` builds the App defined in `src/cantelop.ts` and runs its
+generated Edge Worker and Session runtime at `127.0.0.1:8787`, without an
+account or login.
+
+```shell
+$ cantelop dev
+```
+
+It records a local integration credential in the SDK's `local` profile and
+writes the compiled backend client to `.cantelop/client/`, so your backend
+reaches the local App with `CANTELOP_PROFILE=local`. When `src/cantelop.ts`
+defines more than one App, select one with `--app NAME`.
+
+- **Native mode** runs each active Session in a Bun subprocess and rebuilds
+  after edits. Updated Session code takes effect in a new subprocess on the
+  next message.
+- **Container mode** (`cantelop dev --container`) runs Sessions in Docker to
+  check custom images, native dependencies, and Linux filesystem behavior.
+  It uses the same managed user and `/workspace` working directory as production.
+- **App behavior** includes the `/commands/*` paths, declared webhooks and homepage,
+  Session routing, steering, cancellation, keep-alive, output streams, and
+  durable views.
+- **Environment and files** use the defaults declared in the App's
+  `environment` plus `.env` overrides. Workspace files persist under
+  `.cantelop/dev/<app>/workspaces/` across rebuilds and restarts; each
+  Workspace's database lives beside them.
+- **Rebuilds** follow the whole definition graph. Webhook or homepage edits
+  rebuild the Edge Worker without restarting Sandboxes.
+
+## Limitations
+
+- Native mode does not use your Docker image or emulate Linux and `/workspace`.
+  Container mode requires Docker and must be restarted after source changes.
+- The Edge Worker runs in a Node.js Web API host. Local mode does not reproduce
+  Cloudflare workerd, Firecracker isolation, production networking, or
+  distributed recovery.
+- Pending messages and running activities are lost when the development runner
+  restarts. Event replay and committed views persist in encrypted local state
+  under `.cantelop/dev/<app>/`; replay remains bounded. Workspace files do not
+  preserve running work.
+- Durable views work locally but are not yet available on hosted Cantelop.
+
+Run `cantelop build` to validate the complete Linux release build without
+uploading it. See the [quick start](/docs/quick-start) for setup and the
+[CLI reference](/docs/cli#project) for command options.

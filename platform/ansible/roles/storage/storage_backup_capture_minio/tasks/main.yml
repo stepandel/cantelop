@@ -1,0 +1,407 @@
+---
+- name: Recheck stopped compute before storage capture stage
+  ansible.builtin.include_role:
+    name: storage_backup_assert_compute_stopped
+
+- name: Validate MinIO object capture inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_capture_minio_data_directory
+        == '/var/lib/fire-fuse/minio'
+      - storage_backup_capture_minio_filename == 'minio-objects.tar'
+      - storage_backup_capture_minio_service == 'fire-fuse-minio.service'
+      - >-
+        storage_backup_capture_minio_fire_fuse_service
+        == 'fire-fuse.service'
+      - storage_backup_capture_minio_binary == '/usr/local/bin/minio'
+      - storage_backup_capture_minio_bucket == 'fire-fuse-workspaces'
+      - >-
+        storage_backup_capture_minio_ready_url
+        == 'http://10.78.0.2:9000/minio/health/ready'
+      - storage_backup_capture_minio_ready_attempts | int >= 1
+      - storage_backup_capture_minio_ready_attempts | int <= 300
+      - storage_backup_capture_minio_ready_delay_seconds | int >= 1
+      - storage_backup_capture_minio_ready_delay_seconds | int <= 10
+      - minio_object_server_checksum | default('') is match('^[0-9a-f]{64}$')
+      - storage_backup_capture_maintenance | default({}) is mapping
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'schema_version', 0
+        ) | int == 1
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'fire_fuse_state', ''
+        ) == 'stopped'
+      - >-
+        (storage_backup_capture_maintenance | default({})).get(
+          'minio_state', ''
+        ) == 'running'
+      - >-
+        (storage_backup_capture_set_directory | default(''))
+        ==
+        (
+          storage_backup_staging_root ~ '/'
+          ~ (storage_backup_capture_set_id | default(''))
+        )
+      - >-
+        (storage_backup_capture_set_id | default(''))
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - storage_backup_capture_metadata_artifact | default({}) is mapping
+      - storage_backup_capture_redis_artifact | default({}) is mapping
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'component', ''
+        ) == 'juicefs_metadata'
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'source_path', ''
+        ) == storage_backup_capture_set_directory ~ '/metadata.dump'
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'size_bytes', 0
+        ) | int > 0
+      - >-
+        (storage_backup_capture_metadata_artifact | default({})).get(
+          'sha256', ''
+        ) is match('^[0-9a-f]{64}$')
+      - >-
+        (storage_backup_capture_redis_artifact | default({})).get(
+          'component', ''
+        ) == 'redis_persistence'
+      - >-
+        (storage_backup_capture_redis_artifact | default({})).get(
+          'source_path', ''
+        ) == storage_backup_capture_set_directory ~ '/redis-persistence.tar.gz'
+      - >-
+        (storage_backup_capture_redis_artifact | default({})).get(
+          'size_bytes', 0
+        ) | int > 0
+      - >-
+        (storage_backup_capture_redis_artifact | default({})).get(
+          'sha256', ''
+        ) is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      MinIO object capture requires the successful maintenance, metadata, and
+      Redis capture facts, fixed trusted paths and services, and the pinned
+      MinIO server checksum
+
+- name: Read service state before MinIO object capture
+  ansible.builtin.service_facts:
+
+- name: Require the MinIO capture maintenance boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_compute_stopped | default(false)
+      - >-
+        ansible_facts.services.get(
+          storage_backup_capture_minio_service, {}
+        ).get('state', 'not-found') == 'running'
+    fail_msg: MinIO capture requires fire-fuse stopped and MinIO running
+
+- name: Inspect the pinned MinIO server binary
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_minio_binary }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_minio_binary_stat
+
+- name: Require the pinned trusted MinIO server binary
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_minio_binary_stat.stat
+        is trusted_file(owner='root', group='root', mode='0755')
+      - >-
+        storage_backup_capture_minio_binary_stat.stat.checksum
+        == minio_object_server_checksum
+    fail_msg: installed MinIO server binary failed pin or trust checks
+
+- name: Read the pinned MinIO server version
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_capture_minio_binary }}"
+      - --version
+  register: storage_backup_capture_minio_version_command
+  changed_when: false
+
+- name: Extract the pinned MinIO server version
+  ansible.builtin.set_fact:
+    storage_backup_capture_minio_version: >-
+      {{
+        storage_backup_capture_minio_version_command.stdout
+        | regex_search('minio version ([^ ]+)', '\1')
+        | first
+      }}
+
+- name: Require a valid MinIO server version
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_minio_version
+        is match('^RELEASE\.[0-9]{4}-[0-9]{2}-[0-9]{2}T.+Z$')
+    fail_msg: pinned MinIO binary did not report a release version
+
+- name: Inspect the MinIO data directory
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_minio_data_directory }}"
+    follow: false
+  register: storage_backup_capture_minio_directory
+
+- name: Require the trusted MinIO data directory
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_minio_directory.stat
+        is trusted_directory(owner='minio', group='minio', mode='0750')
+    fail_msg: MinIO data directory failed trust checks
+
+- name: Inspect required MinIO storage entries
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+  loop:
+    - name: workspace bucket
+      path: >-
+        {{ storage_backup_capture_minio_data_directory }}/{{
+        storage_backup_capture_minio_bucket }}
+      type: directory
+    - name: internal metadata directory
+      path: "{{ storage_backup_capture_minio_data_directory }}/.minio.sys"
+      type: directory
+    - name: storage format
+      path: >-
+        {{ storage_backup_capture_minio_data_directory }}/.minio.sys/format.json
+      type: file
+  register: storage_backup_capture_minio_required_entries
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require trusted MinIO storage entries
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.type == 'directory'
+          and item.stat is trusted_directory(owner='minio', group='minio')
+        )
+        or
+        (
+          item.item.type == 'file'
+          and item.stat is trusted_file(owner='minio', group='minio')
+        )
+    fail_msg: required MinIO entry {{ item.item.name }} failed trust checks
+  loop: "{{ storage_backup_capture_minio_required_entries.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Find links or special files in the MinIO data directory
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/find
+      - "{{ storage_backup_capture_minio_data_directory }}"
+      - -xdev
+      - "!"
+      - -type
+      - d
+      - "!"
+      - -type
+      - f
+      - -print
+      - -quit
+  register: storage_backup_capture_minio_unsupported_entry
+  changed_when: false
+
+- name: Reject links or special files in the MinIO data directory
+  ansible.builtin.assert:
+    that:
+      - storage_backup_capture_minio_unsupported_entry.stdout == ''
+    fail_msg: >-
+      MinIO data contains a link or special file that an exact archive cannot
+      safely capture
+
+- name: Revalidate preceding backup artifacts
+  ansible.builtin.stat:
+    path: "{{ item.source_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - "{{ storage_backup_capture_metadata_artifact }}"
+    - "{{ storage_backup_capture_redis_artifact }}"
+  register: storage_backup_capture_minio_prerequisite_stats
+  loop_control:
+    label: "{{ item.component }}"
+
+- name: Require unchanged preceding backup artifacts
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file(owner='root', group='root', mode='0600')
+      - item.stat.size | int == item.item.size_bytes | int
+      - item.stat.checksum == item.item.sha256
+    fail_msg: preceding artifact {{ item.item.component }} changed
+  loop: "{{ storage_backup_capture_minio_prerequisite_stats.results }}"
+  loop_control:
+    label: "{{ item.item.component }}"
+
+- name: Record MinIO object artifact paths
+  ansible.builtin.set_fact:
+    storage_backup_capture_minio_partial_path: >-
+      {{ storage_backup_capture_set_directory }}/.minio-objects.tar.partial
+    storage_backup_capture_minio_path: >-
+      {{ storage_backup_capture_set_directory }}/{{
+      storage_backup_capture_minio_filename }}
+
+- name: Inspect the proposed MinIO object artifact paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ storage_backup_capture_minio_partial_path }}"
+    - "{{ storage_backup_capture_minio_path }}"
+  register: storage_backup_capture_minio_existing_artifacts
+
+- name: Require new MinIO object artifact paths
+  ansible.builtin.assert:
+    that:
+      - not item.stat.exists
+    fail_msg: >-
+      MinIO object artifact path {{ item.item }} already exists; refusing to
+      overwrite or ambiguously resume
+  loop: "{{ storage_backup_capture_minio_existing_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Capture the stopped MinIO data directory
+  block:
+    - name: Stop MinIO for an exact object snapshot
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_capture_minio_service }}"
+        state: stopped
+
+    - name: Confirm MinIO stopped before reading its data directory
+      ansible.builtin.service_facts:
+
+    - name: Require MinIO stopped and fire-fuse still stopped
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services.get(
+              storage_backup_capture_minio_service, {}
+            ).get('state', 'not-found') == 'stopped'
+          - >-
+            storage_backup_compute_stopped | default(false)
+        fail_msg: exact object capture requires MinIO and fire-fuse stopped
+
+    - name: Archive the stopped MinIO data directory
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/tar
+          - --create
+          - --file
+          - "{{ storage_backup_capture_minio_partial_path }}"
+          - --one-file-system
+          - --directory
+          - "{{ storage_backup_capture_minio_data_directory }}"
+          - .
+      changed_when: true
+
+    - name: Restrict the partial MinIO object artifact
+      ansible.builtin.file:
+        path: "{{ storage_backup_capture_minio_partial_path }}"
+        state: file
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Compare the MinIO archive with the stopped source
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/tar
+          - --compare
+          - --file
+          - "{{ storage_backup_capture_minio_partial_path }}"
+          - --directory
+          - "{{ storage_backup_capture_minio_data_directory }}"
+          - .
+      changed_when: false
+
+    - name: List the MinIO object archive
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/tar
+          - --list
+          - --file
+          - "{{ storage_backup_capture_minio_partial_path }}"
+      register: storage_backup_capture_minio_archive_listing
+      changed_when: false
+
+    - name: Require the bucket and storage format in the MinIO archive
+      ansible.builtin.assert:
+        that:
+          - >-
+            (
+              './' ~ storage_backup_capture_minio_bucket ~ '/'
+            ) in storage_backup_capture_minio_archive_listing.stdout_lines
+          - >-
+            './.minio.sys/format.json'
+            in storage_backup_capture_minio_archive_listing.stdout_lines
+        fail_msg: MinIO archive omitted the workspace bucket or storage format
+
+    - name: Promote the verified MinIO object artifact atomically
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/mv
+          - --no-target-directory
+          - "{{ storage_backup_capture_minio_partial_path }}"
+          - "{{ storage_backup_capture_minio_path }}"
+      changed_when: true
+  always:
+    - name: Restart MinIO after object snapshot attempt
+      ansible.builtin.systemd_service:
+        name: "{{ storage_backup_capture_minio_service }}"
+        state: started
+
+    - name: Require MinIO readiness after object snapshot attempt
+      ansible.builtin.uri:
+        url: "{{ storage_backup_capture_minio_ready_url }}"
+        method: GET
+        status_code: 200
+        return_content: false
+        use_proxy: false
+      register: storage_backup_capture_minio_ready
+      changed_when: false
+      retries: "{{ storage_backup_capture_minio_ready_attempts }}"
+      delay: "{{ storage_backup_capture_minio_ready_delay_seconds }}"
+      until: storage_backup_capture_minio_ready.status | default(0) == 200
+
+- name: Inspect the promoted MinIO object artifact
+  ansible.builtin.stat:
+    path: "{{ storage_backup_capture_minio_path }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: storage_backup_capture_minio_artifact_stat
+
+- name: Require a complete trusted MinIO object artifact
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_capture_minio_artifact_stat.stat
+        is trusted_file(owner='root', group='root', mode='0600')
+      - storage_backup_capture_minio_artifact_stat.stat.size | int > 0
+      - >-
+        storage_backup_capture_minio_artifact_stat.stat.checksum
+        is match('^[0-9a-f]{64}$')
+    fail_msg: promoted MinIO object archive failed integrity checks
+
+- name: Publish the MinIO object artifact
+  ansible.builtin.set_fact:
+    storage_backup_capture_minio_artifact:
+      component: minio_objects
+      path: "{{ storage_backup_capture_minio_filename }}"
+      source_path: "{{ storage_backup_capture_minio_path }}"
+      size_bytes: "{{ storage_backup_capture_minio_artifact_stat.stat.size | int }}"
+      sha256: "{{ storage_backup_capture_minio_artifact_stat.stat.checksum }}"
+    storage_backup_capture_object_snapshot_id: >-
+      sha256:{{ storage_backup_capture_minio_artifact_stat.stat.checksum }}

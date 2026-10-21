@@ -1,0 +1,320 @@
+---
+- name: Validate restore cleanup inputs
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - >-
+        storage_backup_cleanup_restore_set_id
+        is match('^backup-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - >-
+        storage_backup_cleanup_restore_rehearsal_id
+        is match('^restore-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$')
+      - >-
+        storage_backup_cleanup_restore_record_root
+        == '/var/lib/fire-fuse/storage-backups/restore-cleanups'
+      - >-
+        storage_backup_cleanup_restore_mountpoint_root
+        == '/mnt/fire-fuse-restores'
+      - >-
+        storage_backup_cleanup_restore_cache_root
+        == '/var/cache/fire-fuse-restores'
+      - >-
+        storage_backup_cleanup_restore_validator
+        ==
+        '/usr/local/lib/fire-fuse/validate-storage-backup-restore-evidence.py'
+    fail_msg: restore cleanup requires explicit IDs and fixed isolated paths
+
+- name: Record deterministic restore cleanup targets
+  ansible.builtin.set_fact:
+    storage_backup_cleanup_restore_workspace: >-
+      {{ storage_backup_restore_root
+      }}/{{ storage_backup_cleanup_restore_rehearsal_id }}
+    storage_backup_cleanup_restore_mountpoint: >-
+      {{ storage_backup_cleanup_restore_mountpoint_root
+      }}/{{ storage_backup_cleanup_restore_rehearsal_id }}
+    storage_backup_cleanup_restore_cache: >-
+      {{ storage_backup_cleanup_restore_cache_root
+      }}/{{ storage_backup_cleanup_restore_rehearsal_id }}
+    storage_backup_cleanup_restore_record: >-
+      {{ storage_backup_cleanup_restore_record_root
+      }}/{{ storage_backup_cleanup_restore_rehearsal_id }}.json
+    storage_backup_cleanup_restore_services:
+      - >-
+        fire-fuse-restore-minio-{{
+        storage_backup_cleanup_restore_rehearsal_id }}.service
+      - >-
+        fire-fuse-restore-redis-{{
+        storage_backup_cleanup_restore_rehearsal_id }}.service
+      - >-
+        fire-fuse-restore-metadata-redis-{{
+        storage_backup_cleanup_restore_rehearsal_id }}.service
+
+- name: Install exact restore evidence validation programs
+  ansible.builtin.import_role:
+    name: storage_backup_common
+    tasks_from: install_programs
+  vars:
+    storage_backup_common_programs:
+      - validate-storage-backup-restore-evidence.py
+      - audit-storage-backups.py
+      - verify-storage-backup.py
+
+- name: Inspect canonical evidence and cleanup record
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+  loop:
+    - path: >-
+        {{ storage_backup_evidence_root
+        }}/{{ storage_backup_cleanup_restore_set_id }}.json
+      expected: file
+    - path: "{{ storage_backup_cleanup_restore_record }}"
+      expected: absent
+  register: storage_backup_cleanup_restore_gate_paths
+
+- name: Require canonical evidence and a new cleanup record
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.item.expected == 'absent'
+          and not (item.stat.exists | default(false))
+        )
+        or
+        (
+          item.item.expected == 'file'
+          and item.stat is trusted_file(owner='root', group='root', mode='0600')
+          and item.stat.size | int > 0
+        )
+    fail_msg: restore cleanup gate path {{ item.item.path }} is not trusted
+  loop: "{{ storage_backup_cleanup_restore_gate_paths.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Revalidate canonical restore evidence
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_cleanup_restore_validator }}"
+      - "{{ storage_backup_cleanup_restore_set_id }}"
+      - --restore-root
+      - "{{ storage_backup_evidence_root }}"
+      - --staging-root
+      - "{{ storage_backup_staging_root }}"
+      - --completed-root
+      - "{{ storage_backup_completed_root }}"
+  register: storage_backup_cleanup_restore_validation_command
+  changed_when: false
+
+- name: Decode canonical restore validation
+  ansible.builtin.set_fact:
+    storage_backup_cleanup_restore_validation: >-
+      {{ storage_backup_cleanup_restore_validation_command.stdout | from_json }}
+
+- name: Bind cleanup to qualified canonical evidence
+  ansible.builtin.assert:
+    that:
+      - >-
+        storage_backup_cleanup_restore_validation.status
+        == 'restore-evidence-verified'
+      - >-
+        storage_backup_cleanup_restore_validation.set_id
+        == storage_backup_cleanup_restore_set_id
+      - >-
+        storage_backup_cleanup_restore_validation.rehearsal_id
+        == storage_backup_cleanup_restore_rehearsal_id
+    fail_msg: cleanup target does not match qualified canonical restore evidence
+
+- name: Verify rehearsal mountpoint is not mounted
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mountpoint
+      - --quiet
+      - "{{ storage_backup_cleanup_restore_mountpoint }}"
+  register: storage_backup_cleanup_restore_mount_state
+  changed_when: false
+  failed_when: storage_backup_cleanup_restore_mount_state.rc != 32
+
+- name: Record protected production service states
+  ansible.builtin.service_facts:
+
+- name: Save protected production service states
+  ansible.builtin.set_fact:
+    storage_backup_cleanup_restore_production_states:
+      redis: >-
+        {{ ansible_facts.services.get('fire-fuse-redis.service', {}
+        ).get('state', 'not-found') }}
+      minio: >-
+        {{ ansible_facts.services.get('fire-fuse-minio.service', {}
+        ).get('state', 'not-found') }}
+
+- name: Require running production storage services
+  ansible.builtin.assert:
+    that:
+      - storage_backup_cleanup_restore_production_states.redis == 'running'
+      - storage_backup_cleanup_restore_production_states.minio == 'running'
+    fail_msg: restore cleanup requires healthy production storage services
+
+- name: Stop and disable isolated rehearsal services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ storage_backup_cleanup_restore_services }}"
+  when: item in ansible_facts.services
+
+- name: Remove isolated rehearsal unit files
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop: "{{ storage_backup_cleanup_restore_services }}"
+
+- name: Reload systemd after rehearsal service removal
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Remove isolated rehearsal data and cache
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ storage_backup_cleanup_restore_workspace }}"
+    - "{{ storage_backup_cleanup_restore_mountpoint }}"
+    - "{{ storage_backup_cleanup_restore_cache }}"
+
+- name: Inspect removed rehearsal targets
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ storage_backup_cleanup_restore_workspace }}"
+    - "{{ storage_backup_cleanup_restore_mountpoint }}"
+    - "{{ storage_backup_cleanup_restore_cache }}"
+    - >-
+      /etc/systemd/system/{{
+      storage_backup_cleanup_restore_services[0] }}
+    - >-
+      /etc/systemd/system/{{
+      storage_backup_cleanup_restore_services[1] }}
+    - >-
+      /etc/systemd/system/{{
+      storage_backup_cleanup_restore_services[2] }}
+  register: storage_backup_cleanup_restore_removed
+
+- name: Require all isolated rehearsal targets absent
+  ansible.builtin.assert:
+    that:
+      - not (item.stat.exists | default(false))
+    fail_msg: isolated restore cleanup target {{ item.item }} remains
+  loop: "{{ storage_backup_cleanup_restore_removed.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Recheck production and isolated service states
+  ansible.builtin.service_facts:
+
+- name: Require unchanged production and stopped isolated services
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get('fire-fuse-redis.service', {}
+        ).get('state', 'not-found')
+        == storage_backup_cleanup_restore_production_states.redis
+      - >-
+        ansible_facts.services.get('fire-fuse-minio.service', {}
+        ).get('state', 'not-found')
+        == storage_backup_cleanup_restore_production_states.minio
+      - >-
+        ansible_facts.services.get(
+          storage_backup_cleanup_restore_services[0], {}
+        ).get('state', 'not-found') != 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_cleanup_restore_services[1], {}
+        ).get('state', 'not-found') != 'running'
+      - >-
+        ansible_facts.services.get(
+          storage_backup_cleanup_restore_services[2], {}
+        ).get('state', 'not-found') != 'running'
+    fail_msg: service state guard failed after restore cleanup
+
+- name: Revalidate preserved canonical evidence after cleanup
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_backup_cleanup_restore_validator }}"
+      - "{{ storage_backup_cleanup_restore_set_id }}"
+      - --restore-root
+      - "{{ storage_backup_evidence_root }}"
+      - --staging-root
+      - "{{ storage_backup_staging_root }}"
+      - --completed-root
+      - "{{ storage_backup_completed_root }}"
+  register: storage_backup_cleanup_restore_preserved_command
+  changed_when: false
+
+- name: Require preserved canonical evidence after cleanup
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          storage_backup_cleanup_restore_preserved_command.stdout
+          | from_json
+        ).status
+        == 'restore-evidence-verified'
+      - >-
+        (
+          storage_backup_cleanup_restore_preserved_command.stdout
+          | from_json
+        ).rehearsal_id
+        == storage_backup_cleanup_restore_rehearsal_id
+    fail_msg: canonical restore evidence was not preserved through cleanup
+
+- name: Record restore cleanup completion time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - +%Y-%m-%dT%H:%M:%SZ
+  register: storage_backup_cleanup_restore_completion_time
+  changed_when: false
+
+- name: Create restore cleanup record directory
+  ansible.builtin.file:
+    path: "{{ storage_backup_cleanup_restore_record_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Publish restore cleanup record
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schema_version': 1,
+          'status': 'isolated-restore-cleaned',
+          'set_id': storage_backup_cleanup_restore_set_id,
+          'rehearsal_id': storage_backup_cleanup_restore_rehearsal_id,
+          'completed_at': storage_backup_cleanup_restore_completion_time.stdout,
+          'canonical_evidence_preserved': true,
+          'production_services_unchanged': true,
+          'removed_services': storage_backup_cleanup_restore_services,
+          'removed_paths': [
+            storage_backup_cleanup_restore_workspace,
+            storage_backup_cleanup_restore_mountpoint,
+            storage_backup_cleanup_restore_cache
+          ]
+        }
+        | to_nice_json
+      }}
+    dest: "{{ storage_backup_cleanup_restore_record }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Report isolated restore cleanup
+  ansible.builtin.debug:
+    msg:
+      status: isolated-restore-cleaned
+      set_id: "{{ storage_backup_cleanup_restore_set_id }}"
+      rehearsal_id: "{{ storage_backup_cleanup_restore_rehearsal_id }}"
+      record: "{{ storage_backup_cleanup_restore_record }}"

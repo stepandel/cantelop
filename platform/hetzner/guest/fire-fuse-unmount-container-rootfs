@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -u
+
+readonly merged='/run/fire-fuse/container-rootfs'
+readonly overlay_runtime='/run/fire-fuse/container-overlay'
+readonly lower="${overlay_runtime}/lower"
+
+result=0
+for mountpoint in "${merged}" "${lower}" "${overlay_runtime}"; do
+  if /usr/bin/mountpoint --quiet "${mountpoint}"; then
+    /usr/bin/umount "${mountpoint}" || result=$?
+  fi
+done
+
+/usr/bin/rmdir \
+  --ignore-fail-on-non-empty \
+  "${merged}" \
+  "${overlay_runtime}" \
+  >/dev/null 2>&1 || true
+
+exit "${result}"

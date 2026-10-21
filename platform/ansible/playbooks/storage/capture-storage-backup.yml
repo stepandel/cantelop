@@ -1,0 +1,7 @@
+---
+- name: Capture a complete local fire-fuse storage backup
+  hosts: storage_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - role: storage_backup_capture

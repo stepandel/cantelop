@@ -1,0 +1,10 @@
+{{ {
+  'schema_version': 1,
+  'driver': 's3',
+  'endpoint_url': storage_backup_destination_endpoint_url,
+  'region': storage_backup_destination_region,
+  'bucket': storage_backup_destination_bucket,
+  'prefix': storage_backup_destination_prefix,
+  'credentials_file': storage_backup_destination_credentials_file,
+  'immutability_mode': storage_backup_destination_immutability_mode
+} | to_nice_json }}

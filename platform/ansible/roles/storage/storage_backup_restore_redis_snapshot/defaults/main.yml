@@ -1,0 +1,13 @@
+---
+storage_backup_restore_redis_snapshot_rehearsal_id: ""
+storage_backup_restore_redis_snapshot_server: /usr/bin/redis-server
+storage_backup_restore_redis_snapshot_server_target: /usr/bin/redis-check-rdb
+storage_backup_restore_redis_snapshot_cli: /usr/bin/redis-cli
+storage_backup_restore_redis_snapshot_user: redis
+storage_backup_restore_redis_snapshot_group: redis
+storage_backup_restore_redis_snapshot_port: 16379
+storage_backup_restore_redis_snapshot_database: 1
+storage_backup_restore_redis_snapshot_maxmemory: 8gb
+storage_backup_restore_redis_snapshot_maximum_members: 1000000
+storage_backup_restore_redis_snapshot_maximum_expanded_bytes: 17179869184
+storage_backup_restore_redis_snapshot_production_service: fire-fuse-redis.service

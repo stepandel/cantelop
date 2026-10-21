@@ -1,0 +1,140 @@
+---
+- name: Benchmark fire-fuse workspace storage
+  hosts: fire_fuse_hosts
+  become: true
+  gather_facts: true
+  serial: 1
+  pre_tasks:
+    - name: Validate the storage benchmark trial count
+      ansible.builtin.assert:
+        that:
+          - >-
+            (fire_fuse_benchmark_trials | default(3) | string)
+            is match('^[0-9]+$')
+          - fire_fuse_benchmark_trials | default(3) | int >= 2
+          - fire_fuse_benchmark_trials | default(3) | int <= 20
+        fail_msg: storage benchmarking requires between 2 and 20 trials
+
+    - name: Record the storage benchmark trial count
+      ansible.builtin.set_fact:
+        fire_fuse_benchmark_trial_count: >-
+          {{ fire_fuse_benchmark_trials | default(3) | int }}
+
+    - name: Validate the optional benchmark acceptance policy path
+      ansible.builtin.assert:
+        that:
+          - fire_fuse_benchmark_policy | default('') is string
+          - >-
+            fire_fuse_benchmark_policy | default('') | length == 0
+            or fire_fuse_benchmark_policy.startswith('/')
+        fail_msg: benchmark acceptance policy must be empty or an absolute path
+
+    - name: Read host entropy for the benchmark series ID
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/cat
+          - /proc/sys/kernel/random/uuid
+      register: fire_fuse_benchmark_series_uuid
+      changed_when: false
+
+    - name: Record the storage benchmark series ID
+      ansible.builtin.set_fact:
+        fire_fuse_benchmark_series_id: >-
+          series-{{ fire_fuse_benchmark_series_uuid.stdout }}
+
+    - name: Validate the storage benchmark series ID
+      ansible.builtin.assert:
+        that:
+          - >-
+            fire_fuse_benchmark_series_id
+            is match('^series-[0-9a-f-]{36}$')
+        fail_msg: host did not produce a safe benchmark series ID
+
+  tasks:
+    - name: Run storage benchmark trial
+      ansible.builtin.include_role:
+        name: fire_fuse_benchmark
+      loop: >-
+        {{
+          range(
+            1,
+            (fire_fuse_benchmark_trial_count | int) + 1
+          )
+          | list
+        }}
+      loop_control:
+        loop_var: fire_fuse_benchmark_trial_number
+        label: "trial-{{ fire_fuse_benchmark_trial_number }}"
+
+  post_tasks:
+    - name: Find the complete controller benchmark series
+      ansible.builtin.find:
+        paths: "{{ fire_fuse_benchmark_output_directory }}"
+        patterns: >-
+          {{ inventory_hostname | regex_replace('[^A-Za-z0-9._-]', '_') }}-{{
+          fire_fuse_benchmark_series_id }}-trial-*.json
+        file_type: file
+        recurse: false
+      register: fire_fuse_benchmark_series_results
+      delegate_to: localhost
+      become: false
+
+    - name: Require the complete controller benchmark series
+      ansible.builtin.assert:
+        that:
+          - >-
+            fire_fuse_benchmark_series_results.matched | int
+            == fire_fuse_benchmark_trial_count | int
+        fail_msg: benchmark series result count does not match the requested trials
+
+    - name: Inspect the optional benchmark acceptance policy
+      ansible.builtin.stat:
+        path: "{{ fire_fuse_benchmark_policy | default('') }}"
+        follow: false
+      register: fire_fuse_benchmark_policy_status
+      when: fire_fuse_benchmark_policy | default('') | length > 0
+      delegate_to: localhost
+      become: false
+
+    - name: Require a trusted benchmark acceptance policy
+      ansible.builtin.assert:
+        that:
+          - fire_fuse_benchmark_policy_status.stat is trusted_file
+          - fire_fuse_benchmark_policy_status.stat.size | default(0) | int > 0
+        fail_msg: benchmark acceptance policy must be a nonempty regular file
+      when: fire_fuse_benchmark_policy | default('') | length > 0
+
+    - name: Summarize and enforce the benchmark series
+      ansible.builtin.command:
+        argv: >-
+          {{
+            [
+              ansible_playbook_python,
+              playbook_dir ~ '/../../scripts/summarize-storage-benchmarks.py',
+              '--output',
+              fire_fuse_benchmark_output_directory ~ '/'
+              ~ (
+                inventory_hostname
+                | regex_replace('[^A-Za-z0-9._-]', '_')
+              )
+              ~ '-' ~ fire_fuse_benchmark_series_id ~ '-summary.json'
+            ]
+            + (
+              [
+                '--policy',
+                fire_fuse_benchmark_policy | default('')
+              ]
+              if fire_fuse_benchmark_policy | default('') | length > 0
+              else []
+            )
+            + (
+              fire_fuse_benchmark_series_results.files
+              | map(attribute='path')
+              | sort
+              | list
+            )
+          }}
+      register: fire_fuse_benchmark_summary_command
+      changed_when: true
+      delegate_to: localhost
+      become: false

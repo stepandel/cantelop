@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# The host can only reach this socket on the guest's private eth0 interface.
+# MemAvailable includes reclaimable cache and is the signal used for growth.
+/usr/bin/awk '
+  /^MemTotal:/ { total = $2 }
+  /^MemAvailable:/ { available = $2 }
+  END {
+    if (total < 1 || available < 0) exit 1
+    printf "%d %d\n", int(available / 1024), int(total / 1024)
+  }
+' /proc/meminfo

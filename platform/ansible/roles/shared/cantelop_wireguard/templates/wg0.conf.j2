@@ -1,0 +1,14 @@
+[Interface]
+Address = {{ cantelop_wireguard_address }}/32
+PrivateKey = {{ cantelop_wireguard_private_key }}
+{% if cantelop_wireguard_address == '10.77.0.1' %}
+ListenPort = {{ cantelop_wireguard_listen_port }}
+{% endif %}
+
+[Peer]
+PublicKey = {{ cantelop_wireguard_peer_public_key }}
+AllowedIPs = {{ cantelop_wireguard_peer_address }}/32
+{% if cantelop_wireguard_endpoint %}
+Endpoint = {{ cantelop_wireguard_endpoint }}
+PersistentKeepalive = 25
+{% endif %}

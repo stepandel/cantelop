@@ -1,0 +1,4198 @@
+{
+  "schema_version": 1,
+  "scope": "License metadata for every locked third-party JavaScript package, including optional platform packages and development dependencies. This is not a bundled-output clearance.",
+  "lockfiles": {
+    "console/bun.lock": "99f47fa0f9f7ed14d94740eb19bf153a82f1aa6c615474e0c22ff43ad05d3ff7",
+    "edge/workers/bun.lock": "d41d59b423563b8cb7bd2006d103ba353b9aea78684bb138e540027bb9c848db",
+    "examples/hello/package-lock.json": "ef58dff81b6f38ff9fca61450ad5bb3a44560e3232caf4b0f9248081409f5984",
+    "tests/benchmarks/session-activation/package-lock.json": "5d2ee8c9876bcaa90afe6af9ac20cb77e9308c8654214ed75e1397a3a810df1b"
+  },
+  "packages": [
+    {
+      "name": "@aws-sdk/checksums",
+      "version": "3.1000.27",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "version": "3.1108.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/core",
+      "version": "3.977.7",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-env",
+      "version": "3.972.68",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-http",
+      "version": "3.972.70",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-ini",
+      "version": "3.973.13",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-login",
+      "version": "3.972.75",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-node",
+      "version": "3.972.79",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-process",
+      "version": "3.972.68",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-sso",
+      "version": "3.973.12",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/credential-provider-web-identity",
+      "version": "3.972.74",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/middleware-sdk-s3",
+      "version": "3.972.73",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/nested-clients",
+      "version": "3.997.42",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/s3-request-presigner",
+      "version": "3.1108.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/signature-v4-multi-region",
+      "version": "3.996.44",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/token-providers",
+      "version": "3.1108.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/types",
+      "version": "3.974.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws-sdk/xml-builder",
+      "version": "3.972.38",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@aws/lambda-invoke-store",
+      "version": "0.3.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@babel/runtime",
+      "version": "7.29.7",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@cantelop/sdk",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@cantelop/sdk",
+      "version": "1.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "examples/hello/package-lock.json"
+      ]
+    },
+    {
+      "name": "@cloudflare/kv-asset-handler",
+      "version": "0.5.0",
+      "license": "MIT OR Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/unenv-preset",
+      "version": "2.16.1",
+      "license": "MIT OR Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/workerd-darwin-64",
+      "version": "1.20260804.1",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/workerd-darwin-arm64",
+      "version": "1.20260804.1",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/workerd-linux-64",
+      "version": "1.20260804.1",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/workerd-linux-arm64",
+      "version": "1.20260804.1",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/workerd-windows-64",
+      "version": "1.20260804.1",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cloudflare/workers-types",
+      "version": "5.20260811.1",
+      "license": "MIT OR Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@cspotcode/source-map-support",
+      "version": "0.8.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@drizzle-team/brocli",
+      "version": "0.10.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@emnapi/runtime",
+      "version": "1.11.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild-kit/core-utils",
+      "version": "3.3.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild-kit/esm-loader",
+      "version": "2.6.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/android-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/android-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/android-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/darwin-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ia32",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ia32",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ia32",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ia32",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-loong64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-loong64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-loong64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-loong64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-s390x",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-s390x",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-s390x",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-s390x",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/sunos-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/sunos-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/sunos-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/sunos-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-arm64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-arm64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-arm64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-ia32",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-ia32",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-ia32",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-ia32",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@img/colour",
+      "version": "1.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-darwin-arm64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-darwin-arm64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-darwin-x64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-darwin-x64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-freebsd-wasm32",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-freebsd-wasm32",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-darwin-x64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-darwin-x64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-arm",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-arm",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-arm64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-arm64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-ppc64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-ppc64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-riscv64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-riscv64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-s390x",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-s390x",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-x64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linux-x64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linuxmusl-arm64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linuxmusl-arm64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linuxmusl-x64",
+      "version": "1.3.1",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-libvips-linuxmusl-x64",
+      "version": "1.3.2",
+      "license": "LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-arm",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-arm",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-arm64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-arm64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-ppc64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-ppc64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-riscv64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-riscv64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-s390x",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-s390x",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-x64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linux-x64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linuxmusl-arm64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linuxmusl-arm64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linuxmusl-x64",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-linuxmusl-x64",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-wasm32",
+      "version": "0.35.2",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-wasm32",
+      "version": "0.35.3",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-webcontainers-wasm32",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-webcontainers-wasm32",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-win32-arm64",
+      "version": "0.35.2",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-win32-arm64",
+      "version": "0.35.3",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-win32-ia32",
+      "version": "0.35.2",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-win32-ia32",
+      "version": "0.35.3",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-win32-x64",
+      "version": "0.35.2",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@img/sharp-win32-x64",
+      "version": "0.35.3",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@jridgewell/resolve-uri",
+      "version": "3.1.2",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@jridgewell/sourcemap-codec",
+      "version": "1.5.5",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@jridgewell/trace-mapping",
+      "version": "0.3.9",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@libsql/client",
+      "version": "0.17.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/core",
+      "version": "0.17.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/darwin-arm64",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/darwin-x64",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/hrana-client",
+      "version": "0.10.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/isomorphic-ws",
+      "version": "0.1.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/linux-arm-gnueabihf",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/linux-arm-musleabihf",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/linux-arm64-gnu",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/linux-arm64-musl",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/linux-x64-gnu",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/linux-x64-musl",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@libsql/win32-x64-msvc",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@mdx-js/loader",
+      "version": "3.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@mdx-js/mdx",
+      "version": "3.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@mdx-js/react",
+      "version": "3.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@neon-rs/load",
+      "version": "0.0.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@next/env",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/mdx",
+      "version": "16.3.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-darwin-arm64",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-darwin-x64",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-linux-arm64-gnu",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-linux-arm64-musl",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-linux-x64-gnu",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-linux-x64-musl",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-win32-arm64-msvc",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@next/swc-win32-x64-msvc",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@panva/hkdf",
+      "version": "1.2.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@poppinss/colors",
+      "version": "4.1.6",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@poppinss/dumper",
+      "version": "0.6.5",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@poppinss/exception",
+      "version": "1.2.3",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/core",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/engine-javascript",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/engine-oniguruma",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/langs",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/primitive",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/themes",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/types",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@shikijs/vscode-textmate",
+      "version": "10.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@sindresorhus/is",
+      "version": "7.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@smithy/core",
+      "version": "3.32.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@smithy/credential-provider-imds",
+      "version": "4.5.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@smithy/fetch-http-handler",
+      "version": "5.7.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@smithy/node-http-handler",
+      "version": "4.10.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@smithy/signature-v4",
+      "version": "5.7.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@smithy/types",
+      "version": "4.17.0",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@speed-highlight/core",
+      "version": "1.2.24",
+      "license": "CC0-1.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@stablelib/base64",
+      "version": "1.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@swc/helpers",
+      "version": "0.5.15",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/debug",
+      "version": "4.1.13",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/estree",
+      "version": "1.0.9",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/estree-jsx",
+      "version": "1.0.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/hast",
+      "version": "3.0.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/mdast",
+      "version": "4.0.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/mdx",
+      "version": "2.0.14",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/ms",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/node",
+      "version": "24.13.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/node",
+      "version": "26.6.4",
+      "license": "MIT",
+      "lockfiles": [
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@types/node",
+      "version": "26.6.5",
+      "license": "MIT",
+      "lockfiles": [
+        "examples/hello/package-lock.json"
+      ]
+    },
+    {
+      "name": "@types/pg",
+      "version": "8.21.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/react",
+      "version": "19.2.18",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/react-dom",
+      "version": "19.2.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/unist",
+      "version": "2.0.11",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/unist",
+      "version": "3.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@types/ws",
+      "version": "8.18.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-aix-ppc64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-darwin-arm64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-darwin-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-freebsd-arm64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-freebsd-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-arm",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-arm64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-loong64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-mips64el",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-ppc64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-riscv64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-s390x",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-netbsd-arm64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-netbsd-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-openbsd-arm64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-openbsd-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-sunos-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-win32-arm64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@typescript/typescript-win32-x64",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "@ungap/structured-clone",
+      "version": "1.3.3",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "@vercel/analytics",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "acorn",
+      "version": "8.18.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "acorn-jsx",
+      "version": "5.3.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "astring",
+      "version": "1.9.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "bail",
+      "version": "2.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "baseline-browser-mapping",
+      "version": "2.11.12",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "blake3-wasm",
+      "version": "2.1.5",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "bowser",
+      "version": "2.14.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "buffer-from",
+      "version": "1.1.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "caniuse-lite",
+      "version": "1.0.30001806",
+      "license": "CC-BY-4.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "ccount",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "character-entities",
+      "version": "2.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "character-entities-html4",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "character-entities-legacy",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "character-reference-invalid",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "client-only",
+      "version": "0.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "collapse-white-space",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "comma-separated-tokens",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "cookie",
+      "version": "0.7.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "cookie",
+      "version": "1.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "csstype",
+      "version": "3.2.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "decode-named-character-reference",
+      "version": "1.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "dequal",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "detect-libc",
+      "version": "2.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock",
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "devlop",
+      "version": "1.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "drizzle-kit",
+      "version": "0.31.10",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "drizzle-orm",
+      "version": "0.45.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "error-stack-parser-es",
+      "version": "1.0.5",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "esast-util-from-estree",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "esast-util-from-js",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "esbuild",
+      "version": "0.18.20",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "esbuild",
+      "version": "0.25.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.1",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "escape-string-regexp",
+      "version": "5.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-util-attach-comments",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-util-build-jsx",
+      "version": "3.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-util-is-identifier-name",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-util-scope",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-util-to-js",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-util-visit",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "estree-walker",
+      "version": "3.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "extend",
+      "version": "3.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "fast-sha256",
+      "version": "1.3.0",
+      "license": "Unlicense",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "fsevents",
+      "version": "2.3.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "edge/workers/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "get-tsconfig",
+      "version": "4.14.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "get-tsconfig",
+      "version": "4.14.3",
+      "license": "MIT",
+      "lockfiles": [
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "hast-util-to-estree",
+      "version": "3.1.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "hast-util-to-html",
+      "version": "9.0.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "hast-util-to-jsx-runtime",
+      "version": "2.3.6",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "hast-util-whitespace",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "html-url-attributes",
+      "version": "3.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "html-void-elements",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "inline-style-parser",
+      "version": "0.2.7",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "is-alphabetical",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "is-alphanumerical",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "is-decimal",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "is-hexadecimal",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "is-plain-obj",
+      "version": "4.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "jose",
+      "version": "4.15.9",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "js-base64",
+      "version": "3.9.4",
+      "license": "BSD-3-Clause",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "kleur",
+      "version": "4.1.5",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "libsql",
+      "version": "0.5.29",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "longest-streak",
+      "version": "3.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "lru-cache",
+      "version": "6.0.0",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "markdown-extensions",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "markdown-table",
+      "version": "3.0.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-find-and-replace",
+      "version": "3.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-from-markdown",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-gfm",
+      "version": "3.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-gfm-autolink-literal",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-gfm-footnote",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-gfm-strikethrough",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-gfm-table",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-gfm-task-list-item",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-mdx",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-mdx-expression",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-mdx-jsx",
+      "version": "3.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-mdxjs-esm",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-phrasing",
+      "version": "4.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-to-hast",
+      "version": "13.2.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-to-markdown",
+      "version": "2.1.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "mdast-util-to-string",
+      "version": "4.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark",
+      "version": "4.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-core-commonmark",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm-autolink-literal",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm-footnote",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm-strikethrough",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm-table",
+      "version": "2.1.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm-tagfilter",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-gfm-task-list-item",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-mdx-expression",
+      "version": "3.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-mdx-jsx",
+      "version": "3.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-mdx-md",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-mdxjs",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-extension-mdxjs-esm",
+      "version": "3.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-factory-destination",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-factory-label",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-factory-mdx-expression",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-factory-space",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-factory-title",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-factory-whitespace",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-character",
+      "version": "2.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-chunked",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-classify-character",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-combine-extensions",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-decode-numeric-character-reference",
+      "version": "2.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-decode-string",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-encode",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-events-to-acorn",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-html-tag-name",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-normalize-identifier",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-resolve-all",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-sanitize-uri",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-subtokenize",
+      "version": "2.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-symbol",
+      "version": "2.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "micromark-util-types",
+      "version": "2.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "miniflare",
+      "version": "5.20260804.1-alpha",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "nanoid",
+      "version": "3.3.17",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "next",
+      "version": "16.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "next-auth",
+      "version": "4.24.15",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "oauth",
+      "version": "0.9.15",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "object-hash",
+      "version": "2.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "oidc-token-hash",
+      "version": "5.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "oniguruma-parser",
+      "version": "0.12.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "oniguruma-to-es",
+      "version": "4.3.6",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "openid-client",
+      "version": "5.7.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "parse-entities",
+      "version": "4.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "path-to-regexp",
+      "version": "6.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "pathe",
+      "version": "2.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "pg",
+      "version": "8.23.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pg-cloudflare",
+      "version": "1.4.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pg-connection-string",
+      "version": "2.14.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pg-int8",
+      "version": "1.0.1",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pg-pool",
+      "version": "3.14.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pg-protocol",
+      "version": "1.16.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pg-types",
+      "version": "2.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pgpass",
+      "version": "1.0.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "postcss",
+      "version": "8.5.23",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "postgres-array",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "postgres-bytea",
+      "version": "1.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "postgres-date",
+      "version": "1.0.7",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "postgres-interval",
+      "version": "1.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "preact",
+      "version": "10.29.8",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "preact-render-to-string",
+      "version": "5.2.6",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "pretty-format",
+      "version": "3.8.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "promise-limit",
+      "version": "2.7.0",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "property-information",
+      "version": "7.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "react",
+      "version": "19.2.8",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "react-dom",
+      "version": "19.2.8",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "react-markdown",
+      "version": "10.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "recma-build-jsx",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "recma-jsx",
+      "version": "1.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "recma-parse",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "recma-stringify",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "6.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "regex-recursion",
+      "version": "6.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "regex-utilities",
+      "version": "2.3.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "rehype-recma",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "remark-gfm",
+      "version": "4.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "remark-mdx",
+      "version": "3.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "remark-parse",
+      "version": "11.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "remark-rehype",
+      "version": "11.1.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "remark-stringify",
+      "version": "11.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "resolve-pkg-maps",
+      "version": "1.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "scheduler",
+      "version": "0.27.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock",
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "sharp",
+      "version": "0.35.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "sharp",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "shiki",
+      "version": "4.4.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "source-map",
+      "version": "0.6.1",
+      "license": "BSD-3-Clause",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "source-map",
+      "version": "0.7.6",
+      "license": "BSD-3-Clause",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "source-map-js",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "source-map-support",
+      "version": "0.5.21",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "space-separated-tokens",
+      "version": "2.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "split2",
+      "version": "4.2.0",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "standardwebhooks",
+      "version": "1.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "stringify-entities",
+      "version": "4.0.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "style-to-js",
+      "version": "1.1.21",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "style-to-object",
+      "version": "1.0.14",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "styled-jsx",
+      "version": "5.1.6",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "supports-color",
+      "version": "10.2.2",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "svix",
+      "version": "2.5.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "trim-lines",
+      "version": "3.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "trough",
+      "version": "2.2.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "tslib",
+      "version": "2.8.1",
+      "license": "0BSD",
+      "lockfiles": [
+        "console/bun.lock",
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "tsx",
+      "version": "4.23.12",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "tsx",
+      "version": "4.23.15",
+      "license": "MIT",
+      "lockfiles": [
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "typescript",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "undici",
+      "version": "7.29.0",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "undici-types",
+      "version": "7.18.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "undici-types",
+      "version": "8.9.0",
+      "license": "MIT",
+      "lockfiles": [
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "unenv",
+      "version": "2.0.0-rc.24",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "unified",
+      "version": "11.0.5",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "unist-util-is",
+      "version": "6.0.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "unist-util-position",
+      "version": "5.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "unist-util-position-from-estree",
+      "version": "2.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "unist-util-stringify-position",
+      "version": "4.0.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "unist-util-visit",
+      "version": "5.1.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "unist-util-visit-parents",
+      "version": "6.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "uuid",
+      "version": "11.1.1",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "vfile",
+      "version": "6.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "vfile-message",
+      "version": "4.0.3",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "workerd",
+      "version": "1.20260804.1",
+      "license": "Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "wrangler",
+      "version": "4.121.0",
+      "license": "MIT OR Apache-2.0",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "ws",
+      "version": "8.21.0",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "ws",
+      "version": "8.22.0",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock",
+        "examples/hello/package-lock.json",
+        "tests/benchmarks/session-activation/package-lock.json"
+      ]
+    },
+    {
+      "name": "xtend",
+      "version": "4.0.2",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "yallist",
+      "version": "4.0.0",
+      "license": "ISC",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    },
+    {
+      "name": "youch",
+      "version": "4.1.0-beta.10",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "youch-core",
+      "version": "0.3.3",
+      "license": "MIT",
+      "lockfiles": [
+        "edge/workers/bun.lock"
+      ]
+    },
+    {
+      "name": "zwitch",
+      "version": "2.0.4",
+      "license": "MIT",
+      "lockfiles": [
+        "console/bun.lock"
+      ]
+    }
+  ]
+}

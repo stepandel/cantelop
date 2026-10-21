@@ -1,0 +1,189 @@
+---
+- name: Validate MinIO role inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        (minio_object_root_password | default(''))
+        is match('^[0-9a-f]{64}$')
+      - >-
+        (minio_object_juicefs_secret_key | default(''))
+        is match('^[0-9a-f]{64}$')
+      - minio_object_root_user is match('^[A-Za-z0-9_-]{3,32}$')
+      - minio_object_juicefs_access_key is match('^[A-Za-z0-9_-]{3,32}$')
+      - minio_object_bucket is match('^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$')
+      - minio_object_allow_credential_rotation is boolean
+      - >-
+        minio_object_consumer_service
+        is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+    fail_msg: >-
+      MinIO passwords must be 64-character lowercase hexadecimal Ansible Vault
+      values; configured users, bucket, and consumer service must be safe
+      identifiers; and the rotation control must be boolean
+  no_log: true
+
+- name: Validate the pinned MinIO server artifact inputs
+  ansible.builtin.assert:
+    that:
+      - minio_object_server_artifact.startswith('/')
+      - minio_object_server_checksum is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      minio_object_server_artifact must be an absolute controller path and
+      minio_object_server_checksum must be its lowercase SHA-256
+
+- name: Verify the MinIO server artifact on the controller
+  ansible.builtin.stat:
+    path: "{{ minio_object_server_artifact }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: minio_object_server_artifact_stat
+
+- name: Require the expected MinIO server artifact
+  ansible.builtin.assert:
+    that:
+      - minio_object_server_artifact_stat.stat.exists | default(false)
+      - minio_object_server_artifact_stat.stat.isreg | default(false)
+      - >-
+        minio_object_server_artifact_stat.stat.checksum | default('')
+        == minio_object_server_checksum
+    fail_msg: the controller MinIO artifact is missing or has the wrong SHA-256
+
+- name: Inspect the compute consumer before storage reconciliation
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, is-active, fire-fuse.service]
+  delegate_to: "{{ groups['fire_fuse_hosts'][0] }}"
+  register: storage_compute_service_state
+  changed_when: false
+  failed_when: storage_compute_service_state.rc not in [0, 3, 4]
+  check_mode: false
+
+- name: Record whether compute is stopped
+  ansible.builtin.set_fact:
+    storage_compute_stopped: "{{ storage_compute_service_state.stdout in ['inactive', 'unknown'] }}"
+
+- name: Read service state before MinIO reconciliation
+  ansible.builtin.service_facts:
+
+- name: Create the MinIO group
+  ansible.builtin.group:
+    name: "{{ minio_object_group }}"
+    system: true
+    state: present
+
+- name: Create the MinIO user
+  ansible.builtin.user:
+    name: "{{ minio_object_user }}"
+    group: "{{ minio_object_group }}"
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Create the MinIO data directory
+  ansible.builtin.file:
+    path: "{{ minio_object_data_directory }}"
+    state: directory
+    owner: "{{ minio_object_user }}"
+    group: "{{ minio_object_group }}"
+    mode: "0750"
+
+- name: Preview the verified MinIO server
+  ansible.builtin.copy:
+    src: "{{ minio_object_server_artifact }}"
+    dest: "{{ minio_object_server_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  check_mode: true
+  diff: false
+  register: minio_object_server_preview
+
+- name: Preview the MinIO environment
+  ansible.builtin.template:
+    src: minio.env.j2
+    dest: "{{ minio_object_environment_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  check_mode: true
+  diff: false
+  no_log: true
+  register: minio_object_environment_preview
+
+- name: Preview the fire-fuse MinIO service
+  ansible.builtin.template:
+    src: fire-fuse-minio.service.j2
+    dest: "/etc/systemd/system/{{ minio_object_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  check_mode: true
+  diff: false
+  register: minio_object_unit_preview
+
+- name: Require a stopped consumer before restarting MinIO
+  ansible.builtin.assert:
+    that:
+      - >-
+        not
+        (
+          minio_object_server_preview.changed
+          or minio_object_environment_preview.changed
+          or minio_object_unit_preview.changed
+        )
+        or
+        (
+          ansible_facts.services.get(minio_object_service, {}).get('state', 'not-found') == 'not-found'
+          or storage_compute_stopped | default(false)
+        )
+    fail_msg: >-
+      MinIO server, environment, or service changes require the fire-fuse
+      consumer service to be drained and stopped before MinIO can be restarted
+
+- name: Install the verified MinIO server
+  ansible.builtin.copy:
+    src: "{{ minio_object_server_artifact }}"
+    dest: "{{ minio_object_server_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart fire-fuse MinIO
+
+- name: Install the pinned MinIO client
+  ansible.builtin.get_url:
+    url: "{{ minio_object_client_url }}"
+    dest: "{{ minio_object_client_binary }}"
+    checksum: "{{ minio_object_client_checksum }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the MinIO environment
+  ansible.builtin.template:
+    src: minio.env.j2
+    dest: "{{ minio_object_environment_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse MinIO
+
+- name: Install the fire-fuse MinIO service
+  ansible.builtin.template:
+    src: fire-fuse-minio.service.j2
+    dest: "/etc/systemd/system/{{ minio_object_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd units
+    - Restart fire-fuse MinIO
+
+- name: Apply MinIO configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Reconcile the running MinIO service
+  ansible.builtin.include_tasks: reconcile.yml
+  when: not ansible_check_mode

@@ -1,0 +1,23 @@
+[Unit]
+Description=Host JuiceFS mount for fire-fuse workspace gateway
+Requires=wg-quick@wg-storage.service
+After=wg-quick@wg-storage.service
+Before=fire-fuse.service
+
+[Service]
+Type=simple
+EnvironmentFile={{ juicefs_gateway_environment_file }}
+ExecStart={{ juicefs_gateway_binary }} mount --foreground --workspace-data-only --sort-dir --cache-dir {{ juicefs_gateway_cache_directory }} --cache-size {{ juicefs_gateway_cache_size_mib }} --metrics {{ juicefs_gateway_metrics_address }}:{{ juicefs_gateway_metrics_port }} {{ juicefs_gateway_metadata_url }} {{ juicefs_gateway_mountpoint }}
+ExecStop={{ juicefs_gateway_binary }} umount {{ juicefs_gateway_mountpoint }}
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=60s
+TimeoutStopSec=60s
+UMask=0077
+
+NoNewPrivileges=yes
+# Filesystem namespace hardening would prevent this mount from propagating to
+# the host namespace where nfsd and fire-fuse consume it.
+
+[Install]
+WantedBy=multi-user.target

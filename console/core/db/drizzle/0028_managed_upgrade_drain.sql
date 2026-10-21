@@ -1,0 +1,2 @@
+ALTER TABLE "cantelop_control"."fleet_installations" ADD COLUMN "next_package_id" text;--> statement-breakpoint
+ALTER TABLE "cantelop_control"."fleet_installations" ADD CONSTRAINT "fleet_installations_next_package_id_fleet_packages_id_fk" FOREIGN KEY ("next_package_id") REFERENCES "cantelop_control"."fleet_packages"("id") ON DELETE no action ON UPDATE no action;

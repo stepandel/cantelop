@@ -1,0 +1,27 @@
+---
+# The storage benchmark is split by phase. Static imports keep the play
+# identical to a single task list: every phase after registration runs inside
+# one block so cleanup.yml always runs, even when a measurement fails.
+- name: Validate the host and initialize the benchmark run
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Register the benchmark App and Workspace
+  ansible.builtin.import_tasks: register.yml
+
+- name: Run the single-VM storage benchmark
+  block:
+    - name: Measure the single writer VM
+      ansible.builtin.import_tasks: single_vm.yml
+
+    - name: Measure a fresh reader VM
+      ansible.builtin.import_tasks: fresh_reader.yml
+
+    - name: Measure coordinated concurrent readers
+      ansible.builtin.import_tasks: concurrent.yml
+
+    - name: Write and fetch the benchmark result
+      ansible.builtin.import_tasks: results.yml
+
+  always:
+    - name: Remove benchmark VMs, data, and the benchmark App
+      ansible.builtin.import_tasks: cleanup.yml

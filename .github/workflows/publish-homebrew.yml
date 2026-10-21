@@ -1,0 +1,177 @@
+name: Publish Homebrew tap
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing Cantelop release tag to publish
+        required: true
+        type: string
+    secrets:
+      TAP_GITHUB_TOKEN:
+        required: true
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Cantelop release tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-homebrew-tap
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository_id == '1323478043'
+    runs-on: macos-latest
+    env:
+      SOURCE_REPOSITORY: ${{ github.repository }}
+      SOURCE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TAP_REPOSITORY: stepandel/homebrew-tap
+    steps:
+      - name: Check out release tooling
+        uses: actions/checkout@v4
+
+      - name: Require tap credential
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$TAP_GITHUB_TOKEN" ]]; then
+            echo "TAP_GITHUB_TOKEN is required" >&2
+            exit 1
+          fi
+
+      - name: Download private release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/homebrew-source
+          gh release download "$SOURCE_TAG" \
+            --repo "$SOURCE_REPOSITORY" \
+            --dir build/homebrew-source \
+            --pattern 'cantelop_*.tar.gz' \
+            --pattern SHA256SUMS \
+            --pattern release-evidence.json \
+            --pattern notarization-log.json
+
+      - name: Validate qualified release
+        id: release
+        run: |
+          python3 scripts/prepare-homebrew-release.py validate \
+            --tag "$SOURCE_TAG" \
+            --directory build/homebrew-source \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Verify tag identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ steps.release.outputs.source_commit }}
+        run: |
+          tag_commit="$(gh api "repos/${SOURCE_REPOSITORY}/commits/${SOURCE_TAG}" --jq .sha)"
+          if [[ "$tag_commit" != "$SOURCE_COMMIT" ]]; then
+            echo "Release evidence source commit does not match ${SOURCE_TAG}" >&2
+            exit 1
+          fi
+
+      - name: Check out public tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          gh auth setup-git
+          gh repo clone "$TAP_REPOSITORY" build/homebrew-tap
+          python3 scripts/prepare-homebrew-release.py check-version \
+            --tag "$SOURCE_TAG" \
+            --formula build/homebrew-tap/Formula/cantelop.rb
+
+      - name: Render curl installer
+        run: |
+          python3 scripts/prepare-homebrew-release.py render-installer \
+            --tag "$SOURCE_TAG" \
+            --checksums build/homebrew-source/SHA256SUMS \
+            --tap-repository "$TAP_REPOSITORY" \
+            --output build/homebrew-source/install.sh
+          chmod 755 build/homebrew-source/install.sh
+          sh -n build/homebrew-source/install.sh
+
+      - name: Create or repair public tap release
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          tap_tag="cantelop-v${VERSION}"
+          mkdir -p build/homebrew-existing
+          if gh release view "$tap_tag" --repo "$TAP_REPOSITORY" >/dev/null 2>&1; then
+            asset_count="$(gh release view "$tap_tag" \
+              --repo "$TAP_REPOSITORY" \
+              --json assets \
+              --jq '.assets | length')"
+            if (( asset_count > 0 )); then
+              gh release download "$tap_tag" \
+                --repo "$TAP_REPOSITORY" \
+                --dir build/homebrew-existing
+            fi
+            python3 scripts/prepare-homebrew-release.py compare-mirror \
+              --tag "$SOURCE_TAG" \
+              --source build/homebrew-source \
+              --mirror build/homebrew-existing \
+              --allow-missing
+          else
+            gh release create "$tap_tag" \
+              --repo "$TAP_REPOSITORY" \
+              --target main \
+              --title "Cantelop CLI ${VERSION}" \
+              --notes "Qualified Cantelop CLI release ${VERSION}. macOS binaries are Developer ID signed and Apple notarized." \
+              --prerelease
+          fi
+          gh release upload "$tap_tag" \
+            --repo "$TAP_REPOSITORY" \
+            --clobber \
+            build/homebrew-source/cantelop_*.tar.gz \
+            build/homebrew-source/SHA256SUMS \
+            build/homebrew-source/install.sh
+
+      - name: Verify public tap assets
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir -p build/homebrew-public
+          gh release download "cantelop-v${VERSION}" \
+            --repo "$TAP_REPOSITORY" \
+            --dir build/homebrew-public
+          python3 scripts/prepare-homebrew-release.py compare-mirror \
+            --tag "$SOURCE_TAG" \
+            --source build/homebrew-source \
+            --mirror build/homebrew-public
+
+      - name: Update tap distribution
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python3 scripts/prepare-homebrew-release.py render-formula \
+            --tag "$SOURCE_TAG" \
+            --checksums build/homebrew-source/SHA256SUMS \
+            --tap-repository "$TAP_REPOSITORY" \
+            --output build/homebrew-tap/Formula/cantelop.rb
+          cp build/homebrew-source/install.sh build/homebrew-tap/install.sh
+          chmod 755 build/homebrew-tap/install.sh
+          ruby -c build/homebrew-tap/Formula/cantelop.rb
+          brew style build/homebrew-tap/Formula/cantelop.rb
+          sh -n build/homebrew-tap/install.sh
+          git -C build/homebrew-tap add Formula/cantelop.rb install.sh
+          if git -C build/homebrew-tap diff --cached --quiet; then
+            echo "Homebrew formula and curl installer already point to ${VERSION}"
+            exit 0
+          fi
+          git -C build/homebrew-tap config user.name goreleaserbot
+          git -C build/homebrew-tap config user.email bot@goreleaser.com
+          git -C build/homebrew-tap commit -m "Distribution update for cantelop version v${VERSION}"
+          git -C build/homebrew-tap pull --rebase origin main
+          git -C build/homebrew-tap push origin HEAD:main

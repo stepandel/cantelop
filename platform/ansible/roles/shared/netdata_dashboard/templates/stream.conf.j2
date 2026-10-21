@@ -1,0 +1,23 @@
+{% if netdata_dashboard_node == 'compute' %}
+# The compute parent accepts the storage and builder agents over their
+# WireGuard links. Their alerts run on the children, not again here.
+[stream]
+    enabled = no
+
+[{{ netdata_dashboard_stream_api_key }}]
+    type = api
+    enabled = yes
+    allow from = {{ netdata_dashboard_child_addresses | join(' ') }}
+    db = dbengine
+    health enabled by default = no
+    postpone alarms on connect seconds = 60
+{% else %}
+# This agent keeps its own loopback dashboard and streams every chart to the
+# compute parent across its private WireGuard link.
+[stream]
+    enabled = yes
+    destination = {{ netdata_dashboard_stream_destinations[netdata_dashboard_node] }}:{{ netdata_dashboard_port }}
+    api key = {{ netdata_dashboard_stream_api_key }}
+    timeout seconds = 60
+    reconnect delay seconds = 5
+{% endif %}

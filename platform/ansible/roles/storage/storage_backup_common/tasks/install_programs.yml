@@ -1,0 +1,27 @@
+---
+# Install storage scripts from platform/ansible/scripts into the fixed program
+# directory, together with the helper module they import.
+#
+#   - name: Install exact restore evidence validation programs
+#     ansible.builtin.import_role:
+#       name: storage_backup_common
+#       tasks_from: install_programs
+#     vars:
+#       storage_backup_common_programs:
+#         - validate-storage-backup-restore-evidence.py
+- name: Install the shared storage script module
+  ansible.builtin.copy:
+    src: "{{ storage_backup_script_source }}/{{ storage_backup_script_module }}"
+    dest: "{{ storage_backup_program_directory }}/{{ storage_backup_script_module }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install exact storage programs
+  ansible.builtin.copy:
+    src: "{{ storage_backup_script_source }}/{{ item }}"
+    dest: "{{ storage_backup_program_directory }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ storage_backup_common_programs }}"

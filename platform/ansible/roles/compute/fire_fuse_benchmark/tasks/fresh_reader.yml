@@ -1,0 +1,130 @@
+---
+- name: Create a fresh reader VM on the benchmark workspace
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes
+    method: POST
+    body_format: json
+    body: >-
+      {{
+        {
+          'id': fire_fuse_benchmark_run_id ~ '-reader',
+          'app_id': fire_fuse_benchmark_app_id,
+          'workspace_id': fire_fuse_benchmark_workspace
+        }
+      }}
+    status_code: 202
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_reader_create
+
+- name: Validate the fresh reader VM
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_reader_create.json.id is string
+      - >-
+        fire_fuse_benchmark_reader_create.json.id
+        != fire_fuse_benchmark_vm_id
+      - >-
+        fire_fuse_benchmark_reader_create.json.workspace_id
+        == fire_fuse_benchmark_workspace
+      - >-
+        fire_fuse_benchmark_reader_create.json.build_id
+        == fire_fuse_benchmark_build_id
+      - >-
+        fire_fuse_benchmark_reader_create.json.network.guest_ip
+        is match('^[0-9.]+$')
+    fail_msg: fresh benchmark reader did not preserve workspace identity
+
+- name: Record the fresh reader VM
+  ansible.builtin.set_fact:
+    fire_fuse_benchmark_reader_vm_id: >-
+      {{ fire_fuse_benchmark_reader_create.json.id }}
+    fire_fuse_benchmark_ssh_argv: >-
+      {{
+        [
+          '/usr/bin/ssh',
+          '-i',
+          fire_fuse_benchmark_ssh_key,
+          '-p',
+          fire_fuse_benchmark_ssh_port | string,
+          '-o',
+          'BatchMode=yes',
+          '-o',
+          'ConnectTimeout=2',
+          '-o',
+          'GlobalKnownHostsFile=/dev/null',
+          '-o',
+          'IdentitiesOnly=yes',
+          '-o',
+          'LogLevel=ERROR',
+          '-o',
+          'StrictHostKeyChecking=no',
+          '-o',
+          'UserKnownHostsFile=/dev/null',
+          'root@' ~ fire_fuse_benchmark_reader_create.json.network.guest_ip
+        ]
+      }}
+
+- name: Wait for the fresh reader guest
+  ansible.builtin.command:
+    argv: >-
+      {{ fire_fuse_benchmark_ssh_argv + ['/usr/bin/true'] }}
+  register: fire_fuse_benchmark_reader_ready
+  changed_when: false
+  retries: 30
+  delay: 1
+  until: fire_fuse_benchmark_reader_ready.rc == 0
+
+- name: Measure the fresh VM first sequential read
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_ssh_argv
+        + [
+          fire_fuse_benchmark_guest_binary,
+          'sequential-read',
+          fire_fuse_benchmark_sequential_size_mib | string,
+          fire_fuse_benchmark_run_id
+        ]
+      }}
+  register: fire_fuse_benchmark_fresh_first_read_command
+  changed_when: false
+
+- name: Measure the fresh VM repeated sequential read
+  ansible.builtin.command:
+    argv: >-
+      {{
+        fire_fuse_benchmark_ssh_argv
+        + [
+          fire_fuse_benchmark_guest_binary,
+          'sequential-read',
+          fire_fuse_benchmark_sequential_size_mib | string,
+          fire_fuse_benchmark_run_id
+        ]
+      }}
+  register: fire_fuse_benchmark_fresh_repeat_read_command
+  changed_when: false
+
+- name: Terminate the fresh reader VM
+  ansible.builtin.uri:
+    url: >-
+      http://{{ fire_fuse_benchmark_listen_address }}:{{
+      fire_fuse_benchmark_listen_port }}/v1/sandboxes/{{
+      fire_fuse_benchmark_reader_vm_id }}
+    method: DELETE
+    status_code: 200
+    return_content: true
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ fire_fuse_benchmark_control_token }}"
+  register: fire_fuse_benchmark_reader_terminate
+
+- name: Require terminated fresh reader VM state
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_benchmark_reader_terminate.json.state == 'terminated'
+    fail_msg: fresh benchmark reader VM did not terminate cleanly

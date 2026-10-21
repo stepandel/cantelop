@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bun run vercel-build",
+  "outputDirectory": "web/.next",
+  "crons": [
+    {
+      "path": "/api/cron/invitation-retention",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+.article { max-width: 48rem; margin: 0 auto; padding: var(--sp-12) var(--sp-4); line-height: 1.65; }
+.article h1 { margin: 0; }
+.article h2 { margin: var(--sp-8) 0 var(--sp-3); }
+.article p, .article ul { margin: var(--sp-4) 0; }
+.article li + li { margin-top: var(--sp-3); }
+.updated { color: var(--muted); }

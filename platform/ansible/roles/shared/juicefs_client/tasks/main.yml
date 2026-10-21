@@ -1,0 +1,43 @@
+---
+- name: Validate pinned JuiceFS client inputs
+  ansible.builtin.assert:
+    that:
+      - juicefs_client_release is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - juicefs_client_artifact.startswith('/')
+      - juicefs_client_checksum is match('^[0-9a-f]{64}$')
+      - juicefs_client_binary == '/usr/local/bin/juicefs'
+
+- name: Inspect pinned JuiceFS client on controller
+  ansible.builtin.stat:
+    path: "{{ juicefs_client_artifact }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: juicefs_client_controller_file
+
+- name: Require pinned JuiceFS client artifact
+  ansible.builtin.assert:
+    that:
+      - juicefs_client_controller_file.stat.isreg | default(false)
+      - juicefs_client_controller_file.stat.checksum | default('') == juicefs_client_checksum
+
+- name: Install JuiceFS client
+  ansible.builtin.copy:
+    src: "{{ juicefs_client_artifact }}"
+    dest: "{{ juicefs_client_binary }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Read installed JuiceFS version
+  ansible.builtin.command:
+    argv: ["{{ juicefs_client_binary }}", version]
+  register: juicefs_client_version
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require pinned JuiceFS version
+  ansible.builtin.assert:
+    that:
+      - juicefs_client_release in (juicefs_client_version.stdout ~ juicefs_client_version.stderr)
+  when: not ansible_check_mode

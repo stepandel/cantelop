@@ -1,0 +1,54 @@
+---
+fire_fuse_gateway_user: fire-fuse-gateway
+fire_fuse_gateway_group: fire-fuse-gateway
+fire_fuse_dispatcher_user: fire-fuse-dispatcher
+fire_fuse_dispatcher_group: fire-fuse-dispatcher
+fire_fuse_observer_user: fire-fuse-observer
+fire_fuse_observer_group: fire-fuse-observer
+fire_fuse_operator_token: "{{ vault_fire_fuse_operator_token | default('') }}"
+fire_fuse_gateway_runtime_token: "{{ vault_fire_fuse_gateway_runtime_token | default('') }}"
+fire_fuse_dispatcher_runtime_token: "{{ vault_fire_fuse_dispatcher_runtime_token | default('') }}"
+fire_fuse_observer_runtime_token: "{{ vault_fire_fuse_observer_runtime_token | default('') }}"
+fire_fuse_compute_ingress_token: "{{ vault_fire_fuse_compute_ingress_token | default('') }}"
+fire_fuse_gateway_product_token: "{{ vault_fire_fuse_gateway_product_token | default('') }}"
+fire_fuse_gateway_edge_token: ""
+fire_fuse_observability_ingest_token: >-
+  {{ vault_fire_fuse_observability_ingest_token | default('') }}
+fire_fuse_observer_token: "{{ vault_fire_fuse_observer_token | default('') }}"
+fire_fuse_session_mutation_token: >-
+  {{ vault_fire_fuse_session_mutation_token | default('') }}
+fire_fuse_artifact_download_origin: >-
+  {{ vault_fire_fuse_artifact_download_origin | default('') }}
+cantelop_control_worker_database_url: "{{ vault_cantelop_database_url | default('') }}"
+cantelop_control_worker_database_ssl: verify-full
+cantelop_control_worker_user: cantelop-control
+cantelop_control_worker_group: cantelop-control
+cantelop_control_worker_binary: /usr/local/bin/cantelop-control-worker
+cantelop_control_migrate_binary: /usr/local/bin/cantelop-control-migrate
+cantelop_control_migrations_root: /usr/local/share/cantelop-control/migrations
+cantelop_control_migrations_directory: >-
+  {{ cantelop_control_migrations_root }}/{{ cantelop_control_migrations_manifest_checksum }}
+cantelop_control_worker_unit_source: >-
+  {{ role_path }}/../../../../systemd/builder/cantelop-control-worker.service
+cantelop_control_worker_unit: /etc/systemd/system/cantelop-control-worker.service
+cantelop_control_worker_config_directory: /etc/cantelop-control
+cantelop_control_worker_environment_file: /etc/cantelop-control/worker.env
+cantelop_control_worker_config_encryption_key: >-
+  {{ vault_cantelop_config_encryption_key | default('') }}
+cantelop_control_worker_artifact_bucket: ""
+cantelop_control_worker_artifact_endpoint: ""
+cantelop_control_worker_artifact_region: auto
+cantelop_control_worker_artifact_access_key_id: >-
+  {{ vault_cantelop_artifact_access_key_id | default('') }}
+cantelop_control_worker_artifact_secret_access_key: >-
+  {{ vault_cantelop_artifact_secret_access_key | default('') }}
+cantelop_control_worker_id: control-worker-hetzner-1
+cantelop_control_worker_compute_ingress_url: http://10.77.0.1:8084
+cantelop_control_worker_compute_control_token: >-
+  {{ vault_fire_fuse_compute_ingress_token | default('') }}
+cantelop_control_worker_cloudflare_account_id: ""
+cantelop_control_worker_cloudflare_dispatch_namespace: cantelop-user-workers-staging
+cantelop_control_worker_cloudflare_route_namespace_id: ""
+cantelop_control_worker_cloudflare_api_token: >-
+  {{ vault_cantelop_cloudflare_api_token | default('') }}
+cantelop_control_worker_cloudflare_compatibility_date: ""
