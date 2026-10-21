@@ -26,7 +26,7 @@ output "tunnel_token" {
 
 output "origin_url" {
   description = "Exact broker fetch origin."
-  value       = "https://${var.origin_hostname}"
+  value       = "https://${local.origin_hostname}"
 }
 
 output "origin_access_client_id" {

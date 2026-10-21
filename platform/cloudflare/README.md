@@ -1,7 +1,9 @@
 # Cloudflare edge infrastructure
 
-This Terraform root owns the staging resources around the Worker request
-chain:
+The defaults preserve the hosted staging identities below. Independent
+installations set `app_domain`, `zone_name`, `resource_prefix` and `environment`
+from the [self-hosting profile](../../docs/self-hosting.md). This Terraform root
+owns the resources around the Worker request chain:
 
 - the remotely managed `cantelop-edge-staging` Tunnel;
 - the untrusted `cantelop-user-workers-staging` Workers for Platforms dispatch
@@ -68,9 +70,11 @@ terraform plan -out=cantelop-edge.tfplan
 terraform apply cantelop-edge.tfplan
 ```
 
-Review the plan before applying it. The configuration is intentionally fixed
-to `edge-origin.cantelop.dev` and `*.cantelop.dev` so a variable cannot
-silently widen the public namespace.
+Review the plan before applying it. The origin must be exactly
+`edge-origin.<app_domain>` and the wildcard exactly `*.<app_domain>` within
+`zone_name`; independent hostname overrides cannot widen that boundary.
+Credential-free validation uses `terraform init -backend=false` followed by
+`terraform test`, which mocks both providers and never applies infrastructure.
 
 The broad dispatcher route is safe only while the checked-in no-Worker routes
 exist. Cloudflare selects the more-specific exclusions for
@@ -99,6 +103,10 @@ from these environment variables rather than from Terraform state:
 - `ORIGIN_ACCESS_CLIENT_SECRET`.
 - `RELEASE_GATE_TOKEN`, a separate 64-character lowercase hex control credential.
 
+For a rendered operator profile, set `CANTELOP_DEPLOYMENT_DIR` to its absolute
+output directory; otherwise the helper uses the checked-in hosted configs.
+Keep the same profile in Terraform, gateway, control worker and console.
+
 Run it from this directory:
 
 ```sh
@@ -106,7 +114,7 @@ Run it from this directory:
 ```
 
 The helper deploys the shared Cloudflare edge in dependency order: broker,
-outbound Worker, then dispatcher. Its temporary dispatcher configuration binds
+outbound Worker, Tail Worker, then dispatcher. Its temporary dispatcher configuration binds
 the Terraform-owned route namespace without hardcoding provider resource IDs
 in Worker source. Customer Workers and App-route entries are deployed by their
 application deployment path, not by this edge workflow.

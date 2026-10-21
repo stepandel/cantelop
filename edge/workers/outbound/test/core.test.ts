@@ -474,3 +474,23 @@ describe("SDK 1.0 private transport", () => {
     }
   });
 });
+
+
+test.each(["agents.example.net", "sample.agents.example.net", "console.cantelop.dev"])("operator egress rejects platform destination %s", async (host) => {
+  let calls = 0;
+  const response = await handleOutboundRequest(new Request(`https://${host}/`), {
+    ...brokerlessEnv(), CANTELOP_APP_DOMAIN: "agents.example.net",
+  }, async () => { calls++; return new Response(); });
+  expect(response.status).toBe(403);
+  expect(calls).toBe(0);
+});
+
+test("operator runtime dispatch rejects context from a different domain", async () => {
+  let calls = 0;
+  const response = await handleOutboundRequest(new Request(`https://${RUNTIME_HOSTNAME}/__cantelop/v1/workspaces`, { method: "POST" }), {
+    CANTELOP_APP_DOMAIN: "agents.example.net", CANTELOP_CONTEXT: context,
+    BROKER: { async dispatch() { calls++; return new Response(); } },
+  });
+  expect(response.status).toBe(502);
+  expect(calls).toBe(0);
+});

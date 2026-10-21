@@ -1,10 +1,6 @@
-type RequestHeaders = Pick<Headers, "get">;
+import { configuredConsoleOrigins } from "../../core/deployment";
 
-const productionOrigins = new Set([
-  "https://cantelop.com",
-  "https://www.cantelop.com",
-  "https://console.cantelop.dev",
-]);
+type RequestHeaders = Pick<Headers, "get">;
 
 /** Match NextAuth v4's forwarded-host precedence, but only accept our hosts. */
 export function consoleRequestOrigin(headers: RequestHeaders): string | null {
@@ -12,7 +8,7 @@ export function consoleRequestOrigin(headers: RequestHeaders): string | null {
   const protocol = headers.get("x-forwarded-proto") ?? "https";
   if (!host || !["http", "https"].includes(protocol)) return null;
   const origin = `${protocol}://${host}`;
-  if (productionOrigins.has(origin)) return origin;
+  if (configuredConsoleOrigins().has(origin)) return origin;
   if (process.env.NODE_ENV !== "production" &&
       /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return origin;
   return null;

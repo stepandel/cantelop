@@ -1,4 +1,7 @@
 ---
+fire_fuse_control_cutover_tls_domain: apps.cantelop.dev
+cantelop_control_worker_app_domain: cantelop.dev
+cantelop_control_worker_release_gate_origin: https://release-gate.cantelop.dev
 fire_fuse_gateway_user: fire-fuse-gateway
 fire_fuse_gateway_group: fire-fuse-gateway
 fire_fuse_dispatcher_user: fire-fuse-dispatcher

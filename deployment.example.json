@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "app_domain": "agents.example.net",
+  "zone_name": "example.net",
+  "console_origin": "https://console.example.net",
+  "resource_prefix": "cantelop-alpha",
+  "environment": "alpha"
+}

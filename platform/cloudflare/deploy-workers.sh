@@ -4,6 +4,9 @@ set -euo pipefail
 script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repository_directory="$(cd -- "${script_directory}/../.." && pwd)"
 workers_directory="${repository_directory}/edge/workers"
+config_directory="${CANTELOP_DEPLOYMENT_DIR:-${workers_directory}}"
+# Generated profiles use absolute source paths, so temporary configs retain imports.
+config_directory="$(cd -- "${config_directory}" && pwd)"
 
 put_environment_secret() {
   local variable_name="$1"
@@ -40,29 +43,29 @@ cd "${workers_directory}"
 bun install --frozen-lockfile
 bunx wrangler whoami >/dev/null
 
-bunx wrangler deploy --config origin-broker/wrangler.jsonc
-put_environment_secret ORIGIN_URL ORIGIN_URL origin-broker/wrangler.jsonc
-put_environment_secret EDGE_INGRESS_TOKEN EDGE_INGRESS_TOKEN origin-broker/wrangler.jsonc
-put_environment_secret ORIGIN_ACCESS_CLIENT_ID ORIGIN_ACCESS_CLIENT_ID origin-broker/wrangler.jsonc
-put_environment_secret ORIGIN_ACCESS_CLIENT_SECRET ORIGIN_ACCESS_CLIENT_SECRET origin-broker/wrangler.jsonc
+bunx wrangler deploy --config "${config_directory}/origin-broker/wrangler.jsonc"
+put_environment_secret ORIGIN_URL ORIGIN_URL "${config_directory}/origin-broker/wrangler.jsonc"
+put_environment_secret EDGE_INGRESS_TOKEN EDGE_INGRESS_TOKEN "${config_directory}/origin-broker/wrangler.jsonc"
+put_environment_secret ORIGIN_ACCESS_CLIENT_ID ORIGIN_ACCESS_CLIENT_ID "${config_directory}/origin-broker/wrangler.jsonc"
+put_environment_secret ORIGIN_ACCESS_CLIENT_SECRET ORIGIN_ACCESS_CLIENT_SECRET "${config_directory}/origin-broker/wrangler.jsonc"
 
-bunx wrangler deploy --config outbound/wrangler.jsonc
+bunx wrangler deploy --config "${config_directory}/outbound/wrangler.jsonc"
 
 # The Tail Worker must exist before the dispatcher can name it as a consumer.
 # It receives logs from the dispatcher and every user Worker in the dispatch
 # namespace, then writes correlated observations with the edge-only credential.
-bunx wrangler deploy --config tail/wrangler.jsonc
-put_environment_secret OBSERVABILITY_INGEST_TOKEN OBSERVABILITY_INGEST_TOKEN tail/wrangler.jsonc
+bunx wrangler deploy --config "${config_directory}/tail/wrangler.jsonc"
+put_environment_secret OBSERVABILITY_INGEST_TOKEN OBSERVABILITY_INGEST_TOKEN "${config_directory}/tail/wrangler.jsonc"
 
 dispatcher_config="$(mktemp "${workers_directory}/dispatcher/wrangler.generated.XXXXXX.json")"
 trap 'rm -f "${dispatcher_config}"' EXIT
 jq --arg namespace_id "${APP_ROUTES_KV_NAMESPACE_ID}" \
   '. + {kv_namespaces: [{binding: "APP_ROUTES", id: $namespace_id}]} | del(.tail_consumers)' \
-  dispatcher/wrangler.jsonc >"${dispatcher_config}"
+  "${config_directory}/dispatcher/wrangler.jsonc" >"${dispatcher_config}"
 bunx wrangler deploy --config "${dispatcher_config}"
 put_environment_secret OBSERVABILITY_INGEST_TOKEN OBSERVABILITY_INGEST_TOKEN "${dispatcher_config}"
 put_environment_secret RELEASE_GATE_TOKEN RELEASE_GATE_TOKEN "${dispatcher_config}"
 # Tail consumers are non-versioned settings. Cloudflare's script upload API
 # rejects them on some Workers for Platforms accounts even though its settings
 # API accepts the same attachment. Sync and read back the attachment explicitly.
-bun "${script_directory}/sync-tail-settings.ts" dispatcher/wrangler.jsonc
+bun "${script_directory}/sync-tail-settings.ts" "${config_directory}/dispatcher/wrangler.jsonc"

@@ -30,6 +30,8 @@ Public development and contributions live in
 [`stepandel/cantelop`](https://github.com/stepandel/cantelop). Hosted production
 deployments remain in a separate private repository. See
 [source publication](docs/source-publication.md) for the review and promotion process.
+See the [self-hosting installation candidate](docs/self-hosting.md) for the
+reference topology, configuration renderer and remaining qualification gates.
 
 The current endpoint, error, lifecycle-state, durability, restart, and shutdown
 contract is documented in [docs/api-lifecycle.md](docs/api-lifecycle.md), with

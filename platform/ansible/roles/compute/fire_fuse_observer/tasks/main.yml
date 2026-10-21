@@ -5,8 +5,8 @@
       - ansible_distribution == 'Ubuntu'
       - ansible_distribution_version == '24.04'
       - ansible_architecture == 'x86_64'
-      - fire_fuse_observer_domain == 'apps.cantelop.dev'
-      - fire_fuse_observer_hostname == 'status.apps.cantelop.dev'
+      - fire_fuse_observer_domain is deployment_dns_name
+      - fire_fuse_observer_hostname == 'status.' + fire_fuse_observer_domain
       - fire_fuse_observer_user == 'fire-fuse-observer'
       - fire_fuse_observer_group == 'fire-fuse-observer'
       - fire_fuse_observer_binary_artifact.startswith('/')
@@ -27,8 +27,8 @@
          fire_fuse_session_mutation_token] | unique | length == 3
       - fire_fuse_observer_nginx_site == '/etc/nginx/sites-available/fire-fuse-observer'
       - fire_fuse_observer_nginx_enabled == '/etc/nginx/sites-enabled/fire-fuse-observer'
-      - fire_fuse_observer_tls_certificate == '/etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem'
-      - fire_fuse_observer_tls_key == '/etc/letsencrypt/live/apps.cantelop.dev/privkey.pem'
+      - fire_fuse_observer_tls_certificate == '/etc/letsencrypt/live/' + fire_fuse_observer_domain + '/fullchain.pem'
+      - fire_fuse_observer_tls_key == '/etc/letsencrypt/live/' + fire_fuse_observer_domain + '/privkey.pem'
     fail_msg: >-
       observer deployment requires fixed loopback and TLS paths, the dedicated
       status hostname, a checksum-pinned binary, and a 64-character Vault token

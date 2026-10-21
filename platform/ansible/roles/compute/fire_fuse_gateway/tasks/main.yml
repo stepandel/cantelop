@@ -5,6 +5,9 @@
       - ansible_distribution == 'Ubuntu'
       - ansible_distribution_version == '24.04'
       - ansible_architecture == 'x86_64'
+      - fire_fuse_gateway_app_domain is deployment_app_domain
+      - fire_fuse_gateway_product_control_origin is deployment_https_origin
+      - fire_fuse_gateway_observability_origin is deployment_https_origin
       - fire_fuse_gateway_user == 'fire-fuse-gateway'
       - fire_fuse_gateway_group == 'fire-fuse-gateway'
       - fire_fuse_gateway_binary_artifact.startswith('/')
@@ -255,6 +258,35 @@
   ansible.builtin.copy:
     src: "{{ fire_fuse_async_dispatcher_unit_source }}"
     dest: "{{ fire_fuse_async_dispatcher_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fire-fuse asynchronous dispatcher
+
+- name: Create service override directories for deployment identities
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - fire-fuse-gateway
+    - fire-fuse-async-dispatcher
+
+- name: Configure gateway deployment identities
+  ansible.builtin.template:
+    src: deployment.conf.j2
+    dest: /etc/systemd/system/fire-fuse-gateway.service.d/deployment.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fire-fuse gateway
+
+- name: Configure dispatcher observation origin
+  ansible.builtin.template:
+    src: dispatcher-deployment.conf.j2
+    dest: /etc/systemd/system/fire-fuse-async-dispatcher.service.d/deployment.conf
     owner: root
     group: root
     mode: "0644"

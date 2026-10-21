@@ -5,6 +5,7 @@
       - ansible_distribution == 'Ubuntu'
       - ansible_distribution_version == '24.04'
       - ansible_architecture == 'x86_64'
+      - fire_fuse_control_cutover_tls_domain is deployment_dns_name
       - fire_fuse_gateway_user | default('') == 'fire-fuse-gateway'
       - fire_fuse_gateway_group | default('') == 'fire-fuse-gateway'
       - fire_fuse_dispatcher_user | default('') == 'fire-fuse-dispatcher'
@@ -66,12 +67,12 @@
       directory: false
       checksum: ""
     - name: observer TLS certificate
-      path: /etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem
+      path: "/etc/letsencrypt/live/{{ fire_fuse_control_cutover_tls_domain }}/fullchain.pem"
       directory: false
       checksum: ""
       follow: true
     - name: observer TLS key
-      path: /etc/letsencrypt/live/apps.cantelop.dev/privkey.pem
+      path: "/etc/letsencrypt/live/{{ fire_fuse_control_cutover_tls_domain }}/privkey.pem"
       directory: false
       checksum: ""
       follow: true

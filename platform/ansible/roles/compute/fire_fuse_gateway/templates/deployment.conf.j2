@@ -1,0 +1,3 @@
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/fire-fuse-gateway -listen 127.0.0.1:8081 -control-plane http://127.0.0.1:8080 -product-control {{ fire_fuse_gateway_product_control_origin }} -app-domain {{ fire_fuse_gateway_app_domain }} -control-timeout 45s -control-token-file /etc/fire-fuse-gateway/runtime-control.token -product-token-file /etc/fire-fuse-gateway/product-control.token -edge-token-file /etc/fire-fuse-gateway/edge-ingress.token

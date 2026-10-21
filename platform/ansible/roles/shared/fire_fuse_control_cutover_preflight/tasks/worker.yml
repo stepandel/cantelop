@@ -2,6 +2,8 @@
 - name: Validate the builder control worker contract before shutdown
   ansible.builtin.assert:
     that:
+      - cantelop_control_worker_app_domain is deployment_app_domain
+      - cantelop_control_worker_release_gate_origin == 'https://release-gate.' + cantelop_control_worker_app_domain
       - fire_fuse_compute_ingress_token == cantelop_control_worker_compute_control_token
       - cantelop_control_worker_user == 'cantelop-control'
       - cantelop_control_worker_group == 'cantelop-control'

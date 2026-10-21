@@ -4,12 +4,12 @@ resource "random_id" "edge_ingress_token" {
 
 resource "cloudflare_workers_for_platforms_dispatch_namespace" "user_workers" {
   account_id = var.cloudflare_account_id
-  name       = "cantelop-user-workers-staging"
+  name       = "${var.resource_prefix}-user-workers-${var.environment}"
 }
 
 resource "cloudflare_workers_kv_namespace" "app_routes" {
   account_id = var.cloudflare_account_id
-  title      = "cantelop-app-routes-staging"
+  title      = "${var.resource_prefix}-app-routes-${var.environment}"
 
   lifecycle {
     prevent_destroy = true
@@ -18,7 +18,7 @@ resource "cloudflare_workers_kv_namespace" "app_routes" {
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "edge" {
   account_id = var.cloudflare_account_id
-  name       = "cantelop-edge-staging"
+  name       = "${var.resource_prefix}-edge-${var.environment}"
   config_src = "cloudflare"
 }
 
@@ -30,7 +30,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "edge" {
   config = {
     ingress = [
       {
-        hostname = var.origin_hostname
+        hostname = local.origin_hostname
         service  = "http://127.0.0.1:8081"
       },
       {
@@ -42,7 +42,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "edge" {
 
 resource "cloudflare_dns_record" "edge_origin" {
   zone_id = var.cloudflare_zone_id
-  name    = var.origin_hostname
+  name    = local.origin_hostname
   content = "${cloudflare_zero_trust_tunnel_cloudflared.edge.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
@@ -52,21 +52,36 @@ resource "cloudflare_dns_record" "edge_origin" {
 
 resource "cloudflare_dns_record" "dispatcher" {
   zone_id = var.cloudflare_zone_id
-  name    = var.dispatcher_hostname
+  name    = local.dispatcher_hostname
   content = "100::"
   type    = "AAAA"
   proxied = true
   ttl     = 1
   comment = "Originless wildcard for the Cantelop dispatcher Worker"
+
+  lifecycle {
+    precondition {
+      condition     = local.dispatcher_hostname == "*.${var.app_domain}"
+      error_message = "dispatcher_hostname must match *.<app_domain>; wider wildcard routes are rejected."
+    }
+    precondition {
+      condition     = local.origin_hostname == "edge-origin.${var.app_domain}"
+      error_message = "origin_hostname must match the reserved edge-origin.<app_domain> host."
+    }
+    precondition {
+      condition     = var.app_domain == local.zone_name || endswith(var.app_domain, ".${local.zone_name}")
+      error_message = "app_domain must be inside zone_name."
+    }
+  }
 }
 
 locals {
   dispatcher_route_exclusions = toset([
-    "console.cantelop.dev/*",
-    "control.apps.cantelop.dev/*",
-    "edge-origin.cantelop.dev/*",
-    "status.apps.cantelop.dev/*",
-    "www.cantelop.dev/*",
+    "console.${var.app_domain}/*",
+    "control.apps.${var.app_domain}/*",
+    "edge-origin.${var.app_domain}/*",
+    "status.apps.${var.app_domain}/*",
+    "www.${var.app_domain}/*",
   ])
 }
 
@@ -84,14 +99,14 @@ resource "cloudflare_workers_route" "dispatcher_exclusion" {
 
 resource "cloudflare_zero_trust_access_service_token" "origin_broker" {
   account_id = var.cloudflare_account_id
-  name       = "cantelop-origin-broker-staging"
+  name       = "${var.resource_prefix}-origin-broker-${var.environment}"
   duration   = "8760h"
 }
 
 resource "cloudflare_zero_trust_access_application" "edge_origin" {
   account_id                = var.cloudflare_account_id
-  name                      = "Cantelop edge origin staging"
-  domain                    = var.origin_hostname
+  name                      = "${title(var.resource_prefix)} edge origin ${var.environment}"
+  domain                    = local.origin_hostname
   type                      = "self_hosted"
   app_launcher_visible      = false
   service_auth_401_redirect = true
@@ -111,4 +126,9 @@ resource "cloudflare_zero_trust_access_application" "edge_origin" {
       ]
     }
   ]
+}
+locals {
+  origin_hostname     = coalesce(var.origin_hostname, "edge-origin.${var.app_domain}")
+  dispatcher_hostname = coalesce(var.dispatcher_hostname, "*.${var.app_domain}")
+  zone_name           = coalesce(var.zone_name, var.app_domain)
 }

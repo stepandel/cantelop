@@ -48,10 +48,10 @@ full repository suite, database migrations, host deployment, or Message canary
 passed. Fire Fuse and the other Hetzner services are deployed only through the
 approval-gated Ansible procedure below.
 
-No checked-in `pull_request` GitHub Actions workflow currently runs the full
-repository test suites. Record `make qualify-release` independently rather
-than treating a Vercel preview or another green deployment check as the release
-gate.
+The public Contributor checks workflow runs `make check`, a secret scan, and
+mocked deployment configuration checks on pull requests without deployment
+credentials. Record `make qualify-release` independently: contributor CI and a
+Vercel preview do not qualify a live infrastructure release.
 
 The workflows can be dispatched from GitHub or with equivalent commands:
 

@@ -1,4 +1,4 @@
-import { assertAppId, publishObservations, type ObservationIngestEnv } from "@cantelop/edge-contracts";
+import { assertAppId, assertPublicAppDomain, PUBLIC_APP_DOMAIN, publishObservations, type ObservationIngestEnv } from "@cantelop/edge-contracts";
 
 import { dispatchPublicRequest, type DispatcherEnv } from "./core";
 export { ReleaseGate } from "./release-gate";
@@ -57,7 +57,10 @@ async function readBoundedCommand(request: Request): Promise<string> {
 export default {
   fetch(request: Request, env: Environment, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    if (url.hostname === "release-gate.cantelop.dev") {
+    const domain = env.CANTELOP_APP_DOMAIN ?? PUBLIC_APP_DOMAIN;
+    try { assertPublicAppDomain(domain); }
+    catch { return Promise.resolve(new Response(null, { status: 503 })); }
+    if (url.hostname === `release-gate.${domain}`) {
       const match = controlPath.exec(url.pathname);
       if (match && !url.search) {
         try { assertAppId(match[1]); }

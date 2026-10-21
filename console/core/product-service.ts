@@ -7,6 +7,7 @@ import type {
 } from "./db/product-repository";
 import type { CreateAppInput, CreateWorkspaceInput, IdentityInput } from "./domain/model";
 import { waitForWorkspaceHostArchive } from "./workspace-host-archive";
+import { publicAppHostname } from "./deployment";
 
 export interface PublicApp {
   id: string;
@@ -124,7 +125,7 @@ function publicApp(app: ProductApp): PublicApp {
   return {
     id: app.id,
     slug: app.slug,
-    hostname: `${app.slug}.cantelop.dev`,
+    hostname: publicAppHostname(app.slug),
     role: app.accessRole ?? "owner",
     ...(app.ownerEmail !== undefined ? { owner: { email: app.ownerEmail } } : {}),
     admin_count: app.adminCount ?? 0,

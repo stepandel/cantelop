@@ -60,6 +60,12 @@ jobs:
           bun run db:migrate
           bun run observability:db:migrate
       - run: make check
+      - name: Validate deployment configuration with mocked providers
+        working-directory: platform/cloudflare
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+          terraform test
 
   secrets:
     runs-on: ubuntu-24.04

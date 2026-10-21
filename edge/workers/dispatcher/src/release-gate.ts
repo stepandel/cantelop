@@ -16,6 +16,7 @@ export interface ReleaseGateState {
 }
 
 interface GateEnvironment {
+  CANTELOP_APP_DOMAIN?: string;
   USER_WORKERS: UserWorkerNamespace;
 }
 
@@ -41,7 +42,7 @@ export class ReleaseGate {
     try {
       if (request.headers.get(GATE_APP_HEADER) !== route.app_id) return unavailable();
       const parsed: unknown = JSON.parse(request.headers.get(GATE_INVOCATION_HEADER) ?? "");
-      assertAPIInvocation(parsed);
+      assertAPIInvocation(parsed, this.env.CANTELOP_APP_DOMAIN);
       invocation = parsed;
       if (invocation.app_id !== route.app_id) return unavailable();
     } catch {

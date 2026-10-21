@@ -1,4 +1,6 @@
 ---
+cantelop_control_worker_app_domain: cantelop.dev
+cantelop_control_worker_release_gate_origin: https://release-gate.cantelop.dev
 cantelop_control_worker_user: cantelop-control
 cantelop_control_worker_group: cantelop-control
 cantelop_control_worker_binary_artifact: ""

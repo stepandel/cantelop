@@ -2,6 +2,8 @@
 - name: Validate Cantelop control worker inputs
   ansible.builtin.assert:
     that:
+      - cantelop_control_worker_app_domain is deployment_app_domain
+      - cantelop_control_worker_release_gate_origin == 'https://release-gate.' + cantelop_control_worker_app_domain
       - ansible_distribution == 'Ubuntu'
       - ansible_distribution_version == '24.04'
       - ansible_architecture == 'x86_64'
@@ -208,6 +210,8 @@
 - name: Install private Cantelop control worker environment
   ansible.builtin.copy:
     content: |
+      CANTELOP_APP_DOMAIN={{ cantelop_control_worker_app_domain | to_json }}
+      RELEASE_GATE_ORIGIN={{ cantelop_control_worker_release_gate_origin | to_json }}
       CANTELOP_DATABASE_URL={{ cantelop_control_worker_database_url | to_json }}
       CANTELOP_DATABASE_SSL={{ cantelop_control_worker_database_ssl | to_json }}
       CANTELOP_CONFIG_ENCRYPTION_KEY={{ cantelop_control_worker_config_encryption_key | to_json }}

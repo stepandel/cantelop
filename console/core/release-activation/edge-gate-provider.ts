@@ -1,4 +1,5 @@
 import { assertResourceID } from "../domain/ids";
+import { configuredAppDomain } from "../deployment";
 
 const generationPattern = /^act_[0-9a-f]{32}$/;
 const scriptPattern = /^(?:app|rel)_[0-9a-f]{32}$/;
@@ -71,5 +72,5 @@ export class EdgeGateProvider {
 export function configuredEdgeGateProvider(environment: NodeJS.ProcessEnv = process.env): EdgeGateProvider {
   const token = environment.RELEASE_GATE_TOKEN?.trim();
   if (!token) throw new Error("RELEASE_GATE_TOKEN is required");
-  return new EdgeGateProvider({ origin: environment.RELEASE_GATE_ORIGIN?.trim() ?? "https://release-gate.cantelop.dev", token });
+  return new EdgeGateProvider({ origin: environment.RELEASE_GATE_ORIGIN?.trim() ?? `https://release-gate.${configuredAppDomain(environment)}`, token });
 }

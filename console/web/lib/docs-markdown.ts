@@ -1,6 +1,7 @@
 import { markdownSources } from "../components/markdown/source";
+import { configuredDocsOrigin } from "../../core/deployment";
 
-export const DOCS_ORIGIN = "https://console.cantelop.dev";
+export const DOCS_ORIGIN = configuredDocsOrigin();
 
 // Read only public docs. These sources are prerendered with the text routes,
 // so deployed handlers do not depend on MDX files being present at runtime.
@@ -15,7 +16,7 @@ export function docsMarkdown() {
       path,
       title: /^# (.+)$/m.exec(markdown)?.[1] ?? path,
       markdown,
-      url: `${DOCS_ORIGIN}${path}.md`,
+      url: `${configuredDocsOrigin()}${path}.md`,
     }));
 }
 
@@ -29,7 +30,7 @@ export function llmsIndex() {
     "## SDK",
     "- [SDK documentation](https://raw.githubusercontent.com/stepandel/cantelop-sdk/main/README.md): TypeScript APIs, transports, and runtime implementation.\n- [SDK examples](https://raw.githubusercontent.com/stepandel/cantelop-sdk/main/examples/README.md): Provider integrations and clients.",
     "## Optional",
-    `- [All public docs](${DOCS_ORIGIN}/llms-full.txt): The full documentation in one file.`,
+    `- [All public docs](${configuredDocsOrigin()}/llms-full.txt): The full documentation in one file.`,
   ].join("\n\n") + "\n";
 }
 
