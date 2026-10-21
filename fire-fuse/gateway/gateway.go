@@ -45,6 +45,7 @@ type Handler struct {
 	logger              *slog.Logger
 	now                 func() time.Time
 	edgeToken           string
+	appDomain           string
 }
 
 type Dependencies struct {
@@ -57,9 +58,16 @@ type Dependencies struct {
 	Messages            MessageDeliveries
 	Events              SessionEvents
 	EdgeToken           string
+	AppDomain           string
 }
 
 func NewHandler(dependencies Dependencies, logger *slog.Logger) (*Handler, error) {
+	if dependencies.AppDomain == "" {
+		dependencies.AppDomain = edgeprotocol.PublicAppDomain
+	}
+	if err := edgeprotocol.ValidateAppDomain(dependencies.AppDomain); err != nil {
+		return nil, err
+	}
 	if dependencies.Workspaces == nil || dependencies.WorkspaceCreator == nil || dependencies.SessionBroker == nil ||
 		dependencies.Messages == nil || dependencies.Events == nil || !edgeTokenPattern.MatchString(dependencies.EdgeToken) {
 		return nil, errors.New("Workspace directory, Workspace creator, Session broker, Message queue, Session events, and edge token are required")
@@ -76,6 +84,7 @@ func NewHandler(dependencies Dependencies, logger *slog.Logger) (*Handler, error
 		events: dependencies.Events,
 		logger: logger, now: time.Now,
 		edgeToken: dependencies.EdgeToken,
+		appDomain: dependencies.AppDomain,
 	}, nil
 }
 
@@ -103,7 +112,7 @@ func (h *Handler) serveEdgeDispatch(w http.ResponseWriter, r *http.Request) bool
 		writeError(w, http.StatusUnauthorized, "edge_authentication_required", "edge authentication is required")
 		return true
 	}
-	target, err := edgeDispatchTarget(r.Header)
+	target, err := edgeDispatchTarget(r.Header, h.appDomain)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_edge_request", "edge dispatch metadata is invalid")
 		return true
@@ -166,7 +175,7 @@ func validEdgeAuthorization(value, token string) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1
 }
 
-func edgeDispatchTarget(headers http.Header) (edgeprotocol.DispatchTarget, error) {
+func edgeDispatchTarget(headers http.Header, domains ...string) (edgeprotocol.DispatchTarget, error) {
 	value := func(name string) (string, bool) {
 		values := headers.Values(name)
 		return strings.Join(values, ""), len(values) == 1
@@ -178,7 +187,7 @@ func edgeDispatchTarget(headers http.Header) (edgeprotocol.DispatchTarget, error
 		return edgeprotocol.DispatchTarget{}, errors.New("edge dispatch headers must occur exactly once")
 	}
 	target := edgeprotocol.DispatchTarget{RequestID: requestID, AppID: appID, Hostname: hostname}
-	return target, target.Validate()
+	return target, target.Validate(domains...)
 }
 
 func (h *Handler) serveEdgeWorkspaceCreate(

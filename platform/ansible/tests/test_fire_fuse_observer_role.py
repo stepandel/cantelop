@@ -67,10 +67,10 @@ class FireFuseObserverRoleTest(unittest.TestCase):
         tasks = (ROLE / "tasks" / "main.yml").read_text(encoding="utf-8")
 
         self.assertIn(
-            "/etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem", defaults
+            "/etc/letsencrypt/live/{{ fire_fuse_observer_domain }}/fullchain.pem", defaults
         )
         self.assertIn(
-            "/etc/letsencrypt/live/apps.cantelop.dev/privkey.pem", defaults
+            "/etc/letsencrypt/live/{{ fire_fuse_observer_domain }}/privkey.pem", defaults
         )
         self.assertNotIn("/etc/fire-fuse-gateway/tls", defaults)
         self.assertIn("http://127.0.0.1:8082/snapshot", tasks)

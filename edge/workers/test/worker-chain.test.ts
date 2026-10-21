@@ -23,7 +23,9 @@ const brokerEnv: OriginBrokerEnv = {
 };
 
 describe("Cloudflare Worker chain", () => {
-  test("streams one request through dispatcher, user API, outbound, and broker boundaries", async () => {
+  test.each(["cantelop.dev", "agents.example.net"])("streams one request through every Worker boundary on %s", async (domain) => {
+    const hostname = `${appSlug}.${domain}`;
+    const configuredBroker = { ...brokerEnv, CANTELOP_APP_DOMAIN: domain, ORIGIN_URL: `https://edge-origin.${domain}` };
     let originRequest: Request | undefined;
     const response = await dispatchPublicRequest(
       new Request(`https://${hostname}/customer/path?attempt=2`, {
@@ -37,6 +39,7 @@ describe("Cloudflare Worker chain", () => {
         body: "streamed payload",
       }),
       withMockReleaseGate({
+        CANTELOP_APP_DOMAIN: domain,
         APP_ROUTES: { async get(slug) { return slug === appSlug ? appId : null; } },
         USER_WORKERS: {
           get: (_name, _args, options) => ({
@@ -63,9 +66,10 @@ describe("Cloudflare Worker chain", () => {
                 }),
                 {
                   CANTELOP_CONTEXT: options?.outbound?.CANTELOP_CONTEXT,
+                  CANTELOP_APP_DOMAIN: domain,
                   BROKER: {
                     dispatch: (brokerRequest, target) =>
-                      dispatchToOrigin(brokerRequest, target, brokerEnv, async (request) => {
+                      dispatchToOrigin(brokerRequest, target, configuredBroker, async (request) => {
                         originRequest = request;
                         return new Response("workload response", { status: 207 });
                       }),
@@ -81,7 +85,7 @@ describe("Cloudflare Worker chain", () => {
 
     expect(response.status).toBe(207);
     expect(await response.text()).toBe("workload response");
-    expect(originRequest?.url).toBe(`https://edge-origin.cantelop.dev${messagePath}`);
+    expect(originRequest?.url).toBe(`https://edge-origin.${domain}${messagePath}`);
     expect(originRequest?.method).toBe("POST");
     expect(originRequest?.headers.get("Authorization")).toBe("Bearer end-user-token");
     expect(originRequest?.headers.get(EDGE_HEADERS.dispatch)).toBe("1");

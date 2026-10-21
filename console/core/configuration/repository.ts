@@ -1,3 +1,4 @@
+import { publicAppHostname } from "../deployment";
 import {validateAppEnvironment} from "./declarations";
 import {parseProtocolEdgeManifest, type AppDeploymentConfiguration, type EnvironmentDeclaration} from "../api-deployments/protocol-artifact";
 import {randomBytes} from "node:crypto";
@@ -585,5 +586,5 @@ LEFT JOIN cantelop_control.app_config_values v ON v.app_id = a.id AND v.name = '
 LEFT JOIN cantelop_control.app_integration_rotations r ON r.app_id = a.id`;
 
 function edgeURL(slug: string): string {
-  return `https://${slug}.cantelop.dev`;
+  return `https://${publicAppHostname(slug)}`;
 }

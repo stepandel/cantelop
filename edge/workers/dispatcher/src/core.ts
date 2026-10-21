@@ -22,6 +22,7 @@ export interface AppRouteRegistry {
 }
 
 export interface DispatcherEnv {
+  CANTELOP_APP_DOMAIN?: string;
   USER_WORKERS: UserWorkerNamespace;
   APP_ROUTES: AppRouteRegistry;
   RELEASE_GATES: Pick<DurableObjectNamespace, "idFromName" | "get">;
@@ -97,7 +98,7 @@ export async function dispatchPublicRequest(
   };
   let appSlug: string;
   try {
-    appSlug = appSlugFromHostname(url.hostname);
+    appSlug = appSlugFromHostname(url.hostname, env.CANTELOP_APP_DOMAIN);
   } catch {
     return reject(404, "app_not_found", "route");
   }
@@ -112,7 +113,7 @@ export async function dispatchPublicRequest(
     hostname: url.hostname,
   };
   try {
-    assertAPIInvocation(invocation);
+    assertAPIInvocation(invocation, env.CANTELOP_APP_DOMAIN);
   } catch {
     return reject(500, "dispatcher_unavailable", "dispatch", appId);
   }

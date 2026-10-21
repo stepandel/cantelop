@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -34,6 +35,7 @@ func main() {
 	controlTimeout := flag.Duration("control-timeout", 45*time.Second, "maximum control-plane operation duration")
 	controlTokenFile := flag.String("control-token-file", defaultControlToken, "private control-plane bearer token")
 	observationTokenFile := flag.String("observability-token-file", "", "private observation ingestion bearer token")
+	observationURL := flag.String("observability-origin", observationOrigin, "HTTPS origin accepting runtime observations")
 	observationDirectory := flag.String("observability-spool", defaultObservationDir, "private observation retry spool")
 	observationMaxBytes := flag.Int64("observability-spool-max-bytes", defaultObservationMax, "maximum observation retry spool bytes")
 	observationMaxAge := flag.Duration("observability-spool-max-age", defaultObservationAge, "maximum observation retry age")
@@ -60,7 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 	observationSpool, observationRelay, err := configureObservability(
-		*observationTokenFile, *observationDirectory, *observationMaxBytes, *observationMaxAge,
+		*observationTokenFile, *observationDirectory, *observationMaxBytes, *observationMaxAge, *observationURL,
 	)
 	if err != nil {
 		logger.Error("could not configure observation relay", "error", err)
@@ -107,6 +109,7 @@ func configureObservability(
 	tokenFile, directory string,
 	maxBytes int64,
 	maxAge time.Duration,
+	origins ...string,
 ) (*observability.Spool, *observability.Relay, error) {
 	if tokenFile == "" {
 		return nil, nil, nil
@@ -121,7 +124,14 @@ func configureObservability(
 	if err != nil {
 		return nil, nil, err
 	}
-	relay, err := observability.NewRelay(observationOrigin, token, spool, nil)
+	origin := observationOrigin
+	if len(origins) > 1 {
+		return nil, nil, errors.New("exactly one observability origin is required")
+	}
+	if len(origins) == 1 {
+		origin = origins[0]
+	}
+	relay, err := observability.NewRelay(origin, token, spool, nil)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -6,6 +6,7 @@ import {
   RUNTIME_HOSTNAME,
   WORKSPACE_ID_PATTERN,
   assertAPIInvocation,
+  assertPublicAppDomain,
   type APIInvocation,
   type DispatchTarget,
 } from "@cantelop/edge-contracts";
@@ -38,6 +39,7 @@ export interface OriginBrokerService {
 }
 
 export interface OutboundEnv {
+  CANTELOP_APP_DOMAIN?: string;
   BROKER: OriginBrokerService;
   CANTELOP_CONTEXT?: unknown;
 }
@@ -50,10 +52,13 @@ export async function handleOutboundRequest(
   publicFetch: PublicFetch = (publicRequest) => fetch(publicRequest),
 ): Promise<Response> {
   const url = new URL(request.url);
+  const domain = env.CANTELOP_APP_DOMAIN ?? PUBLIC_APP_DOMAIN;
+  try { assertPublicAppDomain(domain); }
+  catch { return errorResponse(503, "invalid_app_domain"); }
   if (isRuntimeDestination(url)) {
     return dispatchRuntimeRequest(request, env);
   }
-  if (!isAllowedPublicDestination(url)) {
+  if (!isAllowedPublicDestination(url, domain)) {
     return errorResponse(403, "egress_denied");
   }
 
@@ -140,7 +145,7 @@ async function dispatchRuntimeRequest(
 
   let invocation: APIInvocation;
   try {
-    assertAPIInvocation(env.CANTELOP_CONTEXT);
+    assertAPIInvocation(env.CANTELOP_CONTEXT, env.CANTELOP_APP_DOMAIN);
     invocation = env.CANTELOP_CONTEXT;
   } catch {
     return errorResponse(502, "invalid_dispatch_context");
@@ -326,7 +331,7 @@ function runtimeMessageStatusPath(pathname: string): boolean {
   }
 }
 
-function isAllowedPublicDestination(url: URL): boolean {
+function isAllowedPublicDestination(url: URL, domain: string): boolean {
   if (
     url.protocol !== "https:" ||
     url.username !== "" ||
@@ -341,6 +346,7 @@ function isAllowedPublicDestination(url: URL): boolean {
     hostname.endsWith(".") ||
     hostname === PUBLIC_APP_DOMAIN ||
     hostname.endsWith(`.${PUBLIC_APP_DOMAIN}`) ||
+    hostname === domain || hostname.endsWith(`.${domain}`) ||
     hostname === "localhost" ||
     BLOCKED_HOSTNAME_SUFFIXES.some((suffix) => hostname.endsWith(suffix))
   ) {

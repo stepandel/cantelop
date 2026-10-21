@@ -1,5 +1,8 @@
 ---
 fire_fuse_gateway_user: fire-fuse-gateway
+fire_fuse_gateway_app_domain: cantelop.dev
+fire_fuse_gateway_product_control_origin: https://console.cantelop.dev
+fire_fuse_gateway_observability_origin: https://console.cantelop.dev
 fire_fuse_gateway_group: fire-fuse-gateway
 fire_fuse_operator_token: "{{ vault_fire_fuse_operator_token | default('') }}"
 fire_fuse_compute_ingress_token: >-

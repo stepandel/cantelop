@@ -1102,3 +1102,25 @@ func TestSessionEventCursorRequiresMatchingStreamIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestGatewayOperatorDomainMetadata(t *testing.T) {
+	appID := "app_0123456789abcdef0123456789abcdef"
+	for _, hostname := range []string{"sample.agents.example.net", "sample.cantelop.dev", "extra.sample.agents.example.net"} {
+		request := trustedEdgeRequest(http.MethodPost, "https://edge-origin.agents.example.net/__cantelop/v1/sessions", appID, hostname)
+		_, err := edgeDispatchTarget(request.Header, "agents.example.net")
+		if (err == nil) != (hostname == "sample.agents.example.net") {
+			t.Fatalf("hostname %q error = %v", hostname, err)
+		}
+	}
+	control := &fakeControl{}
+	sessions, _ := sessionbroker.New(control)
+	deps := Dependencies{Workspaces: control, WorkspaceCreator: control, SessionBroker: sessions, Messages: control, Events: control, EdgeToken: testEdgeToken, AppDomain: "agents.example.net"}
+	handler, err := NewHandler(deps, nil)
+	if err != nil || handler.appDomain != deps.AppDomain {
+		t.Fatalf("operator handler: %v", err)
+	}
+	deps.AppDomain = "*.example.net"
+	if _, err := NewHandler(deps, nil); err == nil {
+		t.Fatal("accepted wildcard operator domain")
+	}
+}

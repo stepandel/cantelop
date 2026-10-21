@@ -1,0 +1,57 @@
+---
+# Read-only inventory and hardware checks. No package installation or provisioning.
+- name: Validate the isolated three-host inventory
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Require exactly one independent host for each reference role
+      ansible.builtin.assert:
+        that:
+          - groups.get('fire_fuse_hosts', []) | length == 1
+          - groups.get('storage_hosts', []) | length == 1
+          - groups.get('control_builder_hosts', []) | length == 1
+          - >-
+            (groups.get('fire_fuse_hosts', []) + groups.get('storage_hosts', []) +
+             groups.get('control_builder_hosts', [])) | unique | length == 3
+        fail_msg: The reference candidate requires three separate inventory hosts.
+
+- name: Inspect reference hosts without changing configuration
+  hosts: fire_fuse_hosts:storage_hosts:control_builder_hosts
+  become: false
+  gather_facts: true
+  tasks:
+    - name: Require the candidate OS and architecture
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Ubuntu'
+          - ansible_distribution_version == '24.04'
+          - ansible_architecture == 'x86_64'
+          - ansible_python.version.major == 3
+          - ansible_python.version.minor >= 12
+        fail_msg: Ubuntu 24.04 x86_64 with Python 3.12+ is required.
+
+    - name: Require qualification capacity
+      ansible.builtin.assert:
+        that:
+          - ansible_processor_vcpus | int >= 4
+          - ansible_memtotal_mb | int >= (60000 if inventory_hostname in groups['fire_fuse_hosts'] else 7000)
+          - >-
+            ansible_mounts | selectattr('mount', 'equalto', '/')
+            | map(attribute='size_available') | first | int >= 80000000000
+        fail_msg: The candidate needs 64 GB compute RAM, 8 GB on other hosts, four vCPUs and 80 GB free root storage.
+
+    - name: Inspect the compute KVM device
+      ansible.builtin.stat:
+        path: /dev/kvm
+      register: self_hosting_kvm
+      when: inventory_hostname in groups['fire_fuse_hosts']
+
+    - name: Require KVM on the compute host
+      ansible.builtin.assert:
+        that:
+          - self_hosting_kvm.stat.exists
+          - self_hosting_kvm.stat.ischr | default(false)
+        fail_msg: The compute host must expose /dev/kvm; hardware virtualization is required.
+      when: inventory_hostname in groups['fire_fuse_hosts']

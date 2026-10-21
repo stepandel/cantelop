@@ -11,6 +11,7 @@ const ACCESS_AUTHORIZATION_COOKIE_PATTERN = /^\s*CF_Authorization\s*=/i;
 const EDGE_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 
 export interface OriginBrokerEnv {
+  CANTELOP_APP_DOMAIN?: string;
   ORIGIN_URL?: string;
   EDGE_INGRESS_TOKEN?: string;
   ORIGIN_ACCESS_CLIENT_ID?: string;
@@ -27,7 +28,7 @@ export async function dispatchToOrigin(
 ): Promise<Response> {
   let target: DispatchTarget;
   try {
-    assertDispatchTarget(targetValue);
+    assertDispatchTarget(targetValue, env.CANTELOP_APP_DOMAIN);
     target = targetValue;
   } catch {
     return errorResponse(502, "invalid_dispatch_target");

@@ -18,5 +18,5 @@ fire_fuse_session_mutation_token: "{{ vault_fire_fuse_session_mutation_token | d
 fire_fuse_session_mutation_token_file: /etc/fire-fuse-observer/session-mutation.token
 fire_fuse_observer_nginx_site: /etc/nginx/sites-available/fire-fuse-observer
 fire_fuse_observer_nginx_enabled: /etc/nginx/sites-enabled/fire-fuse-observer
-fire_fuse_observer_tls_certificate: /etc/letsencrypt/live/apps.cantelop.dev/fullchain.pem
-fire_fuse_observer_tls_key: /etc/letsencrypt/live/apps.cantelop.dev/privkey.pem
+fire_fuse_observer_tls_certificate: "/etc/letsencrypt/live/{{ fire_fuse_observer_domain }}/fullchain.pem"
+fire_fuse_observer_tls_key: "/etc/letsencrypt/live/{{ fire_fuse_observer_domain }}/privkey.pem"

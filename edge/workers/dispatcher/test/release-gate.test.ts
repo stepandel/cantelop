@@ -6,7 +6,7 @@ const appID = "app_0123456789abcdef0123456789abcdef";
 const script = "rel_0123456789abcdef0123456789abcdef";
 const generation = "act_0123456789abcdef0123456789abcdef";
 
-function harness(invoke: (scriptName: string, request: Request) => Promise<Response>) {
+function harness(invoke: (scriptName: string, request: Request) => Promise<Response>, domain?: string) {
   let stored: ReleaseGateState | null = null;
   let ready: Promise<unknown> = Promise.resolve();
   const state = {
@@ -16,7 +16,7 @@ function harness(invoke: (scriptName: string, request: Request) => Promise<Respo
     },
     blockConcurrencyWhile(callback: () => Promise<unknown>) { ready = callback(); return ready; },
   };
-  const env = { USER_WORKERS: { get(name: string) { return { fetch: (request: Request) => invoke(name, request) }; } } };
+  const env = { CANTELOP_APP_DOMAIN: domain, USER_WORKERS: { get(name: string) { return { fetch: (request: Request) => invoke(name, request) }; } } };
   const create = async () => {
     const gate = new ReleaseGate(state as unknown as DurableObjectState, env);
     await ready;
@@ -103,4 +103,20 @@ test("an older delayed close cannot replace a newer release selection", async ()
   expect((await control(gate, "close")).status).toBe(409);
   expect((await control(gate, "open")).status).toBe(409);
   expect((await gate.fetch(publicRequest())).status).toBe(503);
+});
+
+
+test("operator domain is enforced by the durable release gate", async () => {
+  let calls = 0;
+  const gate = await harness(async () => { calls++; return new Response("custom"); }, "agents.example.net").create();
+  await control(gate, "close");
+  await control(gate, "select", script);
+  await control(gate, "open");
+  expect((await gate.fetch(publicRequest())).status).toBe(503);
+  const request = publicRequest();
+  request.headers.set(GATE_INVOCATION_HEADER, JSON.stringify({
+    request_id: "req_0123456789abcdef0123456789abcdef", app_id: appID, hostname: "sample.agents.example.net",
+  }));
+  expect(await (await gate.fetch(request)).text()).toBe("custom");
+  expect(calls).toBe(1);
 });

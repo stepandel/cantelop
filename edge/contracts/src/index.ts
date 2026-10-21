@@ -60,13 +60,22 @@ export function assertAppSlug(appSlug: unknown): asserts appSlug is string {
   }
 }
 
-export function publicAppHostname(appSlug: string): string {
-  assertAppSlug(appSlug);
-  return `${appSlug}.${PUBLIC_APP_DOMAIN}`;
+export function assertPublicAppDomain(domain: unknown): asserts domain is string {
+  if (typeof domain !== "string" || domain.length > 189 || domain.split(".").length < 2 ||
+      domain.split(".").some((part) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part)) || !/^[a-z]/.test(domain.split(".").at(-1)!)) {
+    throw new EdgeContractError("invalid public App domain");
+  }
 }
 
-export function appSlugFromHostname(hostname: string): string {
-  const suffix = `.${PUBLIC_APP_DOMAIN}`;
+export function publicAppHostname(appSlug: string, domain = PUBLIC_APP_DOMAIN): string {
+  assertAppSlug(appSlug);
+  assertPublicAppDomain(domain);
+  return `${appSlug}.${domain}`;
+}
+
+export function appSlugFromHostname(hostname: string, domain = PUBLIC_APP_DOMAIN): string {
+  assertPublicAppDomain(domain);
+  const suffix = `.${domain}`;
   if (hostname.trim() !== hostname || !hostname.endsWith(suffix)) {
     throw new EdgeContractError("invalid public App hostname");
   }
@@ -79,7 +88,7 @@ export function appSlugFromHostname(hostname: string): string {
   return label;
 }
 
-export function assertAPIInvocation(value: unknown): asserts value is APIInvocation {
+export function assertAPIInvocation(value: unknown, domain = PUBLIC_APP_DOMAIN): asserts value is APIInvocation {
   if (!isRecord(value)) {
     throw new EdgeContractError("API invocation must be an object");
   }
@@ -91,11 +100,11 @@ export function assertAPIInvocation(value: unknown): asserts value is APIInvocat
   if (typeof hostname !== "string") {
     throw new EdgeContractError("invalid public App hostname");
   }
-  appSlugFromHostname(hostname);
+  appSlugFromHostname(hostname, domain);
 }
 
-export function assertDispatchTarget(value: unknown): asserts value is DispatchTarget {
-  assertAPIInvocation(value);
+export function assertDispatchTarget(value: unknown, domain = PUBLIC_APP_DOMAIN): asserts value is DispatchTarget {
+  assertAPIInvocation(value, domain);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

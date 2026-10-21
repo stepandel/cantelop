@@ -15,6 +15,7 @@ import (
 
 	"github.com/stepandel/cantelop/fire-fuse/controlauth"
 	"github.com/stepandel/cantelop/fire-fuse/controlclient"
+	"github.com/stepandel/cantelop/fire-fuse/edgeprotocol"
 	"github.com/stepandel/cantelop/fire-fuse/gateway"
 	"github.com/stepandel/cantelop/fire-fuse/sessionbroker"
 )
@@ -32,6 +33,11 @@ const (
 )
 
 func main() {
+	defaultAppDomain := os.Getenv("CANTELOP_APP_DOMAIN")
+	if defaultAppDomain == "" {
+		defaultAppDomain = edgeprotocol.PublicAppDomain
+	}
+	appDomain := flag.String("app-domain", defaultAppDomain, "exact public App DNS domain")
 	listenAddress := flag.String("listen", defaultListenAddress, "plaintext HTTP listen address for a local TLS proxy")
 	controlPlaneURL := flag.String("control-plane", defaultControlPlaneURL, "fire-fuse loopback HTTP origin")
 	productControlURL := flag.String("product-control", defaultProductControlURL, "Cantelop product-control HTTPS origin")
@@ -95,6 +101,7 @@ func main() {
 		Messages:            control,
 		Events:              control,
 		EdgeToken:           edgeToken,
+		AppDomain:           *appDomain,
 	}
 
 	handler, err := gateway.NewHandler(dependencies, logger)

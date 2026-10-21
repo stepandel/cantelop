@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { sourceInfo } from "../web/lib/source-info";
 import { verifyPublicSource } from "./verify-public-source";
+import { configuredAppDomain, configuredConsoleOrigins } from "../core/deployment";
 
 type BuildEnvironment = Record<string, string | undefined>;
 
@@ -40,6 +41,8 @@ export function vercelBuildScripts(environment: BuildEnvironment): string[] {
     const capabilityKey = environment.CANTELOP_WORKSPACE_DATABASE_CAPABILITY_KEY;
     if (!/^[0-9a-f]{64}$/.test(capabilityKey ?? "") || [computeToken, gatewayProductToken, ingestionToken, edgeIngestionToken].includes(capabilityKey)) throw new Error("production requires a distinct CANTELOP_WORKSPACE_DATABASE_CAPABILITY_KEY");
     if (!sourceInfo(environment)) throw new Error("production requires an exact public source revision via CANTELOP_SOURCE_COMMIT or VERCEL_GIT_COMMIT_SHA");
+    configuredAppDomain(environment);
+    configuredConsoleOrigins(environment);
   }
   if (!hasControlDatabase && hasObservabilityOverride) {
     throw new Error(
