@@ -7,7 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const digest = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 
 /** Verify before migrations, including on Vercel checkouts without .git. */
-export function verifyPublicSource(directory = root): void {
+export function verifyPublicSource(directory = root, vercel = process.env.VERCEL === "1"): void {
   const pin = JSON.parse(readFileSync(join(directory, "console/public-source.json"), "utf8"));
   if (pin.commit === null && pin.snapshot_sha256 === null) return;
   if (pin.schema_version !== 1 || !/^[0-9a-f]{40}$/.test(pin.commit) || !/^[0-9a-f]{64}$/.test(pin.snapshot_sha256)) throw new Error("invalid public source pin");
@@ -28,12 +28,10 @@ export function verifyPublicSource(directory = root): void {
         if (!policy.ignored_directories.includes(entry.name)) visit(path);
       } else {
         if (!entry.isFile()) throw new Error(`publication requires a regular source file: ${name}`);
-        // Vercel copies the selected root-directory configuration to repo root.
-        // Accept that generated copy only when its bytes match published source.
-        if (name === "vercel.json" && !Object.hasOwn(manifest.files, name) && manifest.files["console/vercel.json"]) {
-          if (digest(readFileSync(path)) !== manifest.files["console/vercel.json"].sha256) throw new Error("Vercel root configuration differs from published console/vercel.json");
-          continue;
-        }
+        // Vercel generates root configuration from project/account settings.
+        // It is a build input from the provider; console/vercel.json remains
+        // versioned source and is checked against the publication manifest.
+        if (vercel && name === "vercel.json" && !Object.hasOwn(manifest.files, name)) continue;
         if (name !== "SOURCE_SNAPSHOT.json") names.push(name);
       }
     }

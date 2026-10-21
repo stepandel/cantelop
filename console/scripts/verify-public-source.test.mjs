@@ -26,10 +26,12 @@ test("deployment verification works without Git and rejects changed or newly add
     pin.snapshot_sha256 = digest(manifest);
     writeFileSync(join(root, "console/public-source.json"), JSON.stringify(pin));
     expect(() => verifyPublicSource(root)).not.toThrow();
-    writeFileSync(join(root, "vercel.json"), sources["console/vercel.json"]);
-    expect(() => verifyPublicSource(root)).not.toThrow();
     writeFileSync(join(root, "vercel.json"), "{}");
-    expect(() => verifyPublicSource(root)).toThrow("Vercel root configuration differs");
+    expect(() => verifyPublicSource(root)).toThrow("file list changed");
+    expect(() => verifyPublicSource(root, true)).not.toThrow();
+    writeFileSync(join(root, "console/vercel.json"), "{}");
+    expect(() => verifyPublicSource(root, true)).toThrow("source changed");
+    writeFileSync(join(root, "console/vercel.json"), sources["console/vercel.json"]);
     rmSync(join(root, "vercel.json"));
     writeFileSync(join(root, "main.ts"), "export const version = 2;\n");
     expect(() => verifyPublicSource(root)).toThrow("source changed");

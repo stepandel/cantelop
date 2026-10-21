@@ -1646,11 +1646,11 @@
       "mode": 420
     },
     "console/scripts/verify-public-source.test.mjs": {
-      "sha256": "d9c1df173f7b3560dd4c1727bd82881034a55f3f08031caf34fc371c981c88aa",
+      "sha256": "e0743bbc580645c599242cec4cca0b622e401bf7d182d72d69777485e8dc014a",
       "mode": 420
     },
     "console/scripts/verify-public-source.ts": {
-      "sha256": "889ea6f5e578432f03e90c49cb9c6f495e8df12f905045de2bee508314642098",
+      "sha256": "71d5e685a1a6fdc3824c0f5ebdd0942fd35bc40d317929362a0c5c8306daedaf",
       "mode": 420
     },
     "console/test/next-runtime.test.mjs": {
