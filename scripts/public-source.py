@@ -33,7 +33,7 @@ def repository_url(value: str) -> str:
     value = value.rstrip("/").removesuffix(".git")
     parsed = urlsplit(value)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username or
-            parsed.password or parsed.query or parsed.fragment or not parsed.path.strip("/")):
+            parsed.password or "?" in value or "#" in value or not parsed.path.strip("/")):
         raise ValueError("source repository must be an HTTPS repository URL without credentials, query, or fragment")
     return value
 
@@ -110,6 +110,8 @@ def pin(public_checkout: Path, commit: str, root: Path = ROOT,
     data = (public_checkout / SNAPSHOT_FILE).read_bytes()
     if data != snapshot(source_files(root, repository)):
         raise ValueError("public snapshot does not match the current reviewed source")
+    if set(tracked_files(public_checkout)) != set(source_files(root, repository)) | {SNAPSHOT_FILE}:
+        raise ValueError("public checkout file list differs from the reviewed snapshot")
     # Verify the actual public files too, rather than trusting their manifest.
     for name, (contents, mode) in source_files(root, repository).items():
         path = public_checkout / name

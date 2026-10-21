@@ -54,7 +54,7 @@
       "mode": 420
     },
     ".vercelignore": {
-      "sha256": "7cb4dd7b2d6393b2b6a092911713d1e5d8d318fabfb94c7984813077df12dc73",
+      "sha256": "2847cd09fd92ff19e937027765edfeab8b189ba8ab6c7855d40637ff7e343add",
       "mode": 420
     },
     "AGENTS.md": {
@@ -1646,11 +1646,11 @@
       "mode": 420
     },
     "console/scripts/verify-public-source.test.mjs": {
-      "sha256": "c040c336b53466abdf2b5865296de3b7792cf46c09a1a855b2d27a7f44d677ba",
+      "sha256": "d9c1df173f7b3560dd4c1727bd82881034a55f3f08031caf34fc371c981c88aa",
       "mode": 420
     },
     "console/scripts/verify-public-source.ts": {
-      "sha256": "c78d0127df0abeefaaf71582bfcb47dc92964173342fb58eb21341fa4ae48482",
+      "sha256": "889ea6f5e578432f03e90c49cb9c6f495e8df12f905045de2bee508314642098",
       "mode": 420
     },
     "console/test/next-runtime.test.mjs": {
@@ -6982,7 +6982,7 @@
       "mode": 493
     },
     "scripts/public-source.py": {
-      "sha256": "dae41de5a197f5a2c78c2a87c0c549f495abca35de3f5c151d4c2cc594fefcab",
+      "sha256": "82ead0dc2c5f123c23fc212742db5c20f56f3f981588778f0952e2072f03b1cf",
       "mode": 420
     },
     "scripts/qualify-release-candidate.sh": {

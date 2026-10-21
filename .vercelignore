@@ -1,9 +1,10 @@
 .git/
 .DS_Store
 .env*
+# The reviewed example is source material, not a local credential file.
+!console/.env.example
 bin/
 dist/
-fire-fuse
 var/
 console/.next/
 console/node_modules/

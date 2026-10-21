@@ -17,6 +17,7 @@ test("deployment verification works without Git and rejects changed or newly add
       ".public-source-policy.json": policy,
       "console/public-source.json": JSON.stringify(pin, null, 2) + "\n",
       "main.ts": "export const version = 1;\n",
+      "console/vercel.json": "{\"buildCommand\":\"bun run vercel-build\"}\n",
     };
     for (const [name, data] of Object.entries(sources)) writeFileSync(join(root, name), data, { mode: 0o644 });
     const manifest = JSON.stringify({ schema_version: 1, files: Object.fromEntries(Object.entries(sources).map(([name, data]) => [name, { sha256: digest(data), mode: 0o644 }])) }, null, 2) + "\n";
@@ -25,6 +26,11 @@ test("deployment verification works without Git and rejects changed or newly add
     pin.snapshot_sha256 = digest(manifest);
     writeFileSync(join(root, "console/public-source.json"), JSON.stringify(pin));
     expect(() => verifyPublicSource(root)).not.toThrow();
+    writeFileSync(join(root, "vercel.json"), sources["console/vercel.json"]);
+    expect(() => verifyPublicSource(root)).not.toThrow();
+    writeFileSync(join(root, "vercel.json"), "{}");
+    expect(() => verifyPublicSource(root)).toThrow("Vercel root configuration differs");
+    rmSync(join(root, "vercel.json"));
     writeFileSync(join(root, "main.ts"), "export const version = 2;\n");
     expect(() => verifyPublicSource(root)).toThrow("source changed");
     writeFileSync(join(root, "main.ts"), sources["main.ts"]);

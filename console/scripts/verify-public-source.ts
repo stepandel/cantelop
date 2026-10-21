@@ -28,6 +28,12 @@ export function verifyPublicSource(directory = root): void {
         if (!policy.ignored_directories.includes(entry.name)) visit(path);
       } else {
         if (!entry.isFile()) throw new Error(`publication requires a regular source file: ${name}`);
+        // Vercel copies the selected root-directory configuration to repo root.
+        // Accept that generated copy only when its bytes match published source.
+        if (name === "vercel.json" && !Object.hasOwn(manifest.files, name) && manifest.files["console/vercel.json"]) {
+          if (digest(readFileSync(path)) !== manifest.files["console/vercel.json"].sha256) throw new Error("Vercel root configuration differs from published console/vercel.json");
+          continue;
+        }
         if (name !== "SOURCE_SNAPSHOT.json") names.push(name);
       }
     }
