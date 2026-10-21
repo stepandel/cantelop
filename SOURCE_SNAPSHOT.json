@@ -1650,7 +1650,7 @@
       "mode": 420
     },
     "console/scripts/verify-public-source.ts": {
-      "sha256": "b9a263626fc86b07100ab43ad86e303e0feca20d6ef8f689e58f113a4880bf33",
+      "sha256": "c78d0127df0abeefaaf71582bfcb47dc92964173342fb58eb21341fa4ae48482",
       "mode": 420
     },
     "console/test/next-runtime.test.mjs": {

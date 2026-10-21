@@ -33,7 +33,13 @@ export function verifyPublicSource(directory = root): void {
     }
   }
   visit(directory);
-  if (JSON.stringify(names.sort()) !== JSON.stringify(Object.keys(manifest.files).sort())) throw new Error("source file list changed since publication; publish and pin a new snapshot");
+  const expectedNames = Object.keys(manifest.files);
+  if (JSON.stringify(names.sort()) !== JSON.stringify(expectedNames.sort())) {
+    const added = names.filter((name) => !Object.hasOwn(manifest.files, name));
+    const present = new Set(names);
+    const missing = expectedNames.filter((name) => !present.has(name));
+    throw new Error(`source file list changed since publication; added: ${added.slice(0, 10).join(", ") || "none"}; missing: ${missing.slice(0, 10).join(", ") || "none"}; publish and pin a new snapshot`);
+  }
   for (const name of names) {
     const path = join(directory, name);
     let data: Buffer | string = readFileSync(path);
