@@ -83,6 +83,7 @@ jobs:
             --output "$scanner/gitleaks.tar.gz"
           printf '%s  %s\n' "$GITLEAKS_SHA256" "$scanner/gitleaks.tar.gz" | sha256sum --check
           tar -xzf "$scanner/gitleaks.tar.gz" -C "$scanner" gitleaks
+          python3 scripts/check-secret-scan.py "$scanner/gitleaks"
           "$scanner/gitleaks" git --redact=100 --no-banner --ignore-gitleaks-allow \
             --log-opts="--all --full-history" --gitleaks-ignore-path "$GITHUB_WORKSPACE/.gitleaksignore" \
             "$GITHUB_WORKSPACE"

@@ -14,7 +14,7 @@
       "mode": 420
     },
     ".github/workflows/check.yml": {
-      "sha256": "2bf2864c0f77408fb852c926646197b5eb3d1ff53db7b3f532a85affe1a4c6ea",
+      "sha256": "46ed25a4aa0008e51111d96027ebf584b8a04a212e1854e5cafb56217a5810f6",
       "mode": 420
     },
     ".github/workflows/deploy-cloudflare.yml": {
@@ -42,7 +42,7 @@
       "mode": 420
     },
     ".gitleaks.toml": {
-      "sha256": "0571a88eea7112865c31294e607e9d4b21b1b7077b5a060a950aecbefa1d020b",
+      "sha256": "00b40af7f38be747aab4947af82de78e393bae81579cf61ba9fb375c9756e664",
       "mode": 420
     },
     ".gitleaksignore": {
@@ -6940,6 +6940,10 @@
     "scripts/check-sdk-platform-contract.sh": {
       "sha256": "5593e254ec0eb46a16799ecd16ccaff45dbfd720c52bf70c6956dfe53f98e92d",
       "mode": 493
+    },
+    "scripts/check-secret-scan.py": {
+      "sha256": "9d153ea256ca41bbee4f84c8567343f42298fe7f0027c00359f6c7a40c0717c5",
+      "mode": 420
     },
     "scripts/check-starter.sh": {
       "sha256": "d9b25a39850566ac36a6326ef815e0a2d5f0906130d7115c755177566367adb6",
