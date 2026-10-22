@@ -66,7 +66,7 @@ server {
         proxy_send_timeout 15s;
     }
 
-    location ~ "^/sandboxes/sbx-[0-9a-f]{32}/database-access$" {
+    location ~ "^/(managed/)?sandboxes/sbx-[0-9a-f]{32}/database-access$" {
         limit_except GET { deny all; }
         proxy_pass http://127.0.0.1:8082$request_uri;
         proxy_http_version 1.1;

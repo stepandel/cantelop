@@ -181,8 +181,16 @@ def main():
                         lambda memory: memory >= 768, 180, "memory grew")
         subprocess.run(ssh + ["systemctl stop elastic-memory-pressure.service"],
                        check=True, timeout=30, capture_output=True)
+        # Growth adds up to 1 GiB per request and shrink requires five idle
+        # minutes per 256 MiB step, so size the timeout from how far memory grew
+        # once in-flight growth settles, plus unplug latency.
+        time.sleep(5)
+        grown = wait_for_memory(control, renew_lease, sandbox_id,
+                                lambda memory: True, 30, "pressure stopped")
+        shrink_steps = max(1, -(-(grown["guest_memory_mib"] - 512) // 256))
+        shrink_timeout = shrink_steps * 300 + 120
         wait_for_memory(control, renew_lease, sandbox_id,
-                        lambda memory: memory == 512, 300, "memory shrank",
+                        lambda memory: memory == 512, shrink_timeout, "memory shrank",
                         host_memory_ceiling_bytes=host_memory_ceiling)
         check_runtime()
         print("Live app runtime responded after resize", flush=True)

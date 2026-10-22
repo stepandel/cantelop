@@ -15,7 +15,7 @@ ship-fire-fuse ship-builder ship-storage: ship-%:
 ship-configure:
 	python3 scripts/ship.py configure $(SHIP_ARGS)
 
-check: check-architecture check-cli-api-contract check-license-notices check-public-source check-go check-console check-edge check-python check-platform
+check: check-architecture check-cli-api-contract check-license-notices check-go check-console check-edge check-python check-platform
 
 .PHONY: check-public-source
 check-public-source:
@@ -40,6 +40,7 @@ check-console:
 check-edge:
 	cd edge/contracts && bun test
 	cd edge/workers && bun test && bun run typecheck && bun run test:fleet-runtime
+	cd edge/workers && bun test ../../platform/cloudflare/sync-tail-settings.test.ts
 
 check-python:
 	python3 -m unittest discover -s scripts/tests

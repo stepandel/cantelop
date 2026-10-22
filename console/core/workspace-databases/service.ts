@@ -9,7 +9,7 @@ export class DatabaseAccessError extends Error {
   constructor(readonly code: "database_not_ready" | "workspace_not_found") { super(code); }
 }
 interface DatabaseRow extends Record<string, unknown> {
-  managed_policy?:Record<string,unknown>|null; workspace_id: string; app_id: string; archived_at: Date | null; app_status: string;
+  workspace_id: string; app_id: string; archived_at: Date | null; app_status: string;
   provider_name: string | null; provider_id: string | null; url: string | null;
   status: "pending" | "ready" | "deleting" | "deleted";
   token_nonce: Buffer | null; token_ciphertext: Buffer | null; token_expires_at: Date | null;
@@ -37,7 +37,7 @@ SET provider_name = $2, updated_at = now() WHERE workspace_id = $1`, [workspaceI
       this.active(row);
       if (row.status === "ready") return;
       if (row.status !== "pending" || !row.provider_name) throw new DatabaseAccessError("workspace_not_found");
-      const database = await this.provider.ensure(row.provider_name,row.managed_policy?{sizeLimit:256*1024**2}:undefined);
+      const database = await this.provider.ensure(row.provider_name);
       row.url = database.url;
       const credentials = await this.mint(client, row);
       await this.provider.probe(credentials.url, credentials.authToken);
@@ -55,9 +55,9 @@ SET provider_id = $2, url = $3, status = 'ready', updated_at = now() WHERE works
 
   private async resolveCredentials(appID: string, workspaceID: string, initialize = true): Promise<DatabaseCredentials> {
     if (!/^wsp_[0-9a-f]{32}$/.test(workspaceID)) throw new DatabaseAccessError("workspace_not_found");
-    const result = await this.pool.query<DatabaseRow>(`SELECT d.*, w.app_id, w.archived_at, a.status AS app_status, fp.policy AS managed_policy
+    const result = await this.pool.query<DatabaseRow>(`SELECT d.*, w.app_id, w.archived_at, a.status AS app_status
 FROM cantelop_control.workspace_databases d JOIN cantelop_control.workspaces w ON w.id = d.workspace_id
-JOIN cantelop_control.apps a ON a.id = w.app_id LEFT JOIN cantelop_control.fleet_policies fp ON fp.app_id=a.id WHERE d.workspace_id = $1`, [workspaceID]);
+JOIN cantelop_control.apps a ON a.id = w.app_id WHERE d.workspace_id = $1`, [workspaceID]);
     const row = result.rows[0];
     if (!row) throw new DatabaseAccessError("workspace_not_found");
     this.active(row);
@@ -186,9 +186,9 @@ SET token_nonce = $2, token_ciphertext = $3, token_expires_at = $4, updated_at =
   private async locked<T>(workspaceID: string, action: (client: TransactionClient, row: DatabaseRow) => Promise<T>): Promise<T> {
     if (!/^wsp_[0-9a-f]{32}$/.test(workspaceID)) throw new DatabaseAccessError("workspace_not_found");
     return withTransaction(this.pool, async (client) => {
-      const result = await client.query<DatabaseRow>(`SELECT d.*, w.app_id, w.archived_at, a.status AS app_status, fp.policy AS managed_policy
+      const result = await client.query<DatabaseRow>(`SELECT d.*, w.app_id, w.archived_at, a.status AS app_status
 FROM cantelop_control.workspace_databases d JOIN cantelop_control.workspaces w ON w.id = d.workspace_id
-JOIN cantelop_control.apps a ON a.id = w.app_id LEFT JOIN cantelop_control.fleet_policies fp ON fp.app_id=a.id WHERE d.workspace_id = $1 FOR UPDATE OF d`, [workspaceID]);
+JOIN cantelop_control.apps a ON a.id = w.app_id WHERE d.workspace_id = $1 FOR UPDATE OF d`, [workspaceID]);
       if (!result.rows[0]) throw new DatabaseAccessError("workspace_not_found");
       return action(client, result.rows[0]);
     }, { lockTimeoutMilliseconds: 5_000 });

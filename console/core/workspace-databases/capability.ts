@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { SQLClient } from "../db/database";
 export interface SandboxDatabaseIdentity { sandboxId: string; appId: string; workspaceId: string }
 type VerificationCode = "verification_configuration_invalid" | "verification_timeout" | "verification_unavailable" | "verification_http_error" | "verification_response_invalid" | "inactive_sandbox";
 export class SandboxVerificationError extends Error {
@@ -19,25 +20,34 @@ export function verifyDatabaseCapability(authorization: string | null, key: stri
       !/^sbx-[0-9a-f]{32}$/.test(value.sandboxId) || !/^app_[0-9a-f]{32}$/.test(value.appId) || !/^wsp_[0-9a-f]{32}$/.test(value.workspaceId)) throw new Error("invalid database capability");
   return value;
 }
-export async function verifyActiveSandbox(identity: SandboxDatabaseIdentity, environment: NodeJS.ProcessEnv = process.env, request: typeof fetch = fetch): Promise<void> {
+export async function verifyAssignedSandbox(database: SQLClient, identity: SandboxDatabaseIdentity,
+  environment: NodeJS.ProcessEnv = process.env, request: typeof fetch = fetch): Promise<void> {
+  const result = await database.query<{ compute_pool: string }>(
+    "SELECT compute_pool FROM cantelop_control.apps WHERE id=$1 AND status<>'archived'", [identity.appId]);
+  const pool = result.rows[0]?.compute_pool;
+  if (pool === undefined) throw new SandboxVerificationError("inactive_sandbox");
+  if (pool !== "standard" && pool !== "managed") throw new SandboxVerificationError("verification_configuration_invalid");
+  await verifyActiveSandbox(identity, pool, environment, request);
+}
+export async function verifyActiveSandbox(identity: SandboxDatabaseIdentity, pool: "standard" | "managed", environment: NodeJS.ProcessEnv = process.env, request: typeof fetch = fetch): Promise<void> {
   if (environment.FIRE_FUSE_OBSERVER_URL) {
-    await verifyObservedSandbox(identity, environment, request);
+    await verifyObservedSandbox(identity, pool, environment, request);
     return;
   }
-  const rawOrigin = environment.CANTELOP_COMPUTE_INGRESS_URL;
-  const token = environment.CANTELOP_COMPUTE_CONTROL_TOKEN;
+  const rawOrigin = pool === "managed" ? environment.CANTELOP_MANAGED_COMPUTE_INGRESS_URL : environment.CANTELOP_COMPUTE_INGRESS_URL;
+  const token = pool === "managed" ? environment.CANTELOP_MANAGED_COMPUTE_CONTROL_TOKEN : environment.CANTELOP_COMPUTE_CONTROL_TOKEN;
   if (!rawOrigin || !token || !/^[0-9a-f]{64}$/.test(token)) throw new SandboxVerificationError("verification_configuration_invalid");
-  const origin = verificationOrigin(rawOrigin, ["http://10.77.0.1:8084"]);
+  const origin = verificationOrigin(rawOrigin, [pool === "managed" ? "http://10.77.0.1:8184" : "http://10.77.0.1:8084"]);
   await verifyAssignment(`${origin}/v1/internal/database-access/${identity.sandboxId}`, token, identity, request);
 }
 
-async function verifyObservedSandbox(identity: SandboxDatabaseIdentity, environment: NodeJS.ProcessEnv, request: typeof fetch): Promise<void> {
+async function verifyObservedSandbox(identity: SandboxDatabaseIdentity, pool: "standard" | "managed", environment: NodeJS.ProcessEnv, request: typeof fetch): Promise<void> {
   const token = environment.FIRE_FUSE_STATUS_TOKEN;
   if (!token || token.length < 32 || token.length > 512 || token.trim() !== token) throw new SandboxVerificationError("verification_configuration_invalid");
   const origin = verificationOrigin(environment.FIRE_FUSE_OBSERVER_URL!);
   // Read one persisted assignment on every request. Credential renewal must not
   // depend on transferring the dashboard's entire historical inventory.
-  await verifyAssignment(`${origin}/sandboxes/${identity.sandboxId}/database-access`, token, identity, request);
+  await verifyAssignment(`${origin}${pool === "managed" ? "/managed" : ""}/sandboxes/${identity.sandboxId}/database-access`, token, identity, request);
 }
 
 function verificationOrigin(raw: string, allowedOrigins: string[] = []): string {

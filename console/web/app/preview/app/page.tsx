@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { previewEvents, previewInvocations, previewSnapshot, previewWorkspaces } from "@/app/preview/app/fixture";
+import { previewCallTraces, previewEvents, previewInvocations, previewSnapshot, previewWorkspaces } from "@/app/preview/app/fixture";
 import { ApiRouteDetail } from "@/components/api-route-detail";
 import { ApiRoutesSection } from "@/components/api-routes-section";
 import { appBillingSummary } from "@/lib/instances";
@@ -19,7 +19,6 @@ import type { CustomerApp } from "@/lib/customer-telemetry";
 import type { Release } from "@/lib/release-status";
 import type { AppRouteDetail as AppRouteDetailData } from "@core/api-routes/detail";
 import type { AppRouteOverview } from "@core/api-routes/overview";
-import type { TraceRequest } from "@core/observability/trace-tree";
 import type { AppDefinitionSummary } from "@core/api-deployments/app-definition";
 
 // Development-only styling preview of the App screen — every section it has,
@@ -184,46 +183,6 @@ function previewRouteDetail(now: number, path: string): AppRouteDetailData {
     recent_requests: recent,
     recent_failures: recent.filter((request) => (request.status_code ?? 0) >= 400 || request.attempt_outcome === "failed"),
     traffic_window_hours: 72,
-  };
-}
-
-// The trace a recent call opens to: the request, the message it delivered,
-// one attempt on a Sandbox, the handler's span and what it logged.
-function previewCallTraces(now: number, path: string): Record<string, TraceRequest> {
-  const at = (seconds: number) => new Date(now - seconds * 1_000).toISOString();
-  const trace = (n: number, seconds: number, outcome: "completed" | "failed" | "pending", session: string, errorCode?: string): TraceRequest => {
-    const pad = String(n).padStart(32, "0");
-    const finished = outcome === "pending" ? undefined : at(seconds - 24);
-    return {
-      id: `req_${pad}`, method: "POST", path, status_code: 202, duration_us: 58_000,
-      received_at: at(seconds), completed_at: at(seconds - 0.06), logs: [],
-      messages: [{
-        id: `msg_${pad}`, accepted_at: at(seconds - 0.05),
-        session: { id: `00000000-0000-4000-8000-${pad.slice(-12)}`, logical_session_id: session, workspace_id: previewWorkspaces[0].id, first_seen_at: at(seconds + 600), last_seen_at: at(seconds - 20) },
-        attempts: [{
-          id: `att_${pad}`, number: 1, outcome, ...(errorCode ? { error_code: errorCode } : {}),
-          trace_id: pad, span_id: pad.slice(-16).replace(/^0/, "a"),
-          queued_at: at(seconds - 0.05), routed_at: at(seconds - 1.8), ...(finished ? { finished_at: finished } : {}),
-          sandbox: { id: `sbx-${pad}`, allocated_at: at(seconds - 1.8), logs: [] },
-          spans: [{
-            id: pad.slice(-16).replace(/^0/, "b"), name: "session.receive", kind: "internal", status: outcome === "failed" ? "error" : outcome === "completed" ? "ok" : "unset",
-            started_at: at(seconds - 1.7), ...(finished ? { finished_at: finished } : {}), attributes: { "cantelop.command": "dispatch" },
-          }],
-          logs: [
-            { id: `log_${pad}`, severity: "info", body: "Triaging ticket with the support playbook", occurred_at: at(seconds - 1.6), attributes: {} },
-            ...(outcome === "failed" ? [{ id: `log_${pad.slice(0, -1)}9`, severity: "error", body: `Handler failed: ${errorCode}`, occurred_at: at(seconds - 24), attributes: {} }] : []),
-          ],
-        }],
-      }],
-    };
-  };
-  const id = (n: number) => `req_${String(n).padStart(32, "0")}`;
-  return {
-    [id(100)]: trace(100, 12, "pending", "support:ticket-4182"),
-    [id(101)]: trace(101, 95, "failed", "support:ticket-4179", "model_timeout"),
-    [id(105)]: trace(105, 140, "completed", "support:ticket-4177"),
-    [id(106)]: trace(106, 610, "completed", "support:ticket-4171"),
-    [id(103)]: trace(103, 1_900, "failed", "support:ticket-4160", "sandbox_lost"),
   };
 }
 

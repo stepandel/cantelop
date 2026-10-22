@@ -39,7 +39,7 @@ var (
 	vmIDPattern            = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,63}$`)
 	managedTAPPattern      = regexp.MustCompile(fmt.Sprintf(
 		`^%s[0-9a-f]{%d}$`,
-		regexp.QuoteMeta(tapNamePrefix),
+		"f[fm]",
 		linuxInterfaceNameMax-len(tapNamePrefix),
 	))
 )
@@ -49,6 +49,7 @@ type tapAliasReader func(string) (string, error)
 
 // TAPManager creates and removes Linux TAP devices using iproute2.
 type TAPManager struct {
+	namespace string
 	ipBin     string
 	run       commandRunner
 	readAlias tapAliasReader
@@ -96,11 +97,16 @@ func TAPAlias(vmID string) (string, error) {
 
 // ValidateTAPOwnership verifies that an alias VM ID derives the interface name.
 func ValidateTAPOwnership(name, alias string) error {
-	if !strings.HasPrefix(alias, tapAliasPrefix) {
+	namespace := ""
+	if strings.HasPrefix(name, "fm") {
+		namespace = "managed"
+	}
+	prefix := namespaceOwnershipPrefix(namespace)
+	if !strings.HasPrefix(alias, prefix) {
 		return ErrInvalidTAPOwnership
 	}
-	vmID := strings.TrimPrefix(alias, tapAliasPrefix)
-	expectedName, err := TAPName(vmID)
+	vmID := strings.TrimPrefix(alias, prefix)
+	expectedName, err := TAPNameInNamespace(vmID, namespace)
 	if err != nil || expectedName != name {
 		return ErrInvalidTAPOwnership
 	}
@@ -154,7 +160,7 @@ func (m *TAPManager) create(
 	uid, gid int,
 ) (string, error) {
 	finishValidation := warmuptrace.Start(ctx, "network.tap.validate")
-	name, err := TAPName(vmID)
+	name, err := TAPNameInNamespace(vmID, m.namespace)
 	if err != nil {
 		finishValidation()
 		return "", err
@@ -163,7 +169,7 @@ func (m *TAPManager) create(
 		finishValidation()
 		return "", fmt.Errorf("%w: TAP owner must use a non-root UID and GID", ErrInvalidTAPConfig)
 	}
-	alias, err := TAPAlias(vmID)
+	alias, err := TAPAliasInNamespace(vmID, m.namespace)
 	if err != nil {
 		finishValidation()
 		return "", err
@@ -207,11 +213,11 @@ func (m *TAPManager) create(
 // Delete removes the TAP derived from a VM ID only after its alias proves that
 // fire-fuse owns it. Missing devices are successful.
 func (m *TAPManager) Delete(ctx context.Context, vmID string) error {
-	name, err := TAPName(vmID)
+	name, err := TAPNameInNamespace(vmID, m.namespace)
 	if err != nil {
 		return err
 	}
-	expectedAlias, err := TAPAlias(vmID)
+	expectedAlias, err := TAPAliasInNamespace(vmID, m.namespace)
 	if err != nil {
 		return err
 	}
@@ -287,7 +293,7 @@ func validateHostAddress(address netip.Prefix) error {
 func (m *TAPManager) rollbackCreate(ctx context.Context, vmID string, cause error) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), tapRollbackTimeout)
 	defer cancel()
-	name, err := TAPName(vmID)
+	name, err := TAPNameInNamespace(vmID, m.namespace)
 	if err != nil {
 		return errors.Join(cause, wrapCleanupError(err))
 	}

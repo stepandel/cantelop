@@ -68,10 +68,12 @@ require an exact source revision. Other independently deployed components
 still need their own matching source offer; a console page is not evidence
 that a different runtime revision or unpublished local modifications are covered.
 
-Canonical hosted deployments use the checked-in public snapshot pin rather than
-exposing private Git history. The build verifies source bytes and modes before
-migrations; archives distinguish the private build commit from the matching
-public source commit. See [source publication](source-publication.md).
+Private hosted console deployments identify the exact Vercel Git revision and
+label their repository link as requiring operator access. Public snapshot
+mappings verify source bytes and modes before production migrations; release
+qualification and archives retain snapshot verification. Archives distinguish
+the build commit from the corresponding source commit. See
+[source publication](source-publication.md).
 
 AGPL permits commercial use and competing hosting under its terms. Hosting
 credentials, customer data, and private operational records are not source

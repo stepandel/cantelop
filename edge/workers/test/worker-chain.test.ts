@@ -177,6 +177,6 @@ describe("Cloudflare Worker chain", () => {
   });
 
   test("keeps every edge transport header reserved end to end", () => {
-    expect(RESERVED_HEADERS).toHaveLength(6);
+    expect(RESERVED_HEADERS).toHaveLength(7);
   });
 });

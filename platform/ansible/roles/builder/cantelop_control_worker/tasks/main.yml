@@ -205,6 +205,16 @@
     chdir: "{{ cantelop_control_migrations_directory }}"
   changed_when: false
 
+- name: Validate optional managed compute placement
+  ansible.builtin.assert:
+    that:
+      - cantelop_control_worker_managed_compute_ingress_url in ['', 'http://10.77.0.1:8184']
+      - >-
+        (cantelop_control_worker_managed_compute_ingress_url == '' and cantelop_control_worker_managed_compute_control_token == '')
+        or (cantelop_control_worker_managed_compute_ingress_url != '' and cantelop_control_worker_managed_compute_control_token is match('^[0-9a-f]{64}$')
+        and cantelop_control_worker_managed_compute_control_token != cantelop_control_worker_compute_control_token)
+  no_log: true
+
 - name: Install private Cantelop control worker environment
   ansible.builtin.copy:
     content: |
@@ -223,6 +233,8 @@
       CANTELOP_OPERATION_WORKER_ID={{ cantelop_control_worker_id | to_json }}
       CANTELOP_COMPUTE_INGRESS_URL={{ cantelop_control_worker_compute_ingress_url | to_json }}
       CANTELOP_COMPUTE_CONTROL_TOKEN={{ cantelop_control_worker_compute_control_token | to_json }}
+      CANTELOP_MANAGED_COMPUTE_INGRESS_URL={{ cantelop_control_worker_managed_compute_ingress_url | to_json }}
+      CANTELOP_MANAGED_COMPUTE_CONTROL_TOKEN={{ cantelop_control_worker_managed_compute_control_token | to_json }}
       CLOUDFLARE_ACCOUNT_ID={{ cantelop_control_worker_cloudflare_account_id | to_json }}
       CLOUDFLARE_DISPATCH_NAMESPACE={{ cantelop_control_worker_cloudflare_dispatch_namespace | to_json }}
       CLOUDFLARE_ROUTE_NAMESPACE_ID={{ cantelop_control_worker_cloudflare_route_namespace_id | to_json }}

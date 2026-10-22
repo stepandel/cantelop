@@ -33,6 +33,7 @@ import { ReleaseActivationWorker } from "../../core/release-activation/worker";
 import { configuredEdgeGateProvider } from "../../core/release-activation/edge-gate-provider";
 import { ReleaseReconciler } from "../../core/release-activation/reconcile";
 import { FleetPolicyWorker } from "../../core/fleets/policy-worker";
+import { computePoolFetch } from "../../core/compute-registrations/pool-fetch";
 import { FleetInstallationWorker } from "../../core/fleets/worker";
 import { FleetPackageWorker } from "../../core/fleets/package-worker";
 import { FleetAttachmentWorker } from "../../core/fleets/attachment-worker";
@@ -52,9 +53,10 @@ if (arguments_.some((argument) => !["--once", "--check", "--reconcile-workspace-
 }
 
 const pool = controlDatabase();
+const computeRequest = computePoolFetch(pool, process.env);
 const tenantForApp = computeTenantResolver(pool);
 const databases = workspaceDatabases();
-const computeProvider = withWorkspaceDatabases(configuredFireFuseComputeRegistrationProvider(process.env, fetch, tenantForApp), databases);
+const computeProvider = withWorkspaceDatabases(configuredFireFuseComputeRegistrationProvider(process.env, computeRequest, tenantForApp), databases);
 const appRoutingProvider = configuredCloudflareAppRoutingProvider();
 const configuration = new ConfigRepository(pool, ConfigCipher.configured());
 const apiConfiguration = new FleetConfigurationProvider(configuredCloudflareConfigurationProvider(), configuredEdgeGateProvider());
@@ -75,10 +77,10 @@ const sessionRuntimeWorker = new SessionRuntimeMaterializationWorker(
   configuredDeploymentArtifactStore(),
   new LocalImageBuilder(),
   configuredPreparedArtifactStore(),
-  configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp),
+  configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp),
 );
 const recoveryWorker = new DeploymentRecoveryWorker(workerID, new OperationRepository(pool), new ReleaseRepository(pool),
-  configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp), new RecoveryPrerequisiteRepository(pool));
+  configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp), new RecoveryPrerequisiteRepository(pool));
 const registrationWorker = new ComputeRegistrationWorker(
   workerID,
   new OperationRepository(pool),
@@ -110,7 +112,7 @@ const archiveWorker = new ComputeAppArchiveWorker(
   ProductRepository.fromPool(pool),
   new ReleaseRepository(pool),
   configuredEdgeGateProvider(),
-  configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp),
+  configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp),
   configuredCloudflareAPIProvider(),
 );
 const configurationWorker = new ConfigurationProjectionWorker(
@@ -126,7 +128,7 @@ const activationWorker = new ReleaseActivationWorker(
   new OperationRepository(pool),
   new ReleaseRepository(pool),
   configuredEdgeGateProvider(),
-  configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp),
+  configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp),
   configuration,
   apiConfiguration,
   undefined,
@@ -157,7 +159,7 @@ try {
       builds: plan.reduce((count, app) => count + app.builds.length, 0) };
     if (apply) {
       await applyFreshHostReplay(plan, computeProvider,
-        configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp), configuration,
+        configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp), configuration,
         configuredPreparedArtifactStore());
       console.log(JSON.stringify({ mode: "applied", ...summary }));
     } else {
@@ -169,17 +171,17 @@ try {
     // loops so an unreachable provider cannot stall all other operations.
     const releaseAudit = new ReleaseReconciler(
       new ReleaseRepository(pool), configuredEdgeGateProvider(),
-      configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp),
+      configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp),
     ).runOnce().then((audit) => {
       if (audit.unreadable) console.error(`release gate audit could not read ${audit.unreadable} Apps`);
       if (audit.unsupported) console.error(`release gate audit skipped ${audit.unsupported} Apps whose live release predates SDK 1.0`);
     }, (error: unknown) => { console.error("release gate audit failed", error); });
     const fleetPolicies = new FleetPolicyWorker(pool,
-      process.env.CANTELOP_COMPUTE_INGRESS_URL!, process.env.CANTELOP_COMPUTE_CONTROL_TOKEN!);
+      process.env.CANTELOP_COMPUTE_INGRESS_URL!, process.env.CANTELOP_COMPUTE_CONTROL_TOKEN!, computeRequest);
     const fleetInstallations = new FleetInstallationWorker(pool, configuration, fleetPolicies);
     const fleetPackages = new FleetPackageWorker(pool, artifactStore, configuredEdgeGateProvider());
     const fleetAttachments = new FleetAttachmentWorker(workerID, pool, new OperationRepository(pool), new ReleaseRepository(pool),
-      configuredPreparedArtifactStore(), configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp));
+      configuredPreparedArtifactStore(), configuredFireFuseSessionRuntimeProvider(process.env, computeRequest, tenantForApp));
     await runWorkerLoops([registrationWorker, workspaceRegistrationWorker, workspaceArchiveWorker, workspacePurgeWorker, archiveWorker,
       configurationWorker, worker, sessionRuntimeWorker, recoveryWorker, activationWorker, fleetPackages, fleetAttachments, fleetInstallations, fleetPolicies], once);
     await releaseAudit;

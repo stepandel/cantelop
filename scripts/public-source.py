@@ -124,11 +124,30 @@ def pin(public_checkout: Path, commit: str, root: Path = ROOT,
     print(f"Pinned public source {repository}/tree/{commit}")
 
 
+def pin_private(commit: str, repository: str, root: Path = ROOT) -> None:
+    """Record an exact private checkout without exporting or contacting a remote."""
+    actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root).decode().strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", commit) or actual != commit:
+        raise ValueError("private pin requires the exact current commit")
+    changed = subprocess.check_output(["git", "diff", "--name-only", commit], cwd=root).decode().splitlines()
+    if any(name not in {PIN_FILE, SNAPSHOT_FILE} for name in changed):
+        raise ValueError("commit source changes before pinning a private snapshot")
+    files = source_files(root, repository)
+    data = snapshot(files)
+    (root / SNAPSHOT_FILE).write_bytes(data)
+    record = empty_pin(repository)
+    record.update(visibility="private", commit=commit, snapshot_sha256=hashlib.sha256(data).hexdigest())
+    (root / PIN_FILE).write_bytes(document(record))
+    print(f"Pinned private source {repository_url(repository)}/tree/{commit}; no source exported")
+
+
 def verify(root: Path = ROOT) -> dict | None:
     record = json.loads((root / PIN_FILE).read_text())
     if record.get("commit") is None and record.get("snapshot_sha256") is None:
         return None  # Public development checkouts and independent operators.
     repository_url(record["repository"])
+    if record.get("visibility", "public") not in {"public", "private"}:
+        raise ValueError("invalid source visibility")
     if record.get("schema_version") != 1 or not re.fullmatch(r"[0-9a-f]{40}", record.get("commit", "")) or not re.fullmatch(r"[0-9a-f]{64}", record.get("snapshot_sha256", "")):
         raise ValueError("invalid public source pin")
     data = (root / SNAPSHOT_FILE).read_bytes()
@@ -149,6 +168,9 @@ def main() -> None:
     bind.add_argument("public_checkout", type=Path)
     bind.add_argument("--commit", required=True)
     bind.add_argument("--repository", default=DEFAULT_REPOSITORY)
+    private = commands.add_parser("pin-private")
+    private.add_argument("--commit", required=True)
+    private.add_argument("--repository", required=True)
     commands.add_parser("verify")
     args = parser.parse_args()
     try:
@@ -156,9 +178,11 @@ def main() -> None:
             export(args.destination, repository=args.repository)
         elif args.command == "pin":
             pin(args.public_checkout, args.commit, repository=args.repository)
+        elif args.command == "pin-private":
+            pin_private(args.commit, args.repository)
         else:
             record = verify()
-            print("Public source pin verified" if record else "Public development checkout: no private deployment pin")
+            print(f"{record.get('visibility', 'public').capitalize()} source pin verified" if record else "Public development checkout: no private deployment pin")
     except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"{error}\n")
 

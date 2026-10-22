@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
-import { sourceInfo } from "../web/lib/source-info";
+import publishedSource from "../public-source.json";
+import { sourceInfo, type Publication } from "../web/lib/source-info";
 import { verifyPublicSource } from "./verify-public-source";
 
 type BuildEnvironment = Record<string, string | undefined>;
 
-export function vercelBuildScripts(environment: BuildEnvironment): string[] {
+export function vercelBuildScripts(environment: BuildEnvironment, publication: Publication | null = publishedSource): string[] {
   const target = environment.VERCEL_ENV?.trim();
   const hasControlDatabase = Boolean(environment.CANTELOP_DATABASE_URL?.trim());
   const hasObservabilityOverride = Boolean(
@@ -39,7 +40,7 @@ export function vercelBuildScripts(environment: BuildEnvironment): string[] {
     if (!/^[A-Za-z0-9_-]{43}$/.test(environment.CANTELOP_CONFIG_ENCRYPTION_KEY ?? "")) throw new Error("production requires CANTELOP_CONFIG_ENCRYPTION_KEY");
     const capabilityKey = environment.CANTELOP_WORKSPACE_DATABASE_CAPABILITY_KEY;
     if (!/^[0-9a-f]{64}$/.test(capabilityKey ?? "") || [computeToken, gatewayProductToken, ingestionToken, edgeIngestionToken].includes(capabilityKey)) throw new Error("production requires a distinct CANTELOP_WORKSPACE_DATABASE_CAPABILITY_KEY");
-    if (!sourceInfo(environment)) throw new Error("production requires an exact public source revision via CANTELOP_SOURCE_COMMIT or VERCEL_GIT_COMMIT_SHA");
+    if (!sourceInfo(environment, publication)) throw new Error("production requires an exact source revision via CANTELOP_SOURCE_COMMIT or VERCEL_GIT_COMMIT_SHA");
   }
   if (!hasControlDatabase && hasObservabilityOverride) {
     throw new Error(
@@ -64,7 +65,22 @@ async function runPackageScript(script: string): Promise<void> {
   });
 }
 
-if (import.meta.main) {
-  verifyPublicSource();
-  for (const script of vercelBuildScripts(process.env)) await runPackageScript(script);
+export async function runVercelBuild(
+  environment: BuildEnvironment = process.env,
+  {
+    publication = publishedSource,
+    verifySource = verifyPublicSource,
+    runScript = runPackageScript,
+  }: {
+    publication?: Publication | null;
+    verifySource?: () => void;
+    runScript?: (script: string) => Promise<void>;
+  } = {},
+): Promise<void> {
+  // Private deployments use their exact Git revision. Public snapshot mappings
+  // must still be verified before either database migration.
+  if (environment.VERCEL_ENV?.trim() === "production" && publication?.visibility !== "private") verifySource();
+  for (const script of vercelBuildScripts(environment, publication)) await runScript(script);
 }
+
+if (import.meta.main) await runVercelBuild();

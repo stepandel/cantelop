@@ -378,7 +378,7 @@ code { font: 400 var(--fs-data) var(--mono); font-variant-numeric: slashed-zero;
   justify-content: space-between;
   padding: var(--sp-3) var(--sp-3) var(--sp-1);
 }
-.side-index { text-decoration: none; }
+.side-index { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
 .side-index:hover { color: var(--ink); text-decoration: none; }
 /* Counts in the sidebar sit on --panel, where --faint is below AA. */
 .side-label b { font: 400 var(--fs-label) var(--sans); color: var(--muted); font-variant-numeric: tabular-nums slashed-zero; }
@@ -1233,6 +1233,9 @@ code { font: 400 var(--fs-data) var(--mono); font-variant-numeric: slashed-zero;
   margin: 0;
 }
 .chart-current { font: 400 var(--fs-support) var(--sans); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums slashed-zero; }
+.monitor-chart .chart-head { min-height: 36px; }
+.chart-head-values { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.chart-last-received { font: 400 var(--fs-label)/1.4 var(--sans); color: var(--grey); white-space: nowrap; font-variant-numeric: tabular-nums slashed-zero; }
 
 .chart-plot { position: relative; }
 .chart-plot:focus-visible { outline-offset: 0; }
@@ -1246,6 +1249,7 @@ code { font: 400 var(--fs-data) var(--mono); font-variant-numeric: slashed-zero;
   font: 400 var(--fs-support)/1.5 var(--sans);
   text-align: center;
 }
+.chart-no-readings { position: absolute; display: grid; place-content: center; color: var(--grey); font: 400 var(--fs-support)/1.5 var(--sans); text-align: center; pointer-events: none; }
 
 .grid-line { stroke: var(--hairline); stroke-width: 1; }
 .tick-label { fill: var(--grey); font: 400 var(--fs-label) var(--sans); font-variant-numeric: tabular-nums slashed-zero; }
@@ -2074,7 +2078,10 @@ code { font: 400 var(--fs-data) var(--mono); font-variant-numeric: slashed-zero;
 .st-revoked, .st-expired { color: var(--faint); }
 .fleet-table-wrap { overflow-x: auto; }
 .fleets-table { min-width: 36rem; }
-.fleet-installations-table { min-width: 54rem; }
+.fleet-installations-table { min-width: 60rem; }
+.fleet-installations-table col.c-sandboxes { width: 6.5rem; }
+.fleet-search { padding: 0 0 var(--sp-3); }
+.fleet-search input { flex: 1 1 16rem; max-width: 28rem; }
 .fleet-packages-table { min-width: 44rem; }
 .fleet-principals-table { min-width: 44rem; }
 .fleet-budget-table { min-width: 48rem; }

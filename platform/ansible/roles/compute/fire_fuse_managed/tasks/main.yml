@@ -1,0 +1,242 @@
+---
+- name: Validate bounded managed instance and artifacts
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+      - ansible_memtotal_mb >= 61440
+      - fire_fuse_managed_artifacts | map(attribute='name') | sort == ['fire-fuse', 'fire-fuse-async-dispatcher', 'fire-fuse-gateway', 'fire-fuse-managed-watchdog']
+      - fire_fuse_managed_metadata_url == 'redis://10.78.0.2:6379/1'
+
+- name: Validate distinct managed credentials
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_managed_credentials.values() | select('match', '^[0-9a-f]{64}$') | list | length == 6
+      - fire_fuse_managed_credentials.values() | unique | length == 6
+      - >-
+        fire_fuse_managed_credentials.values() | intersect([
+          vault_fire_fuse_operator_token | default(''), vault_fire_fuse_gateway_runtime_token | default(''),
+          vault_fire_fuse_compute_ingress_token | default(''), vault_fire_fuse_dispatcher_runtime_token | default(''),
+          vault_fire_fuse_observer_runtime_token | default(''), vault_fire_fuse_config_encryption_key | default('')]) | length == 0
+  no_log: true
+
+- name: Inspect checksum-pinned controller artifacts
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: managed_artifacts
+  loop: "{{ fire_fuse_managed_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Require regular qualified controller artifacts
+  ansible.builtin.assert:
+    that:
+      - item.stat is trusted_file
+      - item.item.sha256 is match('^[0-9a-f]{64}$')
+      - item.stat.checksum == item.item.sha256
+  loop: "{{ managed_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Inspect managed service state before installation
+  ansible.builtin.service_facts:
+
+- name: Refuse to replace an active managed runtime
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get('fire-fuse-managed.service', {}).get('state', 'not-found') != 'running'
+    fail_msg: Drain managed Apps and stop the managed runtime before installing a new release.
+
+- name: Create isolated managed directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ '0755' if item == '/usr/local/lib/fire-fuse-managed' else '0700' }}"
+  loop:
+    - /etc/fire-fuse-managed
+    - /usr/local/lib/fire-fuse-managed
+    - /var/lib/fire-fuse-managed/state
+    - /var/lib/fire-fuse-managed/runtime
+
+- name: Install private managed runtime credentials
+  ansible.builtin.copy:
+    content: "{{ item.value }}\n"
+    dest: "/etc/fire-fuse-managed/{{ item.key }}.token"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ fire_fuse_managed_credentials | dict2items }}"
+  no_log: true
+  diff: false
+  notify: Restart managed runtime
+
+- name: Install scoped managed gateway and dispatcher credentials
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_managed_credentials[item.role] }}\n"
+    dest: "{{ item.path }}"
+    owner: root
+    group: "{{ item.group }}"
+    mode: "0640"
+  loop:
+    - {role: gateway, path: /etc/fire-fuse-gateway/managed-runtime-control.token, group: fire-fuse-gateway}
+    - {role: dispatcher, path: /etc/fire-fuse-dispatcher/managed-runtime-control.token, group: fire-fuse-dispatcher}
+  no_log: true
+  diff: false
+  notify:
+    - Restart managed gateway
+    - Restart managed dispatcher
+
+- name: Install managed storage metadata configuration
+  ansible.builtin.copy:
+    content: |
+      CANTELOP_MANAGED_JUICEFS_META_URL={{ fire_fuse_managed_metadata_url }}
+      CANTELOP_MANAGED_JUICEFS_PREFIX=""
+    dest: /etc/fire-fuse-managed/storage.env
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart managed runtime
+
+- name: Install managed configuration builder
+  ansible.builtin.copy:
+    src: configure.py
+    dest: /usr/local/lib/fire-fuse-managed/configure.py
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Derive disjoint managed configuration and initial image catalog
+  ansible.builtin.command:
+    argv: [/usr/bin/python3, /usr/local/lib/fire-fuse-managed/configure.py]
+  register: managed_configuration
+  changed_when: managed_configuration.stdout == 'changed'
+  when: not ansible_check_mode
+  notify: Restart managed runtime
+
+- name: Install qualified managed binaries atomically
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/usr/local/lib/fire-fuse-managed/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+  loop: "{{ fire_fuse_managed_artifacts | rejectattr('name', 'equalto', 'fire-fuse-gateway') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify:
+    - Restart managed runtime
+    - Restart managed watchdog
+    - Restart managed dispatcher
+
+- name: Install the qualified dual-pool gateway atomically
+  ansible.builtin.copy:
+    src: "{{ (fire_fuse_managed_artifacts | selectattr('name', 'equalto', 'fire-fuse-gateway') | first).path }}"
+    dest: /usr/local/bin/fire-fuse-gateway
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+  notify: Restart managed gateway
+
+- name: Install isolated managed systemd units
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../../systemd/compute/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - fire-fuse-managed.service
+    - fire-fuse-fleet-watchdog.service
+    - fire-fuse-managed-dispatcher.service
+    - fire-fuse-managed-ingress.service
+  notify:
+    - Restart managed runtime
+    - Restart managed watchdog
+    - Restart managed dispatcher
+
+- name: Configure the existing gateway managed pool
+  ansible.builtin.file:
+    path: /etc/systemd/system/fire-fuse-gateway.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install gateway pool routing override
+  ansible.builtin.copy:
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/local/bin/fire-fuse-gateway -listen 127.0.0.1:8081 -control-plane http://127.0.0.1:8080 -product-control https://console.cantelop.dev -control-timeout 45s -control-token-file /etc/fire-fuse-gateway/runtime-control.token -product-token-file /etc/fire-fuse-gateway/product-control.token -edge-token-file /etc/fire-fuse-gateway/edge-ingress.token -managed-control-plane http://127.0.0.1:8180 -managed-control-token-file /etc/fire-fuse-gateway/managed-runtime-control.token
+    dest: /etc/systemd/system/fire-fuse-gateway.service.d/managed.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart managed gateway
+
+- name: Reload managed units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Validate managed runtime and gateway units before activation
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemd-analyze
+      - verify
+      - fire-fuse-managed.service
+      - fire-fuse-fleet-watchdog.service
+      - fire-fuse-managed-dispatcher.service
+      - fire-fuse-managed-ingress.service
+      - fire-fuse-gateway.service
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Activate managed runtime handlers
+  ansible.builtin.meta: flush_handlers
+  when: not ansible_check_mode
+
+- name: Enable and start isolated managed services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - fire-fuse-managed-ingress.service
+    - fire-fuse-fleet-watchdog.service
+    - fire-fuse-managed.service
+    - fire-fuse-managed-dispatcher.service
+  when: not ansible_check_mode
+
+- name: Require managed runtime health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8180/healthz
+    headers:
+      Authorization: "Bearer {{ fire_fuse_managed_credentials.operator }}"
+    use_proxy: false
+    status_code: 200
+  register: managed_health
+  until: managed_health.status | default(0) == 200
+  retries: 20
+  delay: 2
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Require independent managed enforcement heartbeat
+  ansible.builtin.command:
+    argv: [/usr/bin/cat, /run/fire-fuse-fleet-watchdog/heartbeat]
+  register: managed_heartbeat
+  changed_when: false
+  until: managed_heartbeat.stdout == 'ready'
+  retries: 10
+  delay: 1
+  when: not ansible_check_mode

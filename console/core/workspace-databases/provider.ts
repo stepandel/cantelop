@@ -1,5 +1,5 @@
 export interface WorkspaceDatabaseProvider {
-  ensure(name: string, limits?: {sizeLimit:number}): Promise<{ id: string; url: string }>;
+  ensure(name: string): Promise<{ id: string; url: string }>;
   token(name: string): Promise<string>;
   delete(name: string): Promise<void>;
   probe(url: string, token: string): Promise<void>;
@@ -17,9 +17,9 @@ export class TursoProvider implements WorkspaceDatabaseProvider {
     if (![organization, group].every(v => /^[a-z0-9][a-z0-9-]{0,62}$/.test(v)) || !platformToken.trim()) throw new TypeError("invalid Turso configuration");
     this.origin = `https://api.turso.tech/v1/organizations/${organization}/databases`;
   }
-  async ensure(name: string, limits?: {sizeLimit:number}): Promise<{ id: string; url: string }> {
+  async ensure(name: string): Promise<{ id: string; url: string }> {
     validateName(name);
-    let response = await this.call("POST", "", { name, group: this.group, ...(limits?{size_limit:String(limits.sizeLimit)}:{}) });
+    let response = await this.call("POST", "", { name, group: this.group });
     const existing = response.status === 409;
     if (existing) {
       response = await this.call("GET", `/${name}`);
@@ -31,7 +31,6 @@ export class TursoProvider implements WorkspaceDatabaseProvider {
     if (!record(db) || db.Name !== name || typeof db.DbId !== "string" || !db.DbId ||
         typeof db.Hostname !== "string" || !/^[a-z0-9.-]+\.turso\.io$/.test(db.Hostname)) throw new DatabaseProviderError(true);
     if ((existing || db.group !== undefined) && db.group !== this.group) throw new DatabaseProviderError(false);
-    if(limits) {const limited=await this.call("PATCH",`/${name}/configuration`,{size_limit:String(limits.sizeLimit)});check(limited);const value=await readDocument(limited);if(Number(value.size_limit)!==limits.sizeLimit)throw new DatabaseProviderError(true);}
     return { id: db.DbId, url: `libsql://${db.Hostname}` };
   }
   async token(name: string): Promise<string> {

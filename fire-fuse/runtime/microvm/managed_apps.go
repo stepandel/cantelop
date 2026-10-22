@@ -81,7 +81,7 @@ func (s *Service) ProjectManagedForUser(user, app string, next ManagedProjection
 	if next.Revision < 1 || p.MaxSandboxes < 0 || p.MaxSandboxes > 1000 || p.MaxVcpus < 0 || p.MaxVcpus > 10000 || p.MaxMemoryMiB < 0 || p.MaxMemoryMiB > 1000000 || p.MaxWorkspaces < 0 || p.MaxWorkspaces > 10000 || p.MaxStorageBytes < 0 {
 		return ErrManagedAdmission
 	}
-	if p.Active && (s.managedStorage == nil || p.MaxWorkspaces < 1 || p.MaxStorageBytes/int64(p.MaxWorkspaces) < (1<<30)+(256<<20)) {
+	if p.Active && (s.managedStorage == nil || p.MaxWorkspaces < 1 || p.MaxStorageBytes/int64(p.MaxWorkspaces) < 1<<30) {
 		return ErrManagedAdmission
 	}
 	storageChanged := true
@@ -102,7 +102,7 @@ func (s *Service) ProjectManagedForUser(user, app string, next ManagedProjection
 		}
 		for _, w := range workspaces {
 			if w.ArchivedAt == nil {
-				if e = s.managedStorage(w.ID, p.MaxStorageBytes/int64(p.MaxWorkspaces)-(256<<20)); e != nil {
+				if e = s.managedStorage(w.ID, p.MaxStorageBytes/int64(p.MaxWorkspaces)); e != nil {
 					return e
 				}
 			}
@@ -436,14 +436,15 @@ func (s *Service) managedWorkspaceQuota(app, workspace string, count int) error 
 		return ErrManagedAdmission
 	}
 	allocation := p.MaxStorageBytes / int64(p.MaxWorkspaces)
-	// 80% files (minimum 1 GiB), 20% database (fixed maximum 256 MiB).
-	if allocation < (1<<30)+(256<<20) {
+	// The allocation is the Workspace file quota (minimum 1 GiB). Turso
+	// database storage is not capped and is not counted against it.
+	if allocation < 1<<30 {
 		return ErrManagedAdmission
 	}
 	if err := store.ReserveManagedStorage(app, workspace, p.MaxWorkspaces, allocation); err != nil {
 		return err
 	}
-	if err := s.managedStorage(workspace, allocation-(256<<20)); err != nil {
+	if err := s.managedStorage(workspace, allocation); err != nil {
 		// The Workspace does not exist yet; do not retain its slot.
 		return errors.Join(err, store.ReleaseManagedStorage(workspace))
 	}

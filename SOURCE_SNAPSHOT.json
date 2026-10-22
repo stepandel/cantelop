@@ -14,15 +14,11 @@
       "mode": 420
     },
     ".github/workflows/check.yml": {
-      "sha256": "46ed25a4aa0008e51111d96027ebf584b8a04a212e1854e5cafb56217a5810f6",
+      "sha256": "c1a525115d71a28f96644ef0a89fddb5c8540eaed98dbcf873576c0130f5caa7",
       "mode": 420
     },
     ".github/workflows/deploy-cloudflare.yml": {
       "sha256": "4aa1b40c218f3d8b61a72f8522bdfe825d114e0ff3c774c45db551ef662ff8ee",
-      "mode": 420
-    },
-    ".github/workflows/managed-fleets.yml": {
-      "sha256": "b4dd158278a2c248aab1719c9a408316d3ea122f9848915fbb0df7e20c7cefc7",
       "mode": 420
     },
     ".github/workflows/publish-cli.yml": {
@@ -31,10 +27,6 @@
     },
     ".github/workflows/publish-homebrew.yml": {
       "sha256": "9beb1fb88cd44e6850bb17cf78b094c8398b1f9ae7869d248d035cba0a77f5f7",
-      "mode": 420
-    },
-    ".github/workflows/workspace-storage.yml": {
-      "sha256": "9917190d6c3c1186b446d4d544af6f78d44b6452232e535c6276ec9a2c688f3a",
       "mode": 420
     },
     ".gitignore": {
@@ -62,7 +54,7 @@
       "mode": 420
     },
     "CONTRIBUTING.md": {
-      "sha256": "daa8ae0fa0b117edfd65e44567c90170f629bd366b2a33806cf31bb05c892165",
+      "sha256": "25ee34a9f2903adafa6b29ba98fad44f204fdd8e219265a4b9b511a6fd6827ea",
       "mode": 420
     },
     "LICENSE": {
@@ -70,7 +62,7 @@
       "mode": 420
     },
     "Makefile": {
-      "sha256": "8c2204ffcf77260fb9e5aa0cb0b1f07276ce8f0cf9b19ff1cbcd537a5352a8f5",
+      "sha256": "3342f7fd69c1c32565c44d8d3bf6c21f555e7cc02dda89e3b25b46d45f60a603",
       "mode": 420
     },
     "PRODUCT.md": {
@@ -506,7 +498,7 @@
       "mode": 420
     },
     "console/.env.example": {
-      "sha256": "1d7d8daea1e46bb536846b2b222bc96c91411af19a38fe9f8de69d5373e62c07",
+      "sha256": "d513b76f6abb9bc726e26394665331dbd7da38ff89788ce06b2564efd3df3687",
       "mode": 420
     },
     "console/.gitignore": {
@@ -514,7 +506,7 @@
       "mode": 420
     },
     "console/bun.lock": {
-      "sha256": "99f47fa0f9f7ed14d94740eb19bf153a82f1aa6c615474e0c22ff43ad05d3ff7",
+      "sha256": "ecfee85851ef1cdac756344ce55a845c669b97bace705f1ab4bc25d5e9bfe6ec",
       "mode": 420
     },
     "console/bunfig.toml": {
@@ -659,6 +651,14 @@
     },
     "console/core/compute-registrations/fire-fuse-provider.ts": {
       "sha256": "7966b700c6ce777367075da2fc01908e17daf36e3785a896b341314b3e4b88a1",
+      "mode": 420
+    },
+    "console/core/compute-registrations/pool-fetch.test.mjs": {
+      "sha256": "d9b980e5d30755205083a324c93b74a87ad9e1565fee7a10ca730acd5b5699bd",
+      "mode": 420
+    },
+    "console/core/compute-registrations/pool-fetch.ts": {
+      "sha256": "014197cedde353ecd128de4db183bd9d61c66f86ae6583983196ebb9c6aec44d",
       "mode": 420
     },
     "console/core/compute-registrations/provider.ts": {
@@ -818,7 +818,7 @@
       "mode": 420
     },
     "console/core/db/database.test.mjs": {
-      "sha256": "9794df557d2fdaab934bda64f5b7c30f5abcac290d219db8855a5ce78d750cb8",
+      "sha256": "d174e7f46470bc0011570e4fcf22b7bf9467f48ae3c1076ce3cb737d52587608",
       "mode": 420
     },
     "console/core/db/database.ts": {
@@ -973,6 +973,10 @@
       "sha256": "bdb45e50101ae6b4ce9237af848a1c3a4d39c1db84ea35442b722fdbf1e2085e",
       "mode": 420
     },
+    "console/core/db/drizzle/0033_managed_compute_pool.sql": {
+      "sha256": "6b8dc832765508d18d56fb9208b205797a2a5756e5c315be2e70cf82957cf080",
+      "mode": 420
+    },
     "console/core/db/drizzle/meta/0000_snapshot.json": {
       "sha256": "266b25c5e06f2cab3e1980fe5e7f97e5b0e6b2b77a797aa18cf2220e8311519f",
       "mode": 420
@@ -1101,8 +1105,12 @@
       "sha256": "b7742cafcaabb4c35c03ded5d1ebdfab7385e61cb4a0081d44a6ba636146c93e",
       "mode": 420
     },
+    "console/core/db/drizzle/meta/0033_snapshot.json": {
+      "sha256": "ea6fd58fe72f3eace303db02844e9fe8511252dc42409d5082228f26a87b7352",
+      "mode": 420
+    },
     "console/core/db/drizzle/meta/_journal.json": {
-      "sha256": "e22f67079fe89ef03144a9cff9f6337db8af122c98ddcce2969c227e87ed00ea",
+      "sha256": "d89af6970c126bf50187e3787907e22150dce2edf091379d9b748ea879a3cf36",
       "mode": 420
     },
     "console/core/db/invitation-delivery.integration.test.mjs": {
@@ -1194,7 +1202,7 @@
       "mode": 420
     },
     "console/core/db/schema.ts": {
-      "sha256": "b7b9eed9c6408b50881269e849c10fe45f1a8c1bff058f96d7966f892d7e43d1",
+      "sha256": "ebe5540402b789ade1e4cbb4001cbb94576cc5fed1f4ac0b2d4dd1a291acd946",
       "mode": 420
     },
     "console/core/db/transaction.test.mjs": {
@@ -1318,7 +1326,7 @@
       "mode": 420
     },
     "console/core/fleets/fleets.integration.test.mjs": {
-      "sha256": "69cf454a04604ad1ab51b3c6171a00a7d6f371d2a9f3ae910cde39d5c2d8d635",
+      "sha256": "ea2083825fb782e8267aa8d164863a82dcf9c4e379412a5605a748cbe6644bc4",
       "mode": 420
     },
     "console/core/fleets/model.ts": {
@@ -1334,7 +1342,7 @@
       "mode": 420
     },
     "console/core/fleets/repository.ts": {
-      "sha256": "7e933e58a7fb08f34ec30b114c4fc05a50811e2982d0a8fc98f65588bb3ab530",
+      "sha256": "40280f1761cb6b8e4d40b30002883d14badf24daa9534c0c50c0eeb68ed344e5",
       "mode": 420
     },
     "console/core/fleets/scopes.ts": {
@@ -1342,11 +1350,11 @@
       "mode": 420
     },
     "console/core/fleets/shared-packages.integration.test.mjs": {
-      "sha256": "3a3921ae2ef7da7d139d1ff6279efe4ed88779879bd07f0d6e49d95823da8f6d",
+      "sha256": "63a11ca6839ce2a04dd22bccb1b5a62c2c0a399364f8de709099a695b7191e62",
       "mode": 420
     },
     "console/core/fleets/status.test.mjs": {
-      "sha256": "3ee1971d612ef5731ca8756e3644e78fe5c9f7530da6187de27dfb443310e595",
+      "sha256": "ecffa9a1cbe8494255dc56b92ed3882730fb5e0c287c8388cce954175b142e0d",
       "mode": 420
     },
     "console/core/fleets/worker.ts": {
@@ -1578,11 +1586,11 @@
       "mode": 420
     },
     "console/core/workspace-databases/capability.test.mjs": {
-      "sha256": "b175340b220548b75784ba1c606772943c981ceffd79ec6bcdf6212ee92606a3",
+      "sha256": "74a59770856c911716d0bcac84514c469b39c5d7162deae3eed0b4ca3f32c79e",
       "mode": 420
     },
     "console/core/workspace-databases/capability.ts": {
-      "sha256": "46fb4a6447440474aa48dd936093e300dcf52eebd89bc6c9589a7bb67bae7c81",
+      "sha256": "1280066179176a46271b80b2de6be5caa77769eee35d5d7c50b4fe9f06ece433",
       "mode": 420
     },
     "console/core/workspace-databases/compute-provider.ts": {
@@ -1590,7 +1598,7 @@
       "mode": 420
     },
     "console/core/workspace-databases/configured.ts": {
-      "sha256": "b0a619e9e9213d43b20b872260fd16d07c5e29e97e348d05ee7c705667979a14",
+      "sha256": "9e0b2b980baa8f57c941bf69e2406f96874f27aeb6f7b6501126ad145a8eef50",
       "mode": 420
     },
     "console/core/workspace-databases/drift.test.mjs": {
@@ -1610,7 +1618,7 @@
       "mode": 420
     },
     "console/core/workspace-databases/provider.ts": {
-      "sha256": "c1734e9dc5a6dbddb56ff753225b9a712f621f65d07dbf751a0a7d2e5a4688bc",
+      "sha256": "e58ca57313a6bd18139fbf997dced1d4fcc9d913c00d9d7937c806aa0740ddc5",
       "mode": 420
     },
     "console/core/workspace-databases/schema.test.mjs": {
@@ -1622,11 +1630,11 @@
       "mode": 420
     },
     "console/core/workspace-databases/service.test.mjs": {
-      "sha256": "afbf8c958a63a6e5f03771de47c55faf4c97554449f672fdf79a0164982c6a63",
+      "sha256": "1e0333869ba66a0d5b8cc2fdd2d031ffee806b3b3e13c0672ddc03be3bba063b",
       "mode": 420
     },
     "console/core/workspace-databases/service.ts": {
-      "sha256": "9b094b5385ee24afc47a3a954c69283e7542bd6a9b4d57f163e12c5623f9cae3",
+      "sha256": "d3bc43e84b9d706c675d2f90f62c7b38986b682ef8b78c07e367f6a9a5eb1274",
       "mode": 420
     },
     "console/core/workspace-host-archive.test.mjs": {
@@ -1658,7 +1666,7 @@
       "mode": 420
     },
     "console/package.json": {
-      "sha256": "b16f46b2d410cf37b77b79b5420d9a067c359d63756372276e61ef2a09d87c0c",
+      "sha256": "15e393645f3010c4ab8cb4de02d5e79eff221d7c8f341da439484780ddeb3378",
       "mode": 420
     },
     "console/public-source.json": {
@@ -1678,15 +1686,15 @@
       "mode": 420
     },
     "console/scripts/vercel-build.ts": {
-      "sha256": "ff29771d7a9e681e8c8836591ec7e162e61ee49e4d81e0310782fd7f4c2fdfa3",
+      "sha256": "2266972b730459f83f1e79315eb48106ccb2dfa64b011f48041e7d43b40865d8",
       "mode": 420
     },
     "console/scripts/verify-public-source.test.mjs": {
-      "sha256": "e0743bbc580645c599242cec4cca0b622e401bf7d182d72d69777485e8dc014a",
+      "sha256": "56ff17174441172dc823d53665101313a5808fe6842ad6634b205271df701526",
       "mode": 420
     },
     "console/scripts/verify-public-source.ts": {
-      "sha256": "71d5e685a1a6fdc3824c0f5ebdd0942fd35bc40d317929362a0c5c8306daedaf",
+      "sha256": "1aec3a74ce67d644fc8fcac22c40625e90d2c6f46fdc1629c275b1efe52fe9d2",
       "mode": 420
     },
     "console/test/next-runtime.test.mjs": {
@@ -1702,7 +1710,7 @@
       "mode": 420
     },
     "console/vercel.test.mjs": {
-      "sha256": "de0571e03013c8daf85eb9213c627b60af83682bb30cd05878b75997af7cad62",
+      "sha256": "417941dc2b2ec8740d7763f841b4f63c4643193f25d22fa9c83156ac566dfb02",
       "mode": 420
     },
     "console/web/DESIGN.md": {
@@ -2022,11 +2030,11 @@
       "mode": 420
     },
     "console/web/app/apps/[id]/section-data.ts": {
-      "sha256": "a4489cca871557813f47bb99d0bc5fb3016a8bae3f3e5f69f6d538035a979570",
+      "sha256": "ab6d8f2f42cd47f4d903e10fc75549d3904a214eab4f4c39ac8db56f599e46fe",
       "mode": 420
     },
     "console/web/app/apps/[id]/traces/page.tsx": {
-      "sha256": "5f2326469570cd1e314f43a2073d88d35dda8161b106c8a00ed1ccac3cc64d2a",
+      "sha256": "9649dcde7c667c90bde8cf65c5bcba0eda250697486c6c811ddeb6130c660c02",
       "mode": 420
     },
     "console/web/app/apps/[id]/workspaces/[workspace]/page.tsx": {
@@ -2225,12 +2233,28 @@
       "sha256": "8295fa9942c83324a191babb6de9b0efe3a3e67ce122d6173dbfd870137d10c7",
       "mode": 420
     },
+    "console/web/app/fleets/[id]/installations/[installation]/layout.tsx": {
+      "sha256": "76caa6bdaec76edd623712959dcc61341d278bbf2b711091d48caba8e36c874b",
+      "mode": 420
+    },
     "console/web/app/fleets/[id]/installations/[installation]/page.tsx": {
-      "sha256": "6ee3a160f60391104df5aa70c05ea5a5fc40b713d27c76926201c4c8ab6b0cfe",
+      "sha256": "3100468eb369d0ee1ffef0d1178ee2b2e4827dcd480d7fef670cbe4f2decbde9",
+      "mode": 420
+    },
+    "console/web/app/fleets/[id]/installations/[installation]/sandboxes/page.tsx": {
+      "sha256": "0fbdef1d23503ac57ac4c33c52859625434df8a8939b1ea002784ed56e030bb3",
+      "mode": 420
+    },
+    "console/web/app/fleets/[id]/installations/[installation]/section-data.ts": {
+      "sha256": "ab3a30e7b0031fcf56ff3f5c97bdf7338912a37d083407aea3238e3b12d1ba01",
+      "mode": 420
+    },
+    "console/web/app/fleets/[id]/installations/[installation]/traces/page.tsx": {
+      "sha256": "2e2895d456cfd6cb200bf64c9555f85bf3cb65bc5ca334cc357da71966b6e317",
       "mode": 420
     },
     "console/web/app/fleets/[id]/page.tsx": {
-      "sha256": "1eb3bba59cbed9c46f789ba35c82ca768cbc2315e896f0e0ee2b5a83509a0afa",
+      "sha256": "165c2e86beeeec0676f739da94322f230f001afa4b3bdd3e6f2ccc829f6439c6",
       "mode": 420
     },
     "console/web/app/fleets/loading.tsx": {
@@ -2242,7 +2266,7 @@
       "mode": 420
     },
     "console/web/app/globals.css": {
-      "sha256": "caaf2973657930fdcca00c3f8f363a4c33ac94d83dece63f68ce2093f5177aad",
+      "sha256": "5bb881b49fc59cc24a29fb3ab4ae4a5540082d8702bb069b63476e0f39070e2a",
       "mode": 420
     },
     "console/web/app/guides/(guides)/claude-code/layout.tsx": {
@@ -2326,11 +2350,11 @@
       "mode": 420
     },
     "console/web/app/internal/v1/runtime/database/credentials/route.test.mjs": {
-      "sha256": "7537fc460750365f0a9926262e83f749d2191fc7b2cf57e45992ebf10310ce78",
+      "sha256": "6d074f1b8aa919e87c3451c027cba0d7d06d975a0e1995b39809c238ab51266c",
       "mode": 420
     },
     "console/web/app/internal/v1/runtime/database/credentials/route.ts": {
-      "sha256": "4875a7bcdd5ec76b35908492d6dbbbae9851613ec89d88228cf6442c5ba10dc6",
+      "sha256": "5123734b90d49a3c2d161096bebe0f009776896d1aeb72e50ba0b6d34b403175",
       "mode": 420
     },
     "console/web/app/invitations/accept/page.tsx": {
@@ -2366,19 +2390,19 @@
       "mode": 420
     },
     "console/web/app/preview/app/fixture.ts": {
-      "sha256": "7734bef733fa0c09d09600b9bae441612283e0ba132cb31f62df97eeb4438e3e",
+      "sha256": "4f13bd47fe396efcc38d4c1cc7fa89c98dbeced95a1378c2b15a40256b23adc3",
       "mode": 420
     },
     "console/web/app/preview/app/page.tsx": {
-      "sha256": "1c54a5f5174adde210404af2ffefda83a603017cb55a6faef1abeecd7024afcc",
+      "sha256": "33b797593bb18fdf51edb4a1d123e4884a2e0f9be71ef63cdf695460f837f248",
       "mode": 420
     },
     "console/web/app/preview/fleets/page.tsx": {
-      "sha256": "4786b10b5b799e74f4ad78c3b053f05aa0c085a703747ed8a38756f33a050217",
+      "sha256": "2380f7804f4aef347af72122dcf228f59f7e6595274b969eb44f16a8cc027459",
       "mode": 420
     },
     "console/web/app/preview/page.tsx": {
-      "sha256": "9ad06afda7119ddd2326feec77798deab86dece01bd9d96669b68ac41477fb9b",
+      "sha256": "cefa14732125b280fa6786c976e90185b31b3ba92997bd7970a29eafca6d2ef8",
       "mode": 420
     },
     "console/web/app/preview/profile/page.tsx": {
@@ -2418,7 +2442,7 @@
       "mode": 420
     },
     "console/web/app/source/page.tsx": {
-      "sha256": "10a9a297e10a55d9c3bd18c0b2cf88a9c99659d3a30b995e16751fcf1dc7b358",
+      "sha256": "f8f654c7b1042688544036d317ca67072ad2b6d2a6fbfd7ad5a29775368f0f44",
       "mode": 420
     },
     "console/web/app/twitter-image.tsx": {
@@ -2530,7 +2554,7 @@
       "mode": 420
     },
     "console/web/app/v1/fleets/[[...path]]/route.ts": {
-      "sha256": "8ebd051e872a3fa24a2fecaf13754ff218941c82ade97ec6f749ecc62f391e42",
+      "sha256": "525d75f4bd712b25f4b893a54bc19d35a5794d5766ba4b1e390cfd7f2cc8d76d",
       "mode": 420
     },
     "console/web/app/v1/workspaces/route.ts": {
@@ -2614,7 +2638,7 @@
       "mode": 420
     },
     "console/web/components/console-shell.tsx": {
-      "sha256": "435258aac8e6bc0e5c585d3d6cb51a6f87a50aea90e8d140e796877c54ecff16",
+      "sha256": "599bd8a00e49e22f0d36abcb604318f557aa08f88fe2edf38fccbe00912df2a4",
       "mode": 420
     },
     "console/web/components/contact-form.tsx": {
@@ -2654,11 +2678,15 @@
       "mode": 420
     },
     "console/web/components/fleet-frame.tsx": {
-      "sha256": "79d7ae20cad2f8247543a095e5b49e4e659ea74d973f5df1a955894e5ff22f77",
+      "sha256": "6690a9f4f22469bf8c8fb044a78e79f8baa104e9a53b3998876c2e46b8313788",
       "mode": 420
     },
     "console/web/components/fleet-installation-detail.tsx": {
       "sha256": "f11fd7d6aa2ab26422031e9b0ec1e510db0b855b562ac28bdf0f21a8a899b614",
+      "mode": 420
+    },
+    "console/web/components/fleet-installation-screen.tsx": {
+      "sha256": "b2deeb03ceccca9673f47317f7e76e91da34134f2d6ed9f931d1b7eac0580768",
       "mode": 420
     },
     "console/web/components/fleet-principals-panel.tsx": {
@@ -2666,7 +2694,7 @@
       "mode": 420
     },
     "console/web/components/fleet-tables.tsx": {
-      "sha256": "71942d72be494c11ca0619da625a6f75e58e02bf1fffdb83cbfccd5ebab8573f",
+      "sha256": "92e2b4cf352a02f0e948833081470243356ffe4f0b8672e121e4e586690330ab",
       "mode": 420
     },
     "console/web/components/fleets-index.tsx": {
@@ -2762,7 +2790,7 @@
       "mode": 420
     },
     "console/web/components/sandbox-monitor.tsx": {
-      "sha256": "9d53b74bd83f46051a1ca2106d91af8026d32014575bb46f6e79a617783f376f",
+      "sha256": "1b441df7570acb5b8e2a4fdca09d7919aee0f407f91b4291bc3dec1fd4753ce8",
       "mode": 420
     },
     "console/web/components/sandbox-stop.tsx": {
@@ -2794,7 +2822,7 @@
       "mode": 420
     },
     "console/web/components/trace-explorer.tsx": {
-      "sha256": "e6ea4a8e829d36ae27376e2f7b019888eca3fd1d3458e2dbf2ba981cec43ea3b",
+      "sha256": "5436c309e2df74f2927b306ffbcf610a01a123f9f272591ab2b0318bfe52416e",
       "mode": 420
     },
     "console/web/components/use-case-glyph.tsx": {
@@ -2878,7 +2906,7 @@
       "mode": 420
     },
     "console/web/lib/customer-fleets.ts": {
-      "sha256": "3151a3b765286c7e274b7dc8529afe11e6da94f23fad887d5c43fa1e511593d6",
+      "sha256": "104794bdbe201be6be4897e108ce4c55f568f034810d6a6b19d5f7f0ae019c92",
       "mode": 420
     },
     "console/web/lib/customer-operations.ts": {
@@ -2946,7 +2974,7 @@
       "mode": 420
     },
     "console/web/lib/instances.ts": {
-      "sha256": "5d4df3fc8c123f1893085b18ac65b49af36657869061a9b161369d85e8e7fa09",
+      "sha256": "a44afb2f72cf959546cc0f2c44255c2eab83b4fa414d98fd69163a0fa68a414a",
       "mode": 420
     },
     "console/web/lib/integration-credentials.ts": {
@@ -3006,11 +3034,15 @@
       "mode": 420
     },
     "console/web/lib/source-info.ts": {
-      "sha256": "977ca487d284e74e80c2dd7748c540f87a8a883590edc496cb5d1e4667136367",
+      "sha256": "92be9614d1cdd176295919ba398b8f6c54b355a4766a0f45ab7872d3ce064339",
       "mode": 420
     },
     "console/web/lib/telemetry-types.ts": {
       "sha256": "a85b5e3cc79997a45e73c05ccceea1c3e282e0b515762c0ad05590fbf8e501a5",
+      "mode": 420
+    },
+    "console/web/lib/usage-chart.ts": {
+      "sha256": "d97dfddee6c0bc39a20238434078c1e7e6343ae1693c91e0d731ffe69c6d6546",
       "mode": 420
     },
     "console/web/lib/usage-history.ts": {
@@ -3258,11 +3290,15 @@
       "mode": 420
     },
     "console/web/tests/source-info.test.mjs": {
-      "sha256": "9573dd96ebe39feef4d114d8695a1e12a18f39156841c2262ad1a5a0993d8353",
+      "sha256": "39d0e54ceedcc4c1116ce8c796ccc32812f006e2a9dff81111401dc14f549081",
+      "mode": 420
+    },
+    "console/web/tests/usage-chart.test.mjs": {
+      "sha256": "0e5cd8f36e5a7a1ad0476fb06d7154963857f60e9a75626aa73345e1c093bd88",
       "mode": 420
     },
     "console/web/tests/usage-history.test.mjs": {
-      "sha256": "87f3fb6a42b3adc76ef6030eb5a6250fb95b70ae775282e992ec3f9236afda7a",
+      "sha256": "b3286d1fb5aa59d09bd00b43a732848a0b93d7dd3e14d9a9ae5f6f56c234051e",
       "mode": 420
     },
     "console/web/tests/use-cases.test.mjs": {
@@ -3282,7 +3318,7 @@
       "mode": 420
     },
     "console/workers/control/command.ts": {
-      "sha256": "53533d1c7f6f06207d753e5af0228a91e594e624603e088c0b545a253982fcfa",
+      "sha256": "40c6bb580b48527b8b7049887b3bab8aadcb25f0c98d648b1a5092940727124c",
       "mode": 420
     },
     "console/workers/control/loops.test.mjs": {
@@ -3322,11 +3358,11 @@
       "mode": 420
     },
     "docs/contributor-ci.md": {
-      "sha256": "6e2e43f482666cd6e680069abfb30d7f4cebdafe0cf9f12658d43f910a5aa9ac",
+      "sha256": "0b23829b7000ccc87bd7d92b06b9877cf07f421a1bfdf808b1445e3139a367fa",
       "mode": 420
     },
     "docs/dashboard.md": {
-      "sha256": "2311792eeb5a0d27c3b98d0d54d7ce8b5edd1c9269257ad421e7f8fc616b2854",
+      "sha256": "d196da32b5e36b21900bd17b7c7d843de44fed7f3e8143e815dba1c323082219",
       "mode": 420
     },
     "docs/deployment.md": {
@@ -3362,7 +3398,7 @@
       "mode": 420
     },
     "docs/licensing.md": {
-      "sha256": "22e46ffc6b37431dd87b357a5e0186dd93d5416c712045eb818ebc8af2541a5c",
+      "sha256": "0e57c7b5b6c27b86725eab9d92be694d511dff657bab1996755d9d70e070cc2d",
       "mode": 420
     },
     "docs/local-shipping.md": {
@@ -3374,7 +3410,7 @@
       "mode": 420
     },
     "docs/managed-fleets.md": {
-      "sha256": "3127c73f66a439470645571e9bb7c60afdcba55ddacf606ac413a6bff1f89738",
+      "sha256": "949d4791edd18eee4a798cdc54713f568f83bde869b5216a9f4d9a78b928bcce",
       "mode": 420
     },
     "docs/message-protocol.md": {
@@ -3426,7 +3462,7 @@
       "mode": 420
     },
     "docs/sandbox-resources.md": {
-      "sha256": "11ea64e75731a8644b0f83c1e8924869510f102d03c355fa0faa65775eff2d21",
+      "sha256": "7641f8573d841f69bd81a123f2c07b7b5d62e5a3622b856474333e92b3286b5f",
       "mode": 420
     },
     "docs/sdk-1-platform.md": {
@@ -3438,7 +3474,7 @@
       "mode": 420
     },
     "docs/source-publication.md": {
-      "sha256": "5b0030329b5ee8784cdd088a4529ab531abccde805fe4ad548b8e08ba9f8b895",
+      "sha256": "1ee014c207859563632cd3aacff12f9d701523cc4449976b5238dd9f10f29181",
       "mode": 420
     },
     "docs/storage-backup.md": {
@@ -3474,7 +3510,7 @@
       "mode": 420
     },
     "edge/contracts/src/index.ts": {
-      "sha256": "727f2c83e9366e9b12792127dba70922d21ed416feb5f49df5848aea2376b85f",
+      "sha256": "f0f1a2970290b85638c0b8cee734f8cf9610f10dd2cb2c216d20a376996d0a3e",
       "mode": 420
     },
     "edge/contracts/src/observability.ts": {
@@ -3482,7 +3518,7 @@
       "mode": 420
     },
     "edge/contracts/test/contracts.test.ts": {
-      "sha256": "90f674893513d59d2c1fdbf0a428ea94b1f58796965454937fffa77202c344eb",
+      "sha256": "8ae4db041ddd6a6d3e8e7eb0aa712089e04c2483942b6dc949ff4a85c6e1660b",
       "mode": 420
     },
     "edge/contracts/test/observability.test.ts": {
@@ -3498,7 +3534,7 @@
       "mode": 420
     },
     "edge/workers/bun.lock": {
-      "sha256": "d41d59b423563b8cb7bd2006d103ba353b9aea78684bb138e540027bb9c848db",
+      "sha256": "56cf58d6a3606a0f6cc39378402c379cad21670987ee614daabfa07f2ada7b13",
       "mode": 420
     },
     "edge/workers/dispatcher/src/core.ts": {
@@ -3514,7 +3550,7 @@
       "mode": 420
     },
     "edge/workers/dispatcher/src/fleet-runner.ts": {
-      "sha256": "2078abee2e9c1cc47cfe4fec24c7593b31856a45a9d5c28f8ff5bfa4f7d06012",
+      "sha256": "1b3cf04306058b92e475737a9bc33ca95639196b081fdae141804c048daa5fe9",
       "mode": 420
     },
     "edge/workers/dispatcher/src/index.ts": {
@@ -3534,7 +3570,7 @@
       "mode": 420
     },
     "edge/workers/dispatcher/test/fleet-runtime.integration.mjs": {
-      "sha256": "f7df48d8b8d6089cb75bea322849940b481fc232a0c9d72b9020c13b104f2738",
+      "sha256": "8135e35192602b1f71b3fc4c2addc64ce3183d07e556d7c4778de3c5f6c76bb6",
       "mode": 420
     },
     "edge/workers/dispatcher/test/mock-release-gate.ts": {
@@ -3550,15 +3586,15 @@
       "mode": 420
     },
     "edge/workers/origin-broker/src/core.ts": {
-      "sha256": "372aaccc0f4354e1116cd4b2dc29126d3c4bdba44c1de63ff6511cc7858db986",
+      "sha256": "e6e23f5d6eeeb90fbdfc4c871c1626d8f0249c7bf39cb6d486083e5bf684a818",
       "mode": 420
     },
     "edge/workers/origin-broker/src/index.ts": {
-      "sha256": "414c5b84f70608cec1507f07d41cea305768db8f2f5b749536b7ccd56417844e",
+      "sha256": "79387c6f1b61132b3026be537a6bf21656bedfcebda93ab5fd982db8a5ff82b7",
       "mode": 420
     },
     "edge/workers/origin-broker/test/core.test.ts": {
-      "sha256": "be83fa1011187ba089c7530e3df05bbb4f94dec922df301cbf69af31e8f5ea24",
+      "sha256": "11f6945da685676e3a8704c5a6d4c676b8b83488e25636c7ca13468e61e510b2",
       "mode": 420
     },
     "edge/workers/origin-broker/wrangler.jsonc": {
@@ -3582,7 +3618,7 @@
       "mode": 420
     },
     "edge/workers/package.json": {
-      "sha256": "c2b84b0c336b679035c0a1f73bc12dc693eb6c49ced072af07ea95ba06ad463a",
+      "sha256": "75cad5a31ece36beeb9ad3bba8d933a9dcc105b8b0b9c804a60af48f1472be8b",
       "mode": 420
     },
     "edge/workers/tail/src/core.ts": {
@@ -3602,7 +3638,7 @@
       "mode": 420
     },
     "edge/workers/test/worker-chain.test.ts": {
-      "sha256": "a106e8dddc757cc303fee1d374ed4819c2c217c320640833fa3752929a110230",
+      "sha256": "06b5a3159088c10bb209827b57c61482aedda6f57dbad821409ce2300fecfc2a",
       "mode": 420
     },
     "edge/workers/tsconfig.json": {
@@ -3654,7 +3690,7 @@
       "mode": 420
     },
     "fire-fuse/config/config.go": {
-      "sha256": "d26b4f207d8ce834d0d312465e4914a35815beaccf859daeb18892db764dabc4",
+      "sha256": "cfc78989bd3c8ab0f921d167a45fd141cddd5b32d264d6fd7f42d3d336bc98fe",
       "mode": 420
     },
     "fire-fuse/config/config_test.go": {
@@ -3802,11 +3838,11 @@
       "mode": 420
     },
     "fire-fuse/edgeprotocol/contracts.go": {
-      "sha256": "aeba2a68f0e194cbb3113f1a685f46d8ba59c81084a49970f99e8a31465e30ac",
+      "sha256": "1c557535f575560bf5bfc6a7125c75e7928b7d1c2150f9c4ace8fa53db5a75c5",
       "mode": 420
     },
     "fire-fuse/edgeprotocol/contracts_test.go": {
-      "sha256": "ef5af064627de3a2234798d7c4cba02a87391cec2b311054d99f2a14fe031c41",
+      "sha256": "1ee5ee74432afffda0179d1afa6b40ae1ea097cf45e364235378f444d487bab5",
       "mode": 420
     },
     "fire-fuse/gateway/body_deadline_test.go": {
@@ -3814,11 +3850,19 @@
       "mode": 420
     },
     "fire-fuse/gateway/cmd/fire-fuse-gateway/main.go": {
-      "sha256": "30da4f8261dfb55e982c2259f3647a99a5f18d85cf70731b7321215a7bb5b338",
+      "sha256": "e8a762936d375f4694ed811d3dd16507316f991b3b79336286319875086a0e5a",
       "mode": 420
     },
     "fire-fuse/gateway/cmd/fire-fuse-gateway/main_test.go": {
       "sha256": "a35180ecb4b8edcbfb660eb4402d4aa452e519867659b0f4a48be219e352c94c",
+      "mode": 420
+    },
+    "fire-fuse/gateway/compute_pool.go": {
+      "sha256": "c1333b440f1913667a414e43683d62f0762fbdafcd2f87237ca130399e0f192d",
+      "mode": 420
+    },
+    "fire-fuse/gateway/compute_pool_test.go": {
+      "sha256": "cad28df52e1a422f0ffc34d2b65f3dc4b8a1d21f4b4711e464dba3a8b50eef2b",
       "mode": 420
     },
     "fire-fuse/gateway/control.go": {
@@ -4050,11 +4094,11 @@
       "mode": 420
     },
     "fire-fuse/host/cmd/fire-fuse-observer/main.go": {
-      "sha256": "a3558dbeae30562dae3999fb719ec16a90e98aec9dc5b18ad3b357122eb9ffd7",
+      "sha256": "6f437f373d019c2de8efeab4edca0d5d34e1d7d7c3f93b95b53e2d6c780c157f",
       "mode": 420
     },
     "fire-fuse/host/cmd/fire-fuse-observer/main_test.go": {
-      "sha256": "f97eca4aef76db83009daddc8a611b4f1c143b35a3d10662fbb5d9f38a4e6bec",
+      "sha256": "83c3be24b7d082090d4c5ce0a13b80c64961d4f3d13c8917f5a6dc6ca6bb786f",
       "mode": 420
     },
     "fire-fuse/host/firecracker/api.go": {
@@ -4142,15 +4186,23 @@
       "mode": 420
     },
     "fire-fuse/host/network/forward.go": {
-      "sha256": "4a6e6827c42a1f615c7dbe1d2e45fec9e88b0e2d3a8128ac19e5693b0a91932c",
+      "sha256": "3a15a0c1ebf6cafe5c6e5208070c8eb61d4fc9d1edcfb61b3ba5c0fc287c9ac0",
       "mode": 420
     },
     "fire-fuse/host/network/forward_test.go": {
       "sha256": "25db8519ecbb8e3453044428c461b94fb7dc180c826b8007d43c43732dd6ac4d",
       "mode": 420
     },
+    "fire-fuse/host/network/namespace.go": {
+      "sha256": "e0a139bb97739fd22ea0b17e011e726571e553797eac365c18227b8a2d613c33",
+      "mode": 420
+    },
+    "fire-fuse/host/network/namespace_test.go": {
+      "sha256": "2c13d8a114536dc1a6c9a7b6425617de0af1b614eb7acab571232df38c3703dd",
+      "mode": 420
+    },
     "fire-fuse/host/network/tap.go": {
-      "sha256": "f4e39b2842cb90e1d83894274b60412415b33ba6a1196cdd42525e36da03a5c0",
+      "sha256": "bc7e13344e936f4ec24c538a4f1c4fcfd4ef9d17b78c7fbcc7c3f0c90a93860d",
       "mode": 420
     },
     "fire-fuse/host/network/tap_test.go": {
@@ -4174,7 +4226,7 @@
       "mode": 420
     },
     "fire-fuse/host/nfs/quota.go": {
-      "sha256": "b731b87e8cc8f00edb212c88cea9aec91657f57fc33d3aabf427ba7a073ca05f",
+      "sha256": "d7a4ff4ed928eb60747a0945531df6445644e3e0ca9ebc1918f15a77f9f593ca",
       "mode": 420
     },
     "fire-fuse/host/observer/bounded.go": {
@@ -4182,23 +4234,31 @@
       "mode": 420
     },
     "fire-fuse/host/observer/database_access.go": {
-      "sha256": "9d746a877f24f59b1bf9900501e1b74daed0c3438eaafce4565b41f1948fe41a",
+      "sha256": "1817fdd373c8abc09bbd1f3844528bcbf11d1623f746eb0feebfdf3c4fb429e4",
       "mode": 420
     },
     "fire-fuse/host/observer/database_access_test.go": {
-      "sha256": "b75fe233b2c5929f88ab80823c525a49b967cfe9dea0bb3fc56e113a0b6b7b4a",
+      "sha256": "670b6af6948117f7e7ecab19cb6ee44e6fa475298020610d7141a893fcefa1a6",
       "mode": 420
     },
     "fire-fuse/host/observer/infrastructure.go": {
-      "sha256": "eb40b4c41467e097bf9a36d2111050a50100a6f9def8a358819485fd766b56af",
+      "sha256": "9d0dbfab653d088d7709497e9b54c9ea1ea08c0fade12caa1caf1236803bfc51",
       "mode": 420
     },
     "fire-fuse/host/observer/observer.go": {
-      "sha256": "2312a6d4b674e886bdf8c254a0258cf8590a89fa273774151cfa3f6f9a3c652d",
+      "sha256": "444793890151a703f514d23d4a7e13716e8aa9b7f9075ded8c98a2458e4895d1",
       "mode": 420
     },
     "fire-fuse/host/observer/observer_test.go": {
-      "sha256": "92a8c6059adcdfe61536c7bcdeb1e5e6bac466d06f3b27f2df3333bda00e0ef9",
+      "sha256": "2b3b22d4d900352e720fa7e9bbbbb6068c212d3ed631c27666cbb289edb27e84",
+      "mode": 420
+    },
+    "fire-fuse/host/observer/runtime_pools.go": {
+      "sha256": "961c4e9127c0fdd151d0da991d42667779a0e43ae74a33bdf553ff5598e6f89f",
+      "mode": 420
+    },
+    "fire-fuse/host/observer/runtime_pools_test.go": {
+      "sha256": "98178ae25ec170c9f91d871ead65c41e699eba8d9b3016d3326cb741b61c1951",
       "mode": 420
     },
     "fire-fuse/host/observer/runtime_timing_test.go": {
@@ -4526,11 +4586,11 @@
       "mode": 420
     },
     "fire-fuse/runtime/managedwatchdog/watchdog.go": {
-      "sha256": "1ba4b5f4fa526442965756b17a9de6f8329f58030a3bddbc0d0ed7d8bfe67015",
+      "sha256": "9a35389e533d00e909b93bcfd6455d678d2396fbc6d50f3a2f7995ec51e9fa2a",
       "mode": 420
     },
     "fire-fuse/runtime/managedwatchdog/watchdog_test.go": {
-      "sha256": "3fa1b8b2d1e7deeb0bf46fafc8958e48431c65624708f54825b2d42b8b9c9b16",
+      "sha256": "40de06fa029302dc70045d040351962dacaeeaa9fe733a60d6466473ee070b96",
       "mode": 420
     },
     "fire-fuse/runtime/messagequeue/events.go": {
@@ -4610,7 +4670,7 @@
       "mode": 420
     },
     "fire-fuse/runtime/microvm/managed_apps.go": {
-      "sha256": "ae61094b33e229c771b55e7a362a8b07a73a88e66ab06e97b979551cb4e3eba6",
+      "sha256": "4f303ada78795cd7258d9ed7dc86adc955bf9082533e5ef46b229f606976a6a0",
       "mode": 420
     },
     "fire-fuse/runtime/microvm/managed_apps_test.go": {
@@ -5202,15 +5262,23 @@
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/host_pool_wiring.go": {
-      "sha256": "a1065efdc8b624bd8f5676734dbf9213c8824b7570cf9db1314d98a5a1fac082",
+      "sha256": "42c60de64a753f0f324f1a303bc770236bad43fb878dbf942f8b5699c0f94b08",
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/memory.go": {
-      "sha256": "7253ad7f08a382036e689d027821bb8eec2476429dfd678ec0ecbdf3238c48f7",
+      "sha256": "7661146b58a80af6d671b90bb29c21bc813ba72b4985ab08498e8866a3a9c899",
+      "mode": 420
+    },
+    "fire-fuse/runtime/supervisor/memory_controller.go": {
+      "sha256": "3733b7a06475eb84a95e0488cc85831d09fce526210a3d2509d83b9f1c2a7e2d",
+      "mode": 420
+    },
+    "fire-fuse/runtime/supervisor/memory_controller_test.go": {
+      "sha256": "93801b37a08fe610b26934f70e921ab3e7201b6d16157fec111bcc5cb1f4b0cb",
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/memory_test.go": {
-      "sha256": "2885f76ff7fe24bd632b077e647cd93970abff2273e3c845784e6a19df5966c2",
+      "sha256": "ef10d0381509b85fa5d56723ed9567f2bc50eade0ebc2d23fc589d466b659049",
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/observe.go": {
@@ -5218,7 +5286,7 @@
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/orphan_test.go": {
-      "sha256": "97153a2ef12c74c4e04cd86fb233df455e642336861e12fc48dc283390ba0879",
+      "sha256": "5111d5cdd936808a9b96691513c0c83fbecdafc204ffb417b46e6981cbfce877",
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/ownership.go": {
@@ -5250,7 +5318,7 @@
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/recovery.go": {
-      "sha256": "88ade4f600e0c09a1ec6c77a8007ebcabe128dcdce465fae95faa2c9f5f60922",
+      "sha256": "b1e8ceb7e41b67f3c050e1b5779dd3d2a7ce7239f176395b50f6dd9535b6b740",
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/recovery_boundaries_test.go": {
@@ -5294,7 +5362,7 @@
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/supervisor.go": {
-      "sha256": "408dc0ede54ec9125ceb377ead3ad0c009a15d5a512be4caf728ba86e8d7842d",
+      "sha256": "a429f35eec9575eb5b75e2a7b886c371d07077670343145c1176af3c56dce0cf",
       "mode": 420
     },
     "fire-fuse/runtime/supervisor/supervisor_test.go": {
@@ -5510,7 +5578,7 @@
       "mode": 420
     },
     "licenses/javascript-packages.json": {
-      "sha256": "5a0d8eb4c2322de760a4e057b7b054b913189cffb476ef8bd182f70ab43d0d0e",
+      "sha256": "ba4a780e0769d9f6f050ea6433abbe53db7d8c827ee56239010fa8c4282ba530",
       "mode": 420
     },
     "platform/ansible/.gitignore": {
@@ -5587,6 +5655,10 @@
     },
     "platform/ansible/playbooks/compute/juicefs-smoke.yml": {
       "sha256": "a660b41d6cdb3617ebdb9957c156b6eb5c74ac8ffb63876ee6e14ff5aea4044c",
+      "mode": 420
+    },
+    "platform/ansible/playbooks/compute/managed.yml": {
+      "sha256": "c3d5d9b90cf39e0ac3ae3e37a7d5a07fe448bbba7fede588401262a09d6cef70",
       "mode": 420
     },
     "platform/ansible/playbooks/compute/observer.yml": {
@@ -5750,7 +5822,7 @@
       "mode": 420
     },
     "platform/ansible/roles/builder/cantelop_control_worker/defaults/main.yml": {
-      "sha256": "64c63c87255544bbb2713497df91c77a82d101941e6f1269fe462baf11c5205b",
+      "sha256": "194f750ddd6db9d0b2037342284ccf4c003f56479990f1adcad0c20013a40b4e",
       "mode": 420
     },
     "platform/ansible/roles/builder/cantelop_control_worker/handlers/main.yml": {
@@ -5758,7 +5830,7 @@
       "mode": 420
     },
     "platform/ansible/roles/builder/cantelop_control_worker/tasks/main.yml": {
-      "sha256": "4da442cafeb90805a5536defc49ab1a1a4cceb1dac2f252db3c003b4e12e1fc4",
+      "sha256": "7f834fdc88362a7f2823235beab75d72d01a841b64eb54605c5ca2a621619c4e",
       "mode": 420
     },
     "platform/ansible/roles/builder/control_builder/defaults/main.yml": {
@@ -5845,8 +5917,24 @@
       "sha256": "828253fd1c7bbafd2bfb4fdda1be0d8ab9f52fc9083c28e77272b166ff45f756",
       "mode": 420
     },
+    "platform/ansible/roles/compute/fire_fuse_managed/defaults/main.yml": {
+      "sha256": "669f3418032d03b33808b8d160905012f534b1990d88cc8d7fe174d7072fe62a",
+      "mode": 420
+    },
+    "platform/ansible/roles/compute/fire_fuse_managed/files/configure.py": {
+      "sha256": "d85c6800b5ef7a9628b2106e97e11c5c93afe601e2fb2f965a389dd6722c6e76",
+      "mode": 420
+    },
+    "platform/ansible/roles/compute/fire_fuse_managed/handlers/main.yml": {
+      "sha256": "771762be732e780d603648c1206a469a1851db18d57288470e51f90f853ef5cb",
+      "mode": 420
+    },
+    "platform/ansible/roles/compute/fire_fuse_managed/tasks/main.yml": {
+      "sha256": "96b28659eae6186b5d2f2799c90cb956a1de4bba2d6533cf577062409de1b6d5",
+      "mode": 420
+    },
     "platform/ansible/roles/compute/fire_fuse_observer/defaults/main.yml": {
-      "sha256": "7f6e77c4e6e7f7cd1fa58c6d363c460ce786d7465ecdf70ae0b891ce79134040",
+      "sha256": "eccc2dd33049ef9d864704a40144acae1762bfcce91d2c40b5cb6d2e2806b263",
       "mode": 420
     },
     "platform/ansible/roles/compute/fire_fuse_observer/handlers/main.yml": {
@@ -5854,11 +5942,11 @@
       "mode": 420
     },
     "platform/ansible/roles/compute/fire_fuse_observer/tasks/main.yml": {
-      "sha256": "53ae55fc0dcf2399ca2237e8e14534aced828c2f9ff94c1f5b846cb894c24840",
+      "sha256": "fffc19ed43a8a869996b0b7f730744b43525b2fcae3b9c0437df932cf1fb994f",
       "mode": 420
     },
     "platform/ansible/roles/compute/fire_fuse_observer/templates/nginx.conf.j2": {
-      "sha256": "83af31027f647703cbca2878665bcf5f5ae0bd3066c2f1d91b2183f210846942",
+      "sha256": "950300b324a312b9ff9de0d413ef8308ab4a52ad24d37522611c3f9f760e4a5a",
       "mode": 420
     },
     "platform/ansible/roles/compute/fire_fuse_prepare_upgrade/defaults/main.yml": {
@@ -6730,7 +6818,7 @@
       "mode": 420
     },
     "platform/ansible/tests/test_fire_fuse_observer_role.py": {
-      "sha256": "311a19fc533ad250c94ed104718ffe2b57039cce6ccc35906dcb3359be7be77b",
+      "sha256": "a6a3e03c283832e129b77191d8881dc977bb2237478c7dd19f961bcfc547c19c",
       "mode": 420
     },
     "platform/ansible/tests/test_fire_fuse_qualify_role.py": {
@@ -6759,6 +6847,10 @@
     },
     "platform/ansible/tests/test_juicefs_gateway_role.py": {
       "sha256": "c6cbe6d2b6e51d78b49b35649a9b07880a94fbe6d14bb55c5f27ec1150ce5ed2",
+      "mode": 420
+    },
+    "platform/ansible/tests/test_managed_instance_config.py": {
+      "sha256": "92aa5f14abb84b3451d7e4b5a20cd6c2c2dad6bc190e3d318e988f7dbca9fda9",
       "mode": 420
     },
     "platform/ansible/tests/test_materialize_restore_role.py": {
@@ -6862,11 +6954,11 @@
       "mode": 420
     },
     "platform/cloudflare/sync-tail-settings.test.ts": {
-      "sha256": "0ea53b1d3d742b13ecfbd270a350219a62e6d63d00ec1e6292251651ba49bbc0",
+      "sha256": "0dded33302e796c24d3f1ce62bc795875518d149d4ca3aea2915f300d8d472cc",
       "mode": 420
     },
     "platform/cloudflare/sync-tail-settings.ts": {
-      "sha256": "d6015b6064b978f8be411889fd61b33b82550b3cfc4a0534131a98ec7d583b6f",
+      "sha256": "02b0c5c621fd82d2330cc21de57943473fb95507dec275c0acf97686d37be70d",
       "mode": 420
     },
     "platform/cloudflare/terraform.tfvars.example": {
@@ -7005,12 +7097,28 @@
       "sha256": "0a3fea5c1ecaf422e08f2055407b2095a1745e94ba717ad0c18d97f91f16174a",
       "mode": 420
     },
+    "platform/systemd/compute/fire-fuse-fleet-watchdog.service": {
+      "sha256": "21c7aaf8b646a4836a997b60ea0deb497d9469d7ffaf2396d1cf62d7de201566",
+      "mode": 420
+    },
     "platform/systemd/compute/fire-fuse-gateway.service": {
       "sha256": "49e51de45f14864b0d7c99c044d6e7bac1239a720afd60ae18e4a4f9f68003a4",
       "mode": 420
     },
+    "platform/systemd/compute/fire-fuse-managed-dispatcher.service": {
+      "sha256": "4386bca1cefc689062b02f6247cd4c7d41eeb4580e51375c6200a01278650f90",
+      "mode": 420
+    },
+    "platform/systemd/compute/fire-fuse-managed-ingress.service": {
+      "sha256": "ff300e9cb0f526ec52bf58b1607ae925b27a0d98b0244aec45df3b5fe8d14791",
+      "mode": 420
+    },
     "platform/systemd/compute/fire-fuse-managed-watchdog.service": {
       "sha256": "22b07d18745540e91c934abd07547782a3aaa60b5b72f98653ccdc4a4f8f97cb",
+      "mode": 420
+    },
+    "platform/systemd/compute/fire-fuse-managed.service": {
+      "sha256": "15b0ffe000e9f7dcf7939da0fc360c1d6ef52d875b2a6e6d9a912bbbb717db59",
       "mode": 420
     },
     "platform/systemd/compute/fire-fuse-observer.service": {
@@ -7101,6 +7209,10 @@
       "sha256": "d9b25a39850566ac36a6326ef815e0a2d5f0906130d7115c755177566367adb6",
       "mode": 493
     },
+    "scripts/ci-scope.py": {
+      "sha256": "35fb582ded5ebd5c18e1faf446970a66b552838ebb5535d9156825a26c70aae8",
+      "mode": 420
+    },
     "scripts/compare-host-capacity.py": {
       "sha256": "c8844caa08fe7ebc1d06e72b42823cade6d3ed7eea7bdd4ad70dca5b3b3f0be0",
       "mode": 420
@@ -7138,11 +7250,11 @@
       "mode": 493
     },
     "scripts/public-source.py": {
-      "sha256": "82ead0dc2c5f123c23fc212742db5c20f56f3f981588778f0952e2072f03b1cf",
+      "sha256": "845d1b535e1b55ba49af930fb963b7927491454672e68b4036db9bb7bdc10c89",
       "mode": 420
     },
     "scripts/qualify-release-candidate.sh": {
-      "sha256": "40b026d5f6f34c2087c7041f383140921b7294a516ebbbcad8595d5418a92124",
+      "sha256": "ec3755be2c8943fb888fb2c13e081a61b2aacc42307413d76c79d9b22f1f4c62",
       "mode": 493
     },
     "scripts/release-notices.py": {
@@ -7185,6 +7297,14 @@
       "sha256": "661a951fda706024248650c56bf5ce9ae166ba11952183bec1e2a9bd0c8c2c13",
       "mode": 420
     },
+    "scripts/tests/test_ci_gate.py": {
+      "sha256": "a6f13e06bb2951550d5c4879c0a0daac5ee96b1b54621ad66f926851d3cf23ae",
+      "mode": 420
+    },
+    "scripts/tests/test_ci_scope.py": {
+      "sha256": "6bc60db99857fc6d32e8dbe8b3d0c2dd9ed9bc54ee79f10766139d2a168b029e",
+      "mode": 420
+    },
     "scripts/tests/test_cli_publish_workflow.py": {
       "sha256": "587a56eff83f151fb12d82082a65ce0ec3a4290f45df126d86813d1619705720",
       "mode": 420
@@ -7214,15 +7334,15 @@
       "mode": 420
     },
     "scripts/tests/test_public_source.py": {
-      "sha256": "d553f085aefb9e8c3fbd6d5e836e9fa6d9de73b79bf45dbf6cd6ad6f8e65f6db",
+      "sha256": "cd0cf5ee27eb5e3927138da7b76c54158949ab43c5b413d4e483905a2e27a3aa",
       "mode": 420
     },
     "scripts/tests/test_release_notices.py": {
-      "sha256": "4549df590adf29531e715279c0b2113561475acace3a7e97b49e7dc95125a5f8",
+      "sha256": "8537990397e981165cf163d6ac75186f7233ae3a1ad5267a92780fc5466af7df",
       "mode": 420
     },
     "scripts/tests/test_release_qualification.py": {
-      "sha256": "0d5895ca1f3b163c6790c8b21911059522a77919fe2ba305c0420c008bfca390",
+      "sha256": "c432509a3bc22255706deba316c62178c857d09f126ba87e28854e5a1ac2e16e",
       "mode": 420
     },
     "scripts/tests/test_report_vm_warmup.py": {
@@ -7338,7 +7458,7 @@
       "mode": 420
     },
     "tests/live/check-elastic-memory.py": {
-      "sha256": "6356ee467f02a9324e158bc18d302e19fdf510e1688845ee38bfca6e191aac96",
+      "sha256": "ac21f854d909b3ab2c461b2dd5e1758545295e2c57cdb16f814e9986b5672ee3",
       "mode": 420
     },
     "tests/live/elastic-memory-pressure/main.go": {

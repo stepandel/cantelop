@@ -50,6 +50,9 @@ export interface ShellAppContext {
   activeSection?: string;
   /** The App's own home — its name in the sidebar links here. */
   homeHref: string;
+  /** Where the sidebar's way back up leads; Home unless the context sits
+   *  inside something else, as a Fleet installation sits in its Fleet. */
+  back?: { label: string; href: string };
 }
 
 export interface Crumb {
@@ -305,7 +308,7 @@ export function ConsoleShell({
           {operator ? (
             <span>Host</span>
           ) : appContext ? (
-            <Link className="side-index" href="/profile">‹ Home</Link>
+            <Link className="side-index" href={appContext.back?.href ?? "/profile"}>‹ {appContext.back?.label ?? "Home"}</Link>
           ) : (
             <>
               <span>Console</span>

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { ConfigCipher } from "../configuration/cipher";
 import { WorkspaceDatabaseService } from "./service";
+import { TursoProvider } from "./provider";
 import { withWorkspaceDatabases } from "./compute-provider";
 const workspace = "wsp_0123456789abcdef0123456789abcdef";
 const app = "app_0123456789abcdef0123456789abcdef";
@@ -54,6 +55,44 @@ test("concurrent provisioning produces one ready database and encrypted credenti
   const credentials = await f.service.credentials(app, workspace);
   expect(credentials.authToken).toBe(token);
   expect(f.calls.filter(c => c[0] === "token")).toHaveLength(1);
+});
+function tursoAWS(f, existing) {
+  const requests = [];
+  const database = name => ({ database: { Name: name, DbId: "provider-id", Hostname: "managed-cantelop.turso.io", group: "production" } });
+  const provider = new TursoProvider("cantelop", "production", "platform-token", async (url, init) => {
+    requests.push([init.method, url]);
+    if (init.method === "PATCH") return Response.json({ error: "size_limit is not supported for db-api controlled databases" }, { status: 400 });
+    if (url.endsWith("/databases")) {
+      const body = JSON.parse(init.body);
+      if (body.size_limit !== undefined) return Response.json({ error: "size_limit is unsupported" }, { status: 400 });
+      if (existing.has(body.name)) return Response.json({ error: "database already exists" }, { status: 409 });
+      return Response.json(database(body.name));
+    }
+    const name = url.match(/\/databases\/([a-z0-9-]+)$/)?.[1];
+    if (init.method === "GET" && existing.has(name)) return Response.json(database(name));
+    if (url.includes("/auth/tokens?")) return Response.json({ jwt: token });
+    if (url.endsWith("/v2/pipeline")) return Response.json({ results: [{ type: "ok" }] });
+    throw new Error("unexpected provider request");
+  });
+  for (const method of ["ensure", "token", "probe"]) f.provider[method] = provider[method].bind(provider);
+  return requests;
+}
+test("first access works with Turso AWS databases that reject size caps", async () => {
+  const f = fixture();
+  const requests = tursoAWS(f, new Set());
+  expect((await f.service.credentials(app, workspace)).authToken).toBe(token);
+  expect(f.row.status).toBe("ready");
+  expect(requests.map(r => r[0])).toEqual(["POST", "POST", "POST"]);
+  const before = requests.length;
+  await expect(f.service.credentials("app_other", workspace)).rejects.toMatchObject({ code: "workspace_not_found" });
+  expect(requests).toHaveLength(before);
+});
+test("first access recovers a database created before a failed size-cap request", async () => {
+  const f = fixture();
+  const requests = tursoAWS(f, new Set([`ct-production-${workspace.slice(4)}`]));
+  expect((await f.service.credentials(app, workspace)).authToken).toBe(token);
+  expect(f.row.status).toBe("ready");
+  expect(requests.map(r => r[0])).toEqual(["POST", "GET", "POST", "POST"]);
 });
 test("failed readiness probe preserves reserved identity but never exposes credentials", async () => {
   const f = fixture(); f.provider.probe = async () => { throw new Error("unavailable"); };

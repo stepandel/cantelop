@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -23,6 +24,13 @@ def release_notices(commit: str) -> dict[str, bytes]:
 
 
 class ReleaseQualificationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Archive fixtures model an independent build, not the current hosted
+        # publication. Subprocess validators inherit the same source identity.
+        environment = patch.dict(os.environ, {"CANTELOP_SOURCE_REPOSITORY": "https://github.com/operator/release-fixture"})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_release_state_schema_matches_runtime(self) -> None:
         manager = (ROOT / "fire-fuse/runtime/persistence/sqliteschema/manager.go").read_text()
         match = re.search(r"const CurrentVersion = (\d+)", manager)

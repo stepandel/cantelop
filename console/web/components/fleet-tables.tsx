@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMemo, type ReactNode } from "react";
 
 import type { FleetInstallation, FleetPackage } from "@/lib/customer-fleets";
 import { formatMemory } from "@/lib/format";
+import { runningByApp } from "@/lib/instances";
+import type { Sandbox } from "@/lib/telemetry-types";
 import { useClock } from "@/lib/use-clock";
+import { useStreamed } from "@/lib/use-streamed";
 
 /** The installation's lifecycle word with its dot, as the App tables draw a
  *  release or Sandbox state. */
@@ -27,17 +31,27 @@ export function policySummary(installation: Pick<FleetInstallation, "policy">, n
   return `${policy.maxSandboxes} sbx · ${policy.maxVcpus} vcpu · ${formatMemory(policy.maxMemoryMib * 1024 * 1024)}`;
 }
 
-export function FleetInstallationsTable({ fleetId, installations }: {
+export function FleetInstallationsTable({ fleetId, installations, runtime, empty }: {
   fleetId: string;
   installations: FleetInstallation[];
+  // The account's Sandboxes, streamed in after the first paint; null when
+  // runtime state is unavailable.
+  runtime: Promise<Sandbox[] | null>;
+  empty?: ReactNode;
 }) {
   const router = useRouter();
   const clock = useClock();
+  const sandboxes = useStreamed(runtime);
+  const running = useMemo(() => (sandboxes ? runningByApp(sandboxes) : null), [sandboxes]);
   if (installations.length === 0) {
     return (
       <p className="empty-note">
-        No installations. The Fleet&rsquo;s service installs Apps with a principal that holds{" "}
-        <code>installations:write</code>.
+        {empty ?? (
+          <>
+            No installations. The Fleet&rsquo;s service installs Apps with a principal that holds{" "}
+            <code>installations:write</code>.
+          </>
+        )}
       </p>
     );
   }
@@ -47,6 +61,7 @@ export function FleetInstallationsTable({ fleetId, installations }: {
       <colgroup>
         <col />
         <col className="c-state" />
+        <col className="c-sandboxes" />
         <col className="c-build" />
         <col className="c-shape" />
         <col className="c-kind" />
@@ -56,6 +71,7 @@ export function FleetInstallationsTable({ fleetId, installations }: {
         <tr>
           <th>External key</th>
           <th>Status</th>
+          <th className="num" title="Running Sandboxes">Sandboxes</th>
           <th>Package</th>
           <th>Policy</th>
           <th title="Whether compute enforces the latest policy revision">Enforced</th>
@@ -66,12 +82,24 @@ export function FleetInstallationsTable({ fleetId, installations }: {
         {installations.map((installation) => {
           const href = `/fleets/${fleetId}/installations/${installation.id}`;
           const enforcing = installation.enforced_revision < installation.policy_revision;
+          const count = running?.get(installation.app_id) ?? 0;
           return (
             <tr key={installation.id} className="selectable" onClick={() => router.push(href)}>
               <td className="ellip mono" title={`${installation.external_key} · ${installation.id}`}>
                 <Link href={href} onClick={(event) => event.stopPropagation()}>{installation.external_key}</Link>
               </td>
               <td title={installation.error_code ?? undefined}><InstallationState status={installation.status} /></td>
+              <td className="num">
+                {running === null
+                  ? <span className="faint" title={sandboxes === undefined ? "Reading runtime state" : "Runtime state is unavailable"}>—</span>
+                  : count === 0
+                    ? <span className="faint">0</span>
+                    : (
+                      <Link href={`${href}/sandboxes`} onClick={(event) => event.stopPropagation()} title="Inspect running Sandboxes">
+                        {count}
+                      </Link>
+                    )}
+              </td>
               <td className="dim">
                 v{installation.version}
                 {installation.next_package_id && <span className="info"> ›</span>}

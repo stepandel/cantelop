@@ -1,0 +1,26 @@
+[Unit]
+Description=Cantelop managed compute allowance watchdog
+StartLimitIntervalSec=60s
+StartLimitBurst=20
+
+[Service]
+Type=notify
+User=root
+ExecStart=/usr/local/lib/fire-fuse-managed/fire-fuse-managed-watchdog -state /var/lib/fire-fuse-managed/state/state.db -cgroups /sys/fs/cgroup/system.slice/fire-fuse-managed.service/sandboxes -heartbeat /run/fire-fuse-fleet-watchdog/heartbeat
+Restart=always
+RestartSec=1s
+WatchdogSec=5s
+NotifyAccess=main
+RuntimeDirectory=fire-fuse-fleet-watchdog
+RuntimeDirectoryMode=0700
+UMask=0077
+ProtectSystem=strict
+ReadOnlyPaths=-/var/lib/fire-fuse-managed/state
+ReadWritePaths=/sys/fs/cgroup
+ProtectHome=yes
+ProtectClock=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

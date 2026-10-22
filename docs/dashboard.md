@@ -173,6 +173,20 @@ used as sandbox consumption in the console. Capacity contains only aggregate
 target, ready, claimed, and preparing counts; host-only recovery metadata and
 checkpoint details are never emitted.
 
+When the observer's managed runtime is configured, `/snapshot` combines the
+standard and isolated Fleet pools, including Workspace-scoped reads, live
+Sessions, Sandbox usage, and warm capacity. Both pools must be readable; an
+unavailable pool fails the snapshot instead of appearing empty. Readiness
+requires both pools to be ready. Duplicate runtime identities fail the snapshot.
+Session stop, Sandbox stop, crash injection, `/requests`, and
+`/apps/{id}/builds` resolve the owning pool first: Sandboxes and Apps by a
+direct read, Sessions from the Session listings, and request history by the
+pool that has events for the scoped App or Workspace. An owner found in one
+pool is used even when the other pool cannot be read; without an owner, a
+failed lookup is an error and never falls through to the other pool, and an
+ambiguous identity is a conflict. Database authorization keeps its separate
+standard and managed routes and credentials.
+
 ## Infrastructure metrics
 
 The authenticated `GET /infrastructure` endpoint accepts only `range=1h`,

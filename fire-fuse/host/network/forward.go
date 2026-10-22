@@ -104,6 +104,7 @@ func NewEgressPolicy(
 
 // ForwardingManager owns per-VM forwarding and source-NAT firewall rules.
 type ForwardingManager struct {
+	namespace    string
 	iptablesBin  string
 	ip6tablesBin string
 	policy       EgressPolicy
@@ -193,13 +194,13 @@ func (m *ForwardingManager) ListOwnedRules(ctx context.Context) ([]OwnedFirewall
 				// A guest egress chain emptied by a partial teardown carries no
 				// comment of its own. Name it after the TAP it was created for
 				// so it reports the same ownership a live guest's rules do.
-				if comment, isEgress := egressChainOwnershipComment(chain); isEgress {
+				if comment, isEgress := egressChainOwnershipComment(chain); isEgress && strings.HasPrefix(comment, namespaceOwnershipPrefix(m.namespace)) {
 					record(OwnedFirewallRule{Table: table.table, Chain: chain, Comment: comment})
 				}
 				continue
 			}
 			comment, exists := parseIPTablesComment(line)
-			if !exists || !strings.HasPrefix(comment, firewallCommentPrefix) {
+			if !exists || !strings.HasPrefix(comment, namespaceOwnershipPrefix(m.namespace)) {
 				continue
 			}
 			record(OwnedFirewallRule{Table: table.table, Chain: chain, Comment: comment})
@@ -228,11 +229,16 @@ func iptablesChainReference(line string) (chain string, declaration, ok bool) {
 // egressChainOwnershipComment maps a guest egress chain back to the ownership
 // comment carried by the rules inside it.
 func egressChainOwnershipComment(chain string) (string, bool) {
+	prefix := tapNamePrefix
 	suffix, found := strings.CutPrefix(chain, egressChainPrefix)
+	if !found {
+		suffix, found = strings.CutPrefix(chain, "FME-")
+		prefix = "fm"
+	}
 	if !found || suffix == "" {
 		return "", false
 	}
-	tapName := tapNamePrefix + suffix
+	tapName := prefix + suffix
 	if !IsManagedTAPName(tapName) {
 		return "", false
 	}
@@ -241,6 +247,9 @@ func egressChainOwnershipComment(chain string) (string, bool) {
 
 // Apply allows one guest to initiate forwarded connections and masquerades its source address.
 func (m *ForwardingManager) Apply(ctx context.Context, tapName string, allocation Allocation) error {
+	if !IsTAPNameInNamespace(tapName, m.namespace) {
+		return ErrInvalidForwardingConfig
+	}
 	rules, err := forwardingRules(tapName, allocation, m.policy)
 	if err != nil {
 		return err
@@ -264,6 +273,9 @@ func (m *ForwardingManager) Apply(ctx context.Context, tapName string, allocatio
 
 // Remove deletes one guest's exact rules. Rules already absent are successful.
 func (m *ForwardingManager) Remove(ctx context.Context, tapName string, allocation Allocation) error {
+	if !IsTAPNameInNamespace(tapName, m.namespace) {
+		return ErrInvalidForwardingConfig
+	}
 	return m.removeForwardingRules(ctx, tapName, allocation)
 }
 
@@ -294,6 +306,9 @@ func (m *ForwardingManager) ApplyWorkspaceNFS(
 	tapName string,
 	allocation Allocation,
 ) error {
+	if !IsTAPNameInNamespace(tapName, m.namespace) {
+		return ErrInvalidForwardingConfig
+	}
 	rule, err := workspaceNFSFirewallRule(tapName, allocation)
 	if err != nil {
 		return err
@@ -314,6 +329,9 @@ func (m *ForwardingManager) RemoveWorkspaceNFS(
 	tapName string,
 	allocation Allocation,
 ) error {
+	if !IsTAPNameInNamespace(tapName, m.namespace) {
+		return ErrInvalidForwardingConfig
+	}
 	rule, err := workspaceNFSFirewallRule(tapName, allocation)
 	if err != nil {
 		return err
@@ -573,6 +591,9 @@ func forwardingCleanupRules(
 }
 
 func egressChainName(tapName string) string {
+	if strings.HasPrefix(tapName, "fm") {
+		return "FME-" + strings.TrimPrefix(tapName, "fm")
+	}
 	return egressChainPrefix + strings.TrimPrefix(tapName, tapNamePrefix)
 }
 
@@ -621,6 +642,9 @@ func multiportList(ports []uint16) string {
 }
 
 func firewallOwnershipComment(tapName string) string {
+	if strings.HasPrefix(tapName, "fm") {
+		return namespaceOwnershipPrefix("managed") + tapName
+	}
 	return firewallCommentPrefix + tapName
 }
 

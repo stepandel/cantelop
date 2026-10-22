@@ -23,6 +23,7 @@ export function TraceExplorer({
   initial,
   appIds,
   operator = false,
+  polling = true,
   initialPath = "",
   initialSession = "",
   linkedRequestId = "",
@@ -35,6 +36,8 @@ export function TraceExplorer({
   linkedRequestId?: string;
   appIds?: string[];
   operator?: boolean;
+  // False in previews, which hold every trace they will ever have.
+  polling?: boolean;
 }) {
   const [selectedAppId, setSelectedAppId] = useState(appId);
   const [tree, setTree] = useState(initial);
@@ -43,7 +46,9 @@ export function TraceExplorer({
   const [sessionFilter, setSessionFilter] = useState(initialSession);
   const [workspaceFilter, setWorkspaceFilter] = useState("");
   const [pathFilter, setPathFilter] = useState(initialPath);
-  const initialSelection = useRef(true);
+  // The App whose tree is on screen. Choosing another one clears and
+  // refetches; an effect re-run for the same App (StrictMode) does nothing.
+  const shownAppId = useRef(appId);
 
   const refresh = useCallback(async () => {
     if (!selectedAppId) return;
@@ -70,16 +75,14 @@ export function TraceExplorer({
   }, [operator, selectedAppId, linkedRequestId]);
 
   useEffect(() => {
-    if (initialSelection.current) {
-      initialSelection.current = false;
-      return;
-    }
+    if (shownAppId.current === selectedAppId) return;
+    shownAppId.current = selectedAppId;
     setTree(null);
     setUnavailable(false);
     void refresh();
   }, [refresh, selectedAppId]);
 
-  usePolling(refresh, POLL_INTERVAL_MS);
+  usePolling(refresh, POLL_INTERVAL_MS, { enabled: polling });
 
   const filterOptions = useMemo(() => traceFilterOptions(tree), [tree]);
   const { requests, unlinkedMessages } = useMemo(() => filterTraceTree(
@@ -124,8 +127,8 @@ export function TraceExplorer({
           <TraceFilter label="Workspace ID" value={workspaceFilter} options={filterOptions.workspaces} onChange={setWorkspaceFilter} />
           <TraceFilter label="Request path" value={pathFilter} options={filterOptions.paths} onChange={setPathFilter} />
         </div>
-        <button className="tabrow-action" type="button" onClick={() => void refresh()} disabled={refreshing}>
-          {refreshing ? "Refreshing…" : "Polling 5s · refresh now"}
+        <button className="tabrow-action" type="button" onClick={() => void refresh()} disabled={refreshing || !polling}>
+          {refreshing ? "Refreshing…" : polling ? "Polling 5s · refresh now" : "Static preview"}
         </button>
       </div>
       {unavailable && (

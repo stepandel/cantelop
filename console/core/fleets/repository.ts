@@ -243,7 +243,7 @@ export class FleetRepository {
           throw new FleetError("quota_exceeded", 429);
       }
       const pkg = await tx.query(
-        `SELECT id FROM cantelop_control.fleet_packages WHERE id=$1 AND fleet_id=$2 AND disabled_at IS NULL`,
+        `SELECT id,prepared_manifest_key FROM cantelop_control.fleet_packages WHERE id=$1 AND fleet_id=$2 AND disabled_at IS NULL`,
         [packageId, actor.fleetId],
       );
       if (!pkg.rowCount) throw new FleetError("not_found", 404);
@@ -252,6 +252,9 @@ export class FleetRepository {
         slug: `j-${randomBytes(16).toString("hex")}`,
         sessionRuntime: { internalPort: platformInternalPort },
       }, actor.fleetId);
+      if (pkg.rows[0]!.prepared_manifest_key) {
+        await tx.query("UPDATE cantelop_control.apps SET compute_pool='managed' WHERE id=$1", [app.id]);
+      }
       await tx.query(
         `UPDATE cantelop_control.operations SET input=input||'{"managed":true}'::jsonb WHERE app_id=$1 AND kind='register_app'`,
         [app.id],
@@ -336,22 +339,39 @@ export class FleetRepository {
     ).rows;
   }
   /** Oldest first, keyed on the last installation id of the previous page.
-   *  Installations whose App is archived and purged are left out. */
-  async installationsForOwner(owner: string, fleet: string, page: { after?: string; limit?: number } = {}) {
+   *  Installations whose App is archived and purged are left out. A key
+   *  narrows the list to external keys that start with it. */
+  async installationsForOwner(owner: string, fleet: string, page: { after?: string; limit?: number; key?: string } = {}) {
     await this.fleetForOwner(owner, fleet);
     const limit = integer(page.limit ?? 50, 1, 200);
     if (page.after !== undefined) identifier(page.after, "ins");
+    if (page.key !== undefined && !/^[A-Za-z0-9_.:-]{1,128}$/.test(page.key)) throw new FleetError("invalid_installation_key");
     const rows = (
       await this.db.query<Installation>(
         `SELECT ${installationColumns},fp.policy,i.created_at,i.updated_at ${installationSource}
         WHERE i.fleet_id=$1 AND NOT (i.desired_state='deleted' AND a.status='archived' AND ${purgeSettled})
           AND ($2::text IS NULL OR (i.created_at,i.id)>(SELECT created_at,id FROM cantelop_control.fleet_installations WHERE id=$2 AND fleet_id=$1))
+          AND ($4::text IS NULL OR starts_with(i.external_key,$4))
         ORDER BY i.created_at,i.id LIMIT $3`,
-        [fleet, page.after ?? null, limit + 1],
+        [fleet, page.after ?? null, limit + 1, page.key ?? null],
       )
     ).rows;
     const items = rows.slice(0, limit).map((row) => ({ ...row, status: installationStatus(row) }));
     return { items, after: rows.length > limit ? items.at(-1)!.id : null };
+  }
+  /** The Fleet's installations behind the given Apps, such as those running
+   *  Sandboxes right now. Apps outside the Fleet are ignored. */
+  async installationsForAppsForOwner(owner: string, fleet: string, appIds: string[]) {
+    await this.fleetForOwner(owner, fleet);
+    if (appIds.length === 0) return [];
+    const rows = (
+      await this.db.query<Installation>(
+        `SELECT ${installationColumns},fp.policy,i.created_at,i.updated_at ${installationSource}
+        WHERE i.fleet_id=$1 AND i.app_id=ANY($2::text[]) ORDER BY i.external_key,i.id`,
+        [fleet, appIds],
+      )
+    ).rows;
+    return rows.map((row) => ({ ...row, status: installationStatus(row) }));
   }
   async installationForOwner(owner: string, fleet: string, id: string) {
     await this.fleetForOwner(owner, fleet);
@@ -411,8 +431,14 @@ export class FleetRepository {
   }
 }
 const purgeSettled = `NOT EXISTS(SELECT 1 FROM cantelop_control.operations o WHERE o.app_id=i.app_id AND o.kind='purge_workspace' AND o.status<>'succeeded')`;
+// commitActivation records the release before the host and edge gates reopen.
+// Only the final activation acknowledgement proves it can serve requests.
+const activationStatus = `(SELECT o.status FROM cantelop_control.operations o WHERE o.app_id=i.app_id
+  AND o.kind='activate_release' AND o.input->>'target_release_id'=i.release_id
+  ORDER BY o.created_at DESC,o.id DESC LIMIT 1)`;
 const installationColumns = `i.id,i.external_key,i.app_id,i.package_id,i.next_package_id,i.release_id,i.desired_state,i.error_code,
-      p.runtime_id,p.version,a.status AS app_status,${purgeSettled} AS purged,a.active_release_id,r.status AS release_status,fp.revision AS policy_revision,fp.enforced_revision`;
+      p.runtime_id,p.version,a.status AS app_status,${purgeSettled} AS purged,a.active_release_id,r.status AS release_status,
+      ${activationStatus} AS activation_status,fp.revision AS policy_revision,fp.enforced_revision`;
 const installationSource = `FROM cantelop_control.fleet_installations i JOIN cantelop_control.fleet_packages p ON p.id=i.package_id
       JOIN cantelop_control.apps a ON a.id=i.app_id LEFT JOIN cantelop_control.releases r ON r.id=i.release_id
       JOIN cantelop_control.fleet_policies fp ON fp.app_id=i.app_id`;
@@ -431,8 +457,11 @@ export function installationStatus(row: {
   next_package_id?: unknown;
   error_code?: unknown;
   release_status?: unknown;
+  activation_status?: unknown;
   active_release_id?: unknown;
   release_id?: unknown;
+  policy_revision?: unknown;
+  enforced_revision?: unknown;
 }): InstallationStatus {
   return row.desired_state === "deleted"
     ? row.app_status === "archived" && row.purged
@@ -442,9 +471,11 @@ export function installationStatus(row: {
       ? "suspended"
       : row.next_package_id
         ? "upgrading"
-        : row.error_code || row.release_status === "failed" || row.release_status === "cancelled"
+        : row.error_code || row.release_status === "failed" || row.release_status === "cancelled" || row.activation_status === "failed"
           ? "failed"
-          : row.release_status === "active" && row.active_release_id === row.release_id
+          : typeof row.policy_revision === "number" && Number(row.enforced_revision ?? 0) < row.policy_revision
+            ? "provisioning"
+          : row.release_status === "active" && row.active_release_id === row.release_id && row.activation_status === "succeeded"
             ? "ready"
             : "provisioning";
 }

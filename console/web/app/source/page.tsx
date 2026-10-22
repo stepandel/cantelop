@@ -26,9 +26,9 @@ export default function SourcePage() {
       <h1>Source code</h1>
       <p>Cantelop platform code is licensed under the GNU Affero General Public License version 3, with the exceptions described in its license map. The separate Cantelop SDK and supplied application starters are MIT licensed.</p>
       {source ? <>
-        <p><a href={source.sourceURL}>Browse the source for this console deployment</a>.</p>
+        <p><a href={source.sourceURL}>Browse the source for this console deployment</a>.{source.private ? " This revision is in a private repository and requires access from the operator." : ""}</p>
         <p>Revision: <code>{source.commit}</code></p>
-        <p>Development happens in the open at <a href={source.repository}>{source.repository.replace(/^https:\/\//, "")}</a>; see <a href={`${source.repository}/blob/main/CONTRIBUTING.md`}>contributing</a> to report issues or propose changes.</p>
+        {!source.private && <p>Development happens in the open at <a href={source.repository}>{source.repository.replace(/^https:\/\//, "")}</a>; see <a href={`${source.repository}/blob/main/CONTRIBUTING.md`}>contributing</a> to report issues or propose changes.</p>}
         <p><a href={`${source.repository}/blob/${source.commit}/LICENSE`}>Platform license</a> · <a href={`${source.repository}/blob/${source.commit}/docs/licensing.md`}>License map</a> · <a href={`${source.repository}/blob/${source.commit}/THIRD_PARTY_NOTICES.md`}>Third-party notices</a></p>
       </> : <p>The operator has not configured a valid source revision for this deployment. Ask the operator for the corresponding source.</p>}
       <p>Source for other Cantelop components is identified by the <code>SOURCE.json</code> files shipped with their release archives. Operators of modified deployments must provide source matching the components they run.</p>

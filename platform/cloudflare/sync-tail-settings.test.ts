@@ -27,6 +27,27 @@ test("stops deployment when Cloudflare rejects the settings update", async () =>
 
 test("stops deployment when an accepted update loses the tail attachment", async () => {
   const request = (async () => Response.json({ success: true, result: { tail_consumers: [] } })) as typeof fetch;
-  await expect(synchronizeTailConsumers("cantelop-dispatcher", consumers, account, "private-token", request))
+  await expect(synchronizeTailConsumers("cantelop-dispatcher", consumers, account, "private-token", request, async () => {}))
     .rejects.toThrow("readback mismatch");
+});
+
+
+test("verifies a propagated attachment after an initially stale read", async () => {
+  let calls = 0;
+  const request = (async () => {
+    calls++;
+    return Response.json(calls === 1 ? { success: true } :
+      { success: true, result: { tail_consumers: calls === 2 ? [] : consumers } });
+  }) as typeof fetch;
+  await synchronizeTailConsumers("cantelop-dispatcher", consumers, account, "private-token", request, async () => {});
+  expect(calls).toBe(3);
+});
+
+test("readback authorization failures are not treated as propagation lag", async () => {
+  let calls = 0;
+  const request = (async () => ++calls === 1 ? Response.json({ success: true }) :
+    Response.json({ success: false }, { status: 403 })) as typeof fetch;
+  await expect(synchronizeTailConsumers("cantelop-dispatcher", consumers, account, "private-token", request, async () => {}))
+    .rejects.toThrow("HTTP 403");
+  expect(calls).toBe(2);
 });

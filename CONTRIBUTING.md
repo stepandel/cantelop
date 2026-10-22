@@ -27,8 +27,11 @@ trusted boot fixtures, and root networking privileges; see the README before
 explicitly enabling them. Docker and provider-backed qualification have their
 own documented prerequisites.
 
-Run checks appropriate to the change. Release qualification additionally uses
-the separate public SDK checkout; see [release candidates](docs/release-candidates.md).
+Run checks appropriate to the change. PR CI selects affected suites and runs
+them in parallel; see [contributor CI](docs/contributor-ci.md). Ordinary checks
+do not require publishing and pinning a public-source snapshot. Release
+qualification verifies that snapshot and additionally uses the separate public
+SDK checkout; see [release candidates](docs/release-candidates.md).
 That gate builds artifacts and does not authorize publication or deployment.
 
 ## Changes and review

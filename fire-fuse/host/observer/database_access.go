@@ -52,7 +52,7 @@ func (c *ControlClient) DatabaseAccess(ctx context.Context, id string) (Database
 	return DatabaseAccess{SandboxID: id, AppID: sandbox.AppID, WorkspaceID: sandbox.WorkspaceID, Active: true}, http.StatusOK, nil
 }
 
-func serveDatabaseAccess(w http.ResponseWriter, r *http.Request, source Source) {
+func serveDatabaseAccess(w http.ResponseWriter, r *http.Request, source any) {
 	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/sandboxes/"), "/database-access")
 	if !sandboxIDPattern.MatchString(id) || r.URL.RawQuery != "" || r.URL.ForceQuery {
 		http.Error(w, "invalid Sandbox", http.StatusBadRequest)

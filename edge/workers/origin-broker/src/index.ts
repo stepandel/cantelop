@@ -16,4 +16,8 @@ export default class OriginBroker extends WorkerEntrypoint<OriginBrokerEnv> {
   dispatch(request: Request, target: DispatchTarget): Promise<Response> {
     return dispatchToOrigin(request, target, this.env);
   }
+
+  dispatchManaged(request: Request, target: DispatchTarget): Promise<Response> {
+    return dispatchToOrigin(request, target, this.env, undefined, "managed");
+  }
 }

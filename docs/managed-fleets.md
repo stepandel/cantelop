@@ -130,11 +130,14 @@ session; no `tenant:write` token is needed. The console:
 - changes a Fleet's cap;
 - creates principals with chosen scopes and a lifetime of 1–366 days, shows the
   `fsp_` secret once, and revokes principals;
-- lists installations (oldest first, 50 a page) with their lifecycle status,
-  package version, policy summary and whether compute enforces the latest
-  policy revision, and lists packages;
-- shows one installation's policy, revisions and every budget epoch, and links
-  to its App's pages.
+- shows the installations running Sandboxes right now, busiest first, then
+  lists every installation (oldest first, 50 a page, optionally narrowed to
+  external keys starting with a prefix) with its lifecycle status, running
+  Sandboxes, package version, policy summary and whether compute enforces the
+  latest policy revision, and lists packages;
+- opens each installation as its own screen inside the Fleet: an overview of
+  its policy, revisions and every budget epoch; its Sandboxes and Traces, the
+  same monitoring its App shows; and a link to the rest of its App's pages.
 
 Policy and budget are read-only in the console. The owning service sets them
 through its principals, so the console never contends with their revisions or
@@ -173,12 +176,17 @@ validated Fire Fuse release and JuiceFS/NFS setup, plus these additions:
    compute ingress. Run bounded canaries before increasing capacity.
 
 A policy requires functioning JuiceFS hard quotas. Each Workspace reserves its
-share before registration; files receive the allocation minus 256 MiB reserved
-for its Turso database. File limits round down to whole GiB, so an active policy
-requires at least 1.25 GiB per permitted Workspace. Database size limits are set
-and read back before workload tokens are issued. Purge stops compute and
-deletes Workspace files before releasing the host's retained storage
-allocation, then deletes the database.
+share before registration; the file allocation rounds down to whole GiB, so an
+active policy requires at least 1 GiB per permitted Workspace. This hard quota
+covers Workspace files only.
+
+Turso's current AWS backend rejects per-database `size_limit` configuration.
+Workspace database provisioning therefore does not request a size cap. Fleet
+storage allocations do not enforce or reserve a database storage limit.
+Database storage remains subject to the provider account's limits and billing.
+Compute limits, execution budgets, and JuiceFS file quotas remain enforced
+independently. Purge stops compute and deletes Workspace files before releasing
+the host's retained storage allocation, then deletes the database.
 
 ## Funded execution and failure behavior
 
@@ -216,3 +224,63 @@ work. Monitor lease renewal latency, policy lag, watchdog freshness, stale
 reservations, principal expiry and purge failures. Keep admission closed during
 restores, reconcile ledger/host evidence, and never reset settled usage to make a
 restore succeed. Juiced documents the service-side restore and revocation steps.
+
+## Managed compute placement and rollout
+
+Shared-package installations are created with durable `apps.compute_pool=managed`
+in the same transaction as registration. Ordinary Apps and legacy installations
+retain `standard` placement. The worker resolves placement for every runtime
+control command, using a separate endpoint and credential. A missing managed
+endpoint denies the operation; it cannot register an App on ordinary compute.
+
+Only the Fleet runtime capability calls the broker's private `dispatchManaged`
+RPC. The broker strips incoming transport headers and supplies authenticated
+`X-Cantelop-Edge-Compute-Pool` metadata. The gateway validates that metadata and
+uses a distinct runtime client. Customer headers cannot select another pool.
+Installation status stays `provisioning` while its enforced policy revision
+lags the desired revision. Upgrades between legacy and shared execution return
+`compute_pool_migration_required`; moving existing state requires a fenced
+operator migration, rather than changing placement beneath active workspaces.
+
+`platform/ansible/playbooks/compute/managed.yml` bootstraps a bounded managed-only
+runtime instance on a qualified 64 GiB compute machine. Supply four canonical
+Linux build artifacts in `fire_fuse_managed_artifacts`, each with `name`, absolute
+`path`, and verified `sha256`: `fire-fuse`, `fire-fuse-managed-watchdog`,
+`fire-fuse-async-dispatcher`, and `fire-fuse-gateway`. Supply six distinct private
+Vault values under `vault_fire_fuse_managed_{operator,gateway,dispatcher,observer,
+compute}_token` and `vault_fire_fuse_managed_encryption_key`. These must also be
+distinct from ordinary runtime credentials. Set the control worker's
+`cantelop_control_worker_managed_compute_ingress_url` to `http://10.77.0.1:8184`.
+
+The instance has independent SQLite and jail directories, a separate delegated
+service cgroup, an 8 GiB guest-memory quota, a 10 GiB service limit, and two VM
+slots. Its `fm...` TAP names, `fire-fuse-managed:` firewall ownership, `FME-`
+egress chains, and `172.30.0.0/16` subnet are disjoint from ordinary compute.
+The independent `fire-fuse-fleet-watchdog.service` reads only managed state and
+kills only the managed service's VM cgroups, including pooled host-slot IDs.
+Provider ingress is bound to WireGuard and restricted to the builder peer.
+
+Both instances share the qualified JuiceFS mounts and immutable image directory.
+Automatic image collection must remain disabled in both instances: independent
+reference databases cannot safely collect a shared cache. The bootstrap checks
+that ordinary compute has collection disabled. Configure collection only after
+introducing a combined reference inventory. Never bind a common writable parent
+of the JuiceFS mounts into a service mount namespace.
+
+Deploy in this order: bootstrap managed compute and require a healthy watchdog;
+migrate the control database and deploy its worker with both endpoints; deploy
+the broker and dispatcher Fleet bindings; publish an SDK-compatible canary
+package; create two funded installations and verify workload, configuration,
+workspace, credential, accounting and suspension isolation. The bootstrap
+refuses an already running managed runtime. For an update, close admission,
+drain active managed workloads, stop the managed runtime, and then rerun it.
+Keep the previous binaries and configuration for rollback; keep ordinary
+compute placement and state intact.
+
+For private release qualification and archives, commit the reviewed source and use
+`scripts/public-source.py pin-private --commit <full-commit> --repository <private-HTTPS-repository>`.
+This records the exact private revision and preserves full-tree snapshot
+verification for those release artifacts. It performs no public export or remote
+write. Private Vercel console deployments use their own exact Git revision and
+do not require a new snapshot pin after each merge; their source link is labeled
+as requiring operator access.

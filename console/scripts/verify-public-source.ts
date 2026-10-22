@@ -9,6 +9,7 @@ const digest = (data: string | Buffer) => createHash("sha256").update(data).dige
 /** Verify before migrations, including on Vercel checkouts without .git. */
 export function verifyPublicSource(directory = root, vercel = process.env.VERCEL === "1"): void {
   const pin = JSON.parse(readFileSync(join(directory, "console/public-source.json"), "utf8"));
+  if (pin.visibility !== undefined && !["public", "private"].includes(pin.visibility)) throw new Error("invalid source visibility");
   if (pin.commit === null && pin.snapshot_sha256 === null) return;
   if (pin.schema_version !== 1 || !/^[0-9a-f]{40}$/.test(pin.commit) || !/^[0-9a-f]{64}$/.test(pin.snapshot_sha256)) throw new Error("invalid public source pin");
   const manifestBytes = readFileSync(join(directory, "SOURCE_SNAPSHOT.json"));

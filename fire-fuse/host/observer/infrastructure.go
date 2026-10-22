@@ -145,13 +145,20 @@ type InfrastructureSource interface {
 type CompleteSource struct {
 	*ControlClient
 	InfrastructureSource
+	managed *ControlClient
 }
 
 func NewCompleteSource(control *ControlClient, infrastructure InfrastructureSource) (*CompleteSource, error) {
+	return NewCompleteSourceWithManagedRuntime(control, nil, infrastructure)
+}
+
+// NewCompleteSourceWithManagedRuntime includes the isolated Fleet runtime in
+// dashboard inventories while keeping each pool's client and credentials separate.
+func NewCompleteSourceWithManagedRuntime(control, managed *ControlClient, infrastructure InfrastructureSource) (*CompleteSource, error) {
 	if control == nil || infrastructure == nil {
 		return nil, errors.New("control and infrastructure sources are required")
 	}
-	return &CompleteSource{ControlClient: control, InfrastructureSource: infrastructure}, nil
+	return &CompleteSource{ControlClient: control, InfrastructureSource: infrastructure, managed: managed}, nil
 }
 
 type NetdataClient struct {

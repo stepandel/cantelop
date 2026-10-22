@@ -1,0 +1,16 @@
+[Unit]
+Description=Restrict managed compute ingress to the builder WireGuard peer
+Requires=wg-quick@wg0.service
+After=wg-quick@wg0.service
+Before=fire-fuse-managed.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/iptables --wait 5 -I INPUT 1 -d 10.77.0.1 -p tcp --dport 8184 -j DROP
+ExecStart=/usr/sbin/iptables --wait 5 -I INPUT 1 -i wg0 -s 10.77.0.2 -d 10.77.0.1 -p tcp --dport 8184 -j ACCEPT
+ExecStop=/usr/sbin/iptables --wait 5 -D INPUT -i wg0 -s 10.77.0.2 -d 10.77.0.1 -p tcp --dport 8184 -j ACCEPT
+ExecStop=/usr/sbin/iptables --wait 5 -D INPUT -d 10.77.0.1 -p tcp --dport 8184 -j DROP
+
+[Install]
+WantedBy=multi-user.target

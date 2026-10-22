@@ -39,6 +39,8 @@ func main() {
 	tokenFile := flag.String("token-file", "", "absolute path to the observer bearer token")
 	mutationTokenFile := flag.String("mutation-token-file", "", "absolute path to the Session mutation bearer token")
 	controlTokenFile := flag.String("control-token-file", "/etc/fire-fuse-observer/runtime-control.token", "private observer runtime bearer token")
+	managedControlPlaneURL := flag.String("managed-control-plane", "", "optional managed runtime loopback HTTP origin")
+	managedControlTokenFile := flag.String("managed-control-token-file", "", "private managed observer runtime bearer token")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -78,12 +80,20 @@ func main() {
 		logger.Error("invalid Netdata URL", "error", err)
 		os.Exit(1)
 	}
-	source, err := observer.NewCompleteSource(client, netdataClient)
+	var managed *observer.ControlClient
+	if *managedControlPlaneURL != "" || *managedControlTokenFile != "" {
+		managed, err = managedControlClient(*managedControlPlaneURL, *managedControlTokenFile, *controlTimeout, loopbackTransport)
+		if err != nil {
+			logger.Error("invalid managed observer configuration", "error", err)
+			os.Exit(1)
+		}
+	}
+	source, err := observer.NewCompleteSourceWithManagedRuntime(client, managed, netdataClient)
 	if err != nil {
 		logger.Error("could not construct observer sources", "error", err)
 		os.Exit(1)
 	}
-	handler, err := observer.NewHandlerWithSessionMutations(source, token, mutationToken)
+	handler, err := observer.NewHandlerWithManagedDatabaseAccess(source, source.ManagedDatabaseAccess(), token, mutationToken)
 	if err != nil {
 		logger.Error("could not construct observer", "error", err)
 		os.Exit(1)
@@ -122,6 +132,18 @@ func main() {
 	if serveErr != nil || shutdownErr != nil {
 		os.Exit(1)
 	}
+}
+
+func managedControlClient(origin, tokenFile string, timeout time.Duration, transport http.RoundTripper) (*observer.ControlClient, error) {
+	token, err := controlauth.LoadTokenFile(tokenFile)
+	if err != nil {
+		return nil, err
+	}
+	client, err := controlauth.AuthenticateClient(&http.Client{Timeout: timeout, Transport: transport}, token)
+	if err != nil {
+		return nil, err
+	}
+	return observer.NewControlClient(origin, client)
 }
 
 func validateListenAddress(address string) error {

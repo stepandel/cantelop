@@ -152,3 +152,92 @@ func TestDatabaseAccessDoesNotFallBackToSnapshot(t *testing.T) {
 		t.Fatal("unavailable observer returned an assignment")
 	}
 }
+
+func TestManagedDatabaseAccessIsAuthenticatedAndNeverFallsBack(t *testing.T) {
+	id := "sbx-0123456789abcdef0123456789abcdef"
+	standardCalls, managedCalls, managedStatus := 0, 0, 200
+	makeClient := func(managed bool) *ControlClient {
+		client, err := NewControlClient("http://127.0.0.1:8080", &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			app, status := "standard", 200
+			if managed {
+				managedCalls++
+				app, status = "managed", managedStatus
+			} else {
+				standardCalls++
+			}
+			if r.Method != "GET" || r.URL.Path != "/v1/sandboxes/"+id {
+				t.Fatalf("unexpected request %s %s", r.Method, r.URL)
+			}
+			return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{"id":"` + id + `","app_id":"` + app + `","workspace_id":"wsp_one","state":"running"}`)), Header: make(http.Header)}, nil
+		})})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return client
+	}
+	standard, managed := makeClient(false), makeClient(true)
+	readToken, mutationToken := strings.Repeat("r", 32), strings.Repeat("m", 32)
+	handler, err := NewHandlerWithManagedDatabaseAccess(standard, managed, readToken, mutationToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invoke := func(handler http.Handler, method, path, token string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	path := "/managed/sandboxes/" + id + "/database-access"
+	for _, token := range []string{"", mutationToken} {
+		if w := invoke(handler, "GET", path, token); w.Code != 401 {
+			t.Fatal(w.Code)
+		}
+	}
+	if standardCalls != 0 || managedCalls != 0 {
+		t.Fatal("unauthorized request reached runtime")
+	}
+	for _, method := range []string{"POST", "PUT", "DELETE"} {
+		if w := invoke(handler, method, path, readToken); w.Code != 404 {
+			t.Fatal(w.Code)
+		}
+	}
+	for _, invalid := range []string{path + "?other=1", path + "?", "/managed/sandboxes/bad/database-access"} {
+		if w := invoke(handler, "GET", invalid, readToken); w.Code != 400 {
+			t.Fatal(w.Code)
+		}
+	}
+	if standardCalls != 0 || managedCalls != 0 {
+		t.Fatal("invalid request reached runtime")
+	}
+	if w := invoke(handler, "GET", path, readToken); w.Code != 200 || !strings.Contains(w.Body.String(), `"appId":"managed"`) {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	for _, status := range []int{404, 503} {
+		managedStatus = status
+		w := invoke(handler, "GET", path, readToken)
+		want := http.StatusNotFound
+		if status == 503 {
+			want = http.StatusBadGateway
+		}
+		if w.Code != want {
+			t.Fatal(w.Code)
+		}
+	}
+	if standardCalls != 0 || managedCalls != 3 {
+		t.Fatal("managed request fell back", standardCalls, managedCalls)
+	}
+	if w := invoke(handler, "GET", "/sandboxes/"+id+"/database-access", readToken); w.Code != 200 || !strings.Contains(w.Body.String(), `"appId":"standard"`) {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	missing, err := NewHandlerWithSessionMutations(standard, readToken, mutationToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := invoke(missing, "GET", path, readToken); w.Code != 503 {
+		t.Fatal(w.Code)
+	}
+	if standardCalls != 1 {
+		t.Fatal("unconfigured managed pool fell back")
+	}
+}

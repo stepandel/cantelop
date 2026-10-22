@@ -41,7 +41,7 @@ class FireFuseObserverRoleTest(unittest.TestCase):
             nginx,
         )
         self.assertIn(
-            'location ~ "^/sandboxes/sbx-[0-9a-f]{32}/database-access$"', nginx
+            'location ~ "^/(managed/)?sandboxes/sbx-[0-9a-f]{32}/database-access$"', nginx
         )
         self.assertEqual(nginx.count("limit_except GET { deny all; }"), 2)
         self.assertIn(
@@ -83,6 +83,15 @@ class FireFuseObserverRoleTest(unittest.TestCase):
         self.assertIn("/sandboxes/sbx-00000000000000000000000000000000/database-access", tasks)
         self.assertIn("fire_fuse_observer_database_access_qualification.stdout == '401'", tasks)
         self.assertNotIn("--insecure", tasks)
+
+    def test_managed_verification_has_a_distinct_runtime_credential(self) -> None:
+        defaults = (ROLE / "defaults/main.yml").read_text()
+        tasks = (ROLE / "tasks/main.yml").read_text()
+        self.assertIn("vault_fire_fuse_managed_observer_token", defaults)
+        self.assertIn("fire_fuse_observer_managed_runtime_token != fire_fuse_observer_runtime_token", tasks)
+        self.assertIn("-managed-control-plane http://127.0.0.1:8180", tasks)
+        self.assertIn("-managed-control-token-file /etc/fire-fuse-observer/managed-runtime-control.token", tasks)
+        self.assertIn('group: "{{ fire_fuse_observer_group }}"', tasks)
 
 
 if __name__ == "__main__":

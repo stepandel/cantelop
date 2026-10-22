@@ -12,8 +12,8 @@ import (
 )
 
 // DirectoryQuota installs a JuiceFS hard quota before native workloads or sync
-// can write. Limits are rounded DOWN to GiB. Database storage has a separate
-// provider limit; callers reserve 256 MiB of each Workspace's allocation.
+// can write. Limits are rounded DOWN to GiB. The quota covers Workspace files
+// only; Turso database storage is not capped by Fleet allocations.
 func DirectoryQuota(binary, metadata, root, prefix string) func(string, int64) error {
 	return func(workspace string, bytes int64) error {
 		if model.ValidateWorkspaceID(workspace) != nil || metadata == "" || !filepath.IsAbs(binary) || !filepath.IsAbs(root) || bytes < (1<<30) {

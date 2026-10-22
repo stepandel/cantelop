@@ -60,24 +60,40 @@ git add console/public-source.json SOURCE_SNAPSHOT.json
 ```
 
 The pin verifies the actual public file bytes and modes against the selected
-private source. It records the public commit and manifest digest. Review and
-merge the private change only after public checks pass and the public commit is
-anonymously accessible. No private deployment commit needs to become public.
+private source. It records the public commit and manifest digest. Before a
+public release, require public checks to pass and the public commit to be
+anonymously accessible. Publication and pinning are separate from development
+PRs and private console deployments. No private deployment commit needs to
+become public.
 
-`make check` detects changed or newly tracked source after publication. The
-Vercel build additionally verifies the complete on-disk source file list and
-contents before any database migrations, including checkouts without `.git`.
-Build output, local credentials, and private operational paths are excluded by
-the explicit policy. Source changes require publishing and pinning a new
-snapshot before the private deployment can build. Policy changes are reviewable
-source changes too. Keep `CANTELOP_SOURCE_COMMIT` and
-`CANTELOP_SOURCE_REPOSITORY` unset on canonical hosted deployments so they use
-the checked-in publication pin.
+`make check` validates development changes without requiring publication.
+`make check-public-source` detects changed or newly tracked source after
+publication and runs explicitly at the start of `make qualify-release`.
+Canonical archive preparation and validation also require the verified pin.
+Production Vercel builds that use a public snapshot mapping verify the complete
+on-disk source file list and contents before any database migrations, including
+checkouts without `.git`. Build output, local credentials, and private
+operational paths are excluded by the explicit policy. Source changes require
+publishing and pinning a new snapshot before deploying with that public mapping.
+Vercel previews do not claim the previous public snapshot as their own source.
+Policy changes are reviewable source changes too.
 
-The console `/source` page links the mapped public commit. New CLI/host archives
-record the public source commit, snapshot digest, and separate private build
-commit; no historical binary assets are republished by this process. Verify
-anonymous source access and the deployed `/source` link after each promotion.
+With `visibility: "private"` in `console/public-source.json`, Vercel production
+and preview deployments use `VERCEL_GIT_COMMIT_SHA` as their source revision and
+the pin's repository URL. They do not require snapshot verification or a
+pin-only follow-up commit after merging source changes. The saved private
+snapshot remains available for explicit release qualification and archive
+creation/validation. Keep `CANTELOP_SOURCE_COMMIT` and
+`CANTELOP_SOURCE_REPOSITORY` unset on canonical hosted Vercel deployments.
+Other hosts must set `CANTELOP_SOURCE_COMMIT` to their exact deployed revision;
+an explicit revision that differs from Vercel's deployment commit is rejected.
+
+The console `/source` page links the deployed private commit and labels it as
+requiring operator access, or links the verified public commit when using a
+public mapping. New CLI/host archives record the source commit, snapshot digest,
+and separate build commit; no historical binary assets are republished by this
+process. Verify anonymous source access for public releases and the deployed
+`/source` link after each promotion.
 Other independently deployed components still need matching source for their
 actual revisions. Existing historical binaries and the hosted platform's
 previous revisions are not silently reclassified as this source preview.

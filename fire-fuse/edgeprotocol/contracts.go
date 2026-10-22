@@ -18,6 +18,7 @@ const (
 	AppIDHeader         = "X-Cantelop-Edge-App-ID"
 	WorkspaceIDHeader   = "X-Cantelop-Edge-Workspace-ID"
 	HostnameHeader      = "X-Cantelop-Edge-Hostname"
+	ComputePoolHeader   = "X-Cantelop-Edge-Compute-Pool"
 )
 
 // ReservedHeaders returns the headers removed from public requests before
@@ -31,6 +32,7 @@ func ReservedHeaders() []string {
 		AppIDHeader,
 		WorkspaceIDHeader,
 		HostnameHeader,
+		ComputePoolHeader,
 	}
 }
 

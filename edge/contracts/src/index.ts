@@ -8,6 +8,7 @@ export const EDGE_HEADERS = {
   appId: "X-Cantelop-Edge-App-ID",
   workspaceId: "X-Cantelop-Edge-Workspace-ID",
   hostname: "X-Cantelop-Edge-Hostname",
+  computePool: "X-Cantelop-Edge-Compute-Pool",
 } as const;
 
 /** Set on every dispatched response so a caller can find its request in the
@@ -21,6 +22,7 @@ export const RESERVED_HEADERS = Object.freeze([
   EDGE_HEADERS.appId,
   EDGE_HEADERS.workspaceId,
   EDGE_HEADERS.hostname,
+  EDGE_HEADERS.computePool,
 ] as const);
 
 export const APP_ID_PATTERN = /^app_[0-9a-f]{32}$/;

@@ -9,6 +9,8 @@ import type { InstallationStatus } from "@core/fleets/repository";
 
 export const FLEET_ID_PATTERN = /^flt_[a-f0-9]{32}$/;
 export const INSTALLATION_ID_PATTERN = /^ins_[a-f0-9]{32}$/;
+// A search is a prefix of an external key, in the characters a key may hold.
+export const INSTALLATION_KEY_SEARCH_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 // The console's view of the owner reads. Dates cross to client components as
 // ISO strings and credit amounts stay decimal strings: they are bigints.
@@ -150,9 +152,19 @@ export async function getFleetInstallations(
   userID: string,
   fleetID: string,
   after?: string,
+  key?: string,
 ): Promise<{ items: FleetInstallation[]; after: string | null }> {
-  const page = await fleetControl().installationsForOwner(userID, fleetID, { after });
+  const page = await fleetControl().installationsForOwner(userID, fleetID, { after, key });
   return { items: page.items.map(installation), after: page.after };
+}
+
+/** The Fleet's installations behind the given Apps; the rest are ignored. */
+export async function getFleetInstallationsForApps(
+  userID: string,
+  fleetID: string,
+  appIDs: string[],
+): Promise<FleetInstallation[]> {
+  return (await fleetControl().installationsForAppsForOwner(userID, fleetID, appIDs)).map(installation);
 }
 
 export async function getFleetInstallation(
@@ -177,3 +189,6 @@ export async function getFleetInstallation(
     })),
   };
 }
+
+// The installation screens' layout and section pages share one read.
+export const cachedFleetInstallation = cache(getFleetInstallation);

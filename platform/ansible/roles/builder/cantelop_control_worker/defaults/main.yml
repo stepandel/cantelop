@@ -46,3 +46,7 @@ cantelop_control_worker_turso_organization: ""
 cantelop_control_worker_turso_group: ""
 cantelop_control_worker_turso_environment: ""
 cantelop_control_worker_turso_platform_token: "{{ vault_cantelop_turso_platform_token | default('') }}"
+
+# Managed Fleet Apps have durable placement and must never fall back to standard.
+cantelop_control_worker_managed_compute_ingress_url: ""
+cantelop_control_worker_managed_compute_control_token: "{{ vault_fire_fuse_managed_compute_token | default('') }}"

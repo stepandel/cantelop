@@ -1,11 +1,15 @@
 import { notFound } from "next/navigation";
 
+import { previewCallTraces, previewSnapshot, previewWorkspaces } from "@/app/preview/app/fixture";
 import { ConsoleShell } from "@/components/console-shell";
 import { CopyId } from "@/components/copy-id";
 import { FleetCapacity } from "@/components/fleet-capacity";
 import { FleetInstallationDetail } from "@/components/fleet-installation-detail";
+import { FleetInstallationScreen, type InstallationSectionId } from "@/components/fleet-installation-screen";
 import { FleetPrincipalsPanel } from "@/components/fleet-principals-panel";
-import { FleetInstallationsTable, FleetPackagesTable, InstallationState } from "@/components/fleet-tables";
+import { FleetInstallationsTable, FleetPackagesTable } from "@/components/fleet-tables";
+import { ObservabilityView } from "@/components/observability-view";
+import { TraceExplorer } from "@/components/trace-explorer";
 import { FleetsIndex } from "@/components/fleets-index";
 import { HeadStat, SectionHead } from "@/components/section-head";
 import type {
@@ -16,12 +20,14 @@ import type {
   FleetPrincipal,
 } from "@/lib/customer-fleets";
 import { capacityLabel } from "@/lib/fleet-labels";
+import { runningByApp } from "@/lib/instances";
 
 export const dynamic = "force-dynamic";
 
 // Development-only styling preview of the Fleet screens. Never served in
-// production. `?view=index` (default), `?view=fleet` or `?view=installation`;
-// `?empty` renders each with nothing in it.
+// production. `?view=index` (default), `?view=fleet` or `?view=installation`
+// with `&section=sandboxes` or `&section=traces`; `?empty` renders each with
+// nothing in it.
 const viewer = { login: "customer", email: "customer@example.com", avatarUrl: null };
 const fleetID = "flt_0123456789abcdef0123456789abcdef";
 
@@ -47,7 +53,8 @@ const installation = (
 ): FleetInstallation => ({
   id: `ins_${String(n).padStart(32, "0")}`,
   external_key: `acct:org_${String(n).padStart(6, "0")}:primary`,
-  app_id: `app_${String(n).padStart(32, "a")}`,
+  // The second installation runs the App preview's runtime and traces.
+  app_id: n === 2 ? previewSnapshot.sandboxes[0]!.app_id : `app_${String(n).padStart(32, "a")}`,
   package_id: "pkg_0123456789abcdef0123456789abcdef",
   version: "1.4.0",
   next_package_id: null,
@@ -94,8 +101,18 @@ const detail: Detail = {
   ],
 };
 
+// Two more installations with a Sandbox up, so "Running now" ranks them.
+const sandboxes = [
+  ...previewSnapshot.sandboxes,
+  ...[1, 1, 3].map((n, index) => ({
+    ...previewSnapshot.sandboxes.find(({ state }) => state === "running")!,
+    id: `sbx-fleet-${index}`,
+    app_id: installation(n, "ready").app_id,
+  })),
+];
+
 export default async function FleetsPreviewPage({ searchParams }: {
-  searchParams: Promise<{ view?: string | string[]; empty?: string | string[] }>;
+  searchParams: Promise<{ view?: string | string[]; section?: string | string[]; empty?: string | string[] }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
   const params = await searchParams;
@@ -103,6 +120,7 @@ export default async function FleetsPreviewPage({ searchParams }: {
   const view = params.view === "fleet" || params.view === "installation" ? params.view : "index";
   const fleet = fleets[0]!;
   const shellFleets = fleets.map(({ id, name }) => ({ id, name }));
+  const runtime = Promise.resolve(empty ? [] : sandboxes);
 
   if (view === "index") {
     return (
@@ -116,23 +134,49 @@ export default async function FleetsPreviewPage({ searchParams }: {
     );
   }
   if (view === "installation") {
+    const section: InstallationSectionId = params.section === "sandboxes" || params.section === "traces" ? params.section : "overview";
+    const shown = empty ? { ...detail, budgets: [] } : detail;
+    const traces = Object.values(previewCallTraces(Date.now(), "/commands/dispatch"));
     return (
-      <ConsoleShell
+      <FleetInstallationScreen
         viewer={viewer}
+        apps={[]}
+        workspaces={[]}
         fleets={shellFleets}
         maxApps={5}
         usedApps={3}
-        activeNav="fleets"
-        crumbs={[{ label: "Home", href: "/profile" }, { label: "Fleets", href: "/fleets" }, { label: fleet.name, href: "/preview/fleets?view=fleet" }, { label: detail.external_key }]}
+        fleet={fleet}
+        installation={shown}
+        runtime={runtime}
+        section={section}
+        homeHref="/preview/fleets?view=installation"
+        sectionHrefBase="/preview/fleets?view=installation&section="
       >
-        <SectionHead title={detail.external_key} subtitle={<CopyId value={detail.id} />}>
-          <HeadStat label="Status" value={<InstallationState status={detail.status} />} />
-          <HeadStat label="Package" value={`v${detail.version}`} />
-        </SectionHead>
-        <FleetInstallationDetail installation={empty ? { ...detail, budgets: [] } : detail} />
-      </ConsoleShell>
+        {section === "overview" && <FleetInstallationDetail installation={shown} />}
+        {section === "sandboxes" && (
+          <ObservabilityView
+            appId={shown.app_id}
+            workspaces={previewWorkspaces}
+            snapshot={empty ? { ...previewSnapshot, sessions: [], sandboxes: [] } : previewSnapshot}
+            unavailable={false}
+            view="sandboxes"
+            polling={false}
+          />
+        )}
+        {section === "traces" && (
+          <TraceExplorer
+            appId={shown.app_id}
+            initial={{ app_id: shown.app_id, requests: empty ? [] : traces, unlinked_messages: [] }}
+            polling={false}
+          />
+        )}
+      </FleetInstallationScreen>
     );
   }
+  const running = runningByApp(sandboxes);
+  const active = installations
+    .filter(({ app_id }) => running.has(app_id))
+    .sort((a, b) => (running.get(b.app_id) ?? 0) - (running.get(a.app_id) ?? 0));
   return (
     <ConsoleShell
       viewer={viewer}
@@ -149,9 +193,23 @@ export default async function FleetsPreviewPage({ searchParams }: {
       <div className="section-panel">
         <FleetCapacity fleetId={fleet.id} maxApps={fleet.max_apps} usedApps={fleet.used_apps} createdAt={fleet.created_at} />
       </div>
+      <h2 className="section-label">Running now</h2>
+      <div className="section-panel">
+        <FleetInstallationsTable
+          fleetId={fleet.id}
+          installations={empty ? [] : active}
+          runtime={runtime}
+          empty="No installation is running a Sandbox right now."
+        />
+      </div>
       <h2 className="section-label">Installations</h2>
       <div className="section-panel">
-        <FleetInstallationsTable fleetId={fleet.id} installations={empty ? [] : installations} />
+        <form className="inline-form compact fleet-search" role="search" method="get" action="/preview/fleets">
+          <input type="hidden" name="view" value="fleet" />
+          <input type="search" name="key" aria-label="External key" placeholder="Find by external key prefix" maxLength={128} autoComplete="off" spellCheck={false} />
+          <button type="submit">Find</button>
+        </form>
+        <FleetInstallationsTable fleetId={fleet.id} installations={empty ? [] : installations} runtime={runtime} />
       </div>
       <h2 className="section-label">Principals</h2>
       <div className="section-panel">

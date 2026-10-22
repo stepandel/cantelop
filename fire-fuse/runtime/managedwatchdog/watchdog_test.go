@@ -24,7 +24,7 @@ func TestWatchdogEnforcesDeadlinesWithoutRuntimeProcess(t *testing.T) {
 	now := time.Now().UTC()
 	state := microvm.ManagedState{ManagedProjection: microvm.ManagedProjection{Policy: microvm.ManagedPolicy{Active: true, ExpiresAt: now.Add(time.Hour)}, Grant: microvm.ManagedGrant{ID: "reservation-first", Credits: 100, ExpiresAt: now.Add(30 * time.Second)}}, LastTick: now}
 	policy, _ := json.Marshal(state)
-	machine, _ := json.Marshal(microvm.Sandbox{ID: "sbx-managed", AppID: "managed", State: microvm.StateRunning})
+	machine, _ := json.Marshal(microvm.Sandbox{ID: "sbx-managed", AppID: "managed", State: microvm.StateRunning, Runtime: microvm.RuntimeOwnership{HostSlotID: "host-managed"}})
 	_, err = db.Exec(`INSERT INTO managed_apps VALUES('managed',?)`, policy)
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +44,9 @@ func TestWatchdogEnforcesDeadlinesWithoutRuntimeProcess(t *testing.T) {
 	now = now.Add(5 * time.Second)
 	if err = w.Step(context.Background()); err != nil || len(kills) != 1 {
 		t.Fatal("stalled runtime survived independent watchdog", err, kills)
+	}
+	if kills[0] != "host-managed" {
+		t.Fatal("watchdog targeted Sandbox instead of its pooled VM", kills)
 	}
 	// A recent daemon heartbeat cannot extend an expired credit lease.
 	state.LastTick = now

@@ -133,6 +133,54 @@
   no_log: true
   notify: Restart fire-fuse observer
 
+- name: Validate distinct managed observer credential
+  ansible.builtin.assert:
+    that:
+      - fire_fuse_observer_managed_runtime_token is match('^[0-9a-f]{64}$')
+      - fire_fuse_observer_managed_runtime_token != fire_fuse_observer_runtime_token
+  when: fire_fuse_observer_managed_enabled | bool
+  no_log: true
+
+- name: Install the private managed observer runtime credential
+  ansible.builtin.copy:
+    content: "{{ fire_fuse_observer_managed_runtime_token }}\n"
+    dest: /etc/fire-fuse-observer/managed-runtime-control.token
+    owner: root
+    group: "{{ fire_fuse_observer_group }}"
+    mode: "0640"
+  when: fire_fuse_observer_managed_enabled | bool
+  diff: false
+  no_log: true
+  notify: Restart fire-fuse observer
+
+- name: Create observer pool routing override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/fire-fuse-observer.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure managed database verification in the observer
+  ansible.builtin.copy:
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/local/bin/fire-fuse-observer -listen 127.0.0.1:8082 -control-plane http://127.0.0.1:8080 -netdata http://127.0.0.1:19999 -control-token-file /etc/fire-fuse-observer/runtime-control.token -token-file /etc/fire-fuse-observer/observer.token -mutation-token-file /etc/fire-fuse-observer/session-mutation.token -managed-control-plane http://127.0.0.1:8180 -managed-control-token-file /etc/fire-fuse-observer/managed-runtime-control.token
+    dest: /etc/systemd/system/fire-fuse-observer.service.d/managed.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: fire_fuse_observer_managed_enabled | bool
+  notify: Restart fire-fuse observer
+
+- name: Remove disabled observer pool routing override
+  ansible.builtin.file:
+    path: /etc/systemd/system/fire-fuse-observer.service.d/managed.conf
+    state: absent
+  when: not (fire_fuse_observer_managed_enabled | bool)
+  notify: Restart fire-fuse observer
+
 - name: Install the private Session mutation token
   ansible.builtin.copy:
     content: "{{ fire_fuse_session_mutation_token }}\n"

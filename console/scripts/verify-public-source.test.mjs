@@ -7,7 +7,7 @@ import { verifyPublicSource } from "./verify-public-source";
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 
-test("deployment verification works without Git and rejects changed or newly added source", () => {
+test.each(["public", "private"])("%s deployment verification works without Git and rejects changed or newly added source", (visibility) => {
   const root = mkdtempSync(join(tmpdir(), "cantelop-source-test-"));
   try {
     mkdirSync(join(root, "console"));
@@ -22,6 +22,7 @@ test("deployment verification works without Git and rejects changed or newly add
     for (const [name, data] of Object.entries(sources)) writeFileSync(join(root, name), data, { mode: 0o644 });
     const manifest = JSON.stringify({ schema_version: 1, files: Object.fromEntries(Object.entries(sources).map(([name, data]) => [name, { sha256: digest(data), mode: 0o644 }])) }, null, 2) + "\n";
     writeFileSync(join(root, "SOURCE_SNAPSHOT.json"), manifest);
+    pin.visibility = visibility;
     pin.commit = "a".repeat(40);
     pin.snapshot_sha256 = digest(manifest);
     writeFileSync(join(root, "console/public-source.json"), JSON.stringify(pin));

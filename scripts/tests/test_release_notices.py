@@ -1,10 +1,11 @@
 import io
+import json
 import pathlib
 import runpy
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -13,6 +14,12 @@ COMMIT = "0123456789abcdef0123456789abcdef01234567"
 
 
 class ReleaseNoticesTests(unittest.TestCase):
+    def setUp(self):
+        # Packaging behavior can be tested before these sources are published.
+        environment = patch.dict("os.environ", {"CANTELOP_SOURCE_REPOSITORY": "https://github.com/operator/release-fixture"})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def archive(self, path, prefix="", omit=None, changed=None):
         files = {name: source.read_bytes() for name, source in HELPER["notice_sources"]().items()}
         files["SOURCE.json"] = HELPER["source_bytes"](COMMIT)
@@ -59,6 +66,22 @@ class ReleaseNoticesTests(unittest.TestCase):
         with patch.dict("os.environ", {"CANTELOP_SOURCE_REPOSITORY": "https://github.com/.git"}):
             with self.assertRaisesRegex(ValueError, "without credentials"):
                 HELPER["source_bytes"](COMMIT)
+
+    def test_canonical_releases_still_require_verified_public_source(self):
+        verify = Mock(side_effect=ValueError("source changed since publication"))
+        with patch.dict("os.environ", {"CANTELOP_SOURCE_REPOSITORY": ""}), patch("runpy.run_path", return_value={"verify": verify}):
+            with self.assertRaisesRegex(ValueError, "source changed since publication"):
+                HELPER["source_bytes"](COMMIT)
+        verify.assert_called_once_with(ROOT)
+
+    def test_canonical_archives_record_the_verified_public_identity(self):
+        publication = {"commit": "a" * 40, "repository": "https://github.com/stepandel/cantelop", "snapshot_sha256": "b" * 64}
+        verify = Mock(return_value=publication)
+        with patch.dict("os.environ", {"CANTELOP_SOURCE_REPOSITORY": ""}), patch("runpy.run_path", return_value={"verify": verify}):
+            identity = json.loads(HELPER["source_bytes"](COMMIT))
+        self.assertEqual(identity["build_commit"], COMMIT)
+        self.assertEqual(identity["source_commit"], publication["commit"])
+        self.assertEqual(identity["source_snapshot_sha256"], publication["snapshot_sha256"])
 
     def test_archive_file_list_matches_prepared_notices(self):
         with tempfile.TemporaryDirectory() as directory:

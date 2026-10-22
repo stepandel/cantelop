@@ -76,6 +76,7 @@ type WorkspaceConfig struct {
 
 // NetworkConfig contains host-owned tools and address space for microVM links.
 type NetworkConfig struct {
+	Namespace    string       `json:"namespace,omitempty"`
 	IPBin        string       `json:"ip_bin"`
 	IPTablesBin  string       `json:"iptables_bin"`
 	IP6TablesBin string       `json:"ip6tables_bin"`
@@ -245,6 +246,9 @@ func (c Config) Validate() error {
 	}
 	if err := validateAddressPool(c.Network.AddressPool); err != nil {
 		return err
+	}
+	if c.Network.Namespace != "" && c.Network.Namespace != "managed" {
+		return errors.New("network namespace must be empty or managed")
 	}
 	if err := validateEgress(c.Network.Egress); err != nil {
 		return err

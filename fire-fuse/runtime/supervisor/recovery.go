@@ -29,8 +29,8 @@ func (s *Supervisor) CheckForOrphans(machines []microvm.Sandbox) error {
 	expectedFirewall := make(map[string]struct{})
 	// The snapshot builder may run while the service is live; its template TAP
 	// is owned by that build, not by a persisted Sandbox.
-	if tapName, err := network.TAPName(network.SnapshotTemplateVMID); err == nil {
-		if alias, err := network.TAPAlias(network.SnapshotTemplateVMID); err == nil {
+	if tapName, err := network.TAPNameInNamespace(network.SnapshotTemplateVMID, s.config.Network.Namespace); err == nil {
+		if alias, err := network.TAPAliasInNamespace(network.SnapshotTemplateVMID, s.config.Network.Namespace); err == nil {
 			expectedTAPs[tapName] = alias
 		}
 	}
@@ -47,7 +47,7 @@ func (s *Supervisor) CheckForOrphans(machines []microvm.Sandbox) error {
 			expectedJails[hostID] = struct{}{}
 		}
 		if machine.Runtime.TAPCreated {
-			tapName, err := network.TAPName(hostID)
+			tapName, err := network.TAPNameInNamespace(hostID, s.config.Network.Namespace)
 			if err != nil {
 				return fmt.Errorf("derive owned TAP name for orphan detection: %w", err)
 			}
@@ -58,7 +58,7 @@ func (s *Supervisor) CheckForOrphans(machines []microvm.Sandbox) error {
 					tapName,
 				)
 			}
-			alias, err := network.TAPAlias(hostID)
+			alias, err := network.TAPAliasInNamespace(hostID, s.config.Network.Namespace)
 			if err != nil {
 				return fmt.Errorf("derive owned TAP alias for orphan detection: %w", err)
 			}
@@ -103,7 +103,7 @@ func (s *Supervisor) CheckForOrphans(machines []microvm.Sandbox) error {
 	}
 	var orphanTAPs []string
 	for _, hostInterface := range interfaces {
-		if !network.IsManagedTAPName(hostInterface.Name) {
+		if !network.IsTAPNameInNamespace(hostInterface.Name, s.config.Network.Namespace) {
 			continue
 		}
 		alias, err := s.deps.readTAPAlias(hostInterface.Name)
@@ -188,7 +188,7 @@ func (s *Supervisor) Recover(
 			return err
 		}
 		if ownership.TAPCreated {
-			expectedTAPName, err := network.TAPName(hostID)
+			expectedTAPName, err := network.TAPNameInNamespace(hostID, s.config.Network.Namespace)
 			if err != nil {
 				return fmt.Errorf("derive recovered TAP name: %w", err)
 			}

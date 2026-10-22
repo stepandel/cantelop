@@ -24,6 +24,7 @@ export async function dispatchToOrigin(
   targetValue: unknown,
   env: OriginBrokerEnv,
   originFetch: OriginFetch = (originRequest) => fetch(originRequest),
+  computePool: "standard" | "managed" = "standard",
 ): Promise<Response> {
   let target: DispatchTarget;
   try {
@@ -52,6 +53,7 @@ export async function dispatchToOrigin(
   headers.set(EDGE_HEADERS.requestId, target.request_id);
   headers.set(EDGE_HEADERS.appId, target.app_id);
   headers.set(EDGE_HEADERS.hostname, target.hostname);
+  headers.set(EDGE_HEADERS.computePool, computePool);
   headers.set(ACCESS_CLIENT_ID_HEADER, configuration.accessClientId);
   headers.set(ACCESS_CLIENT_SECRET_HEADER, configuration.accessClientSecret);
 

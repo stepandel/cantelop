@@ -207,6 +207,7 @@ export const apps = control.table("apps", {
   // Opaque provider ownership survives product-account reconciliation.
   // Null uses ownerUserId until an account merge pins the original tenant.
   computeTenantId: text("compute_tenant_id"),
+  computePool: text("compute_pool").$type<"standard" | "managed">().notNull().default("standard"),
   slug: text().notNull(),
   status: text().$type<typeof appStatuses[number]>().notNull(),
   createdAt: timestampTZ("created_at").notNull(),
@@ -216,6 +217,7 @@ export const apps = control.table("apps", {
   configRevision: bigint("config_revision", { mode: "number" }).notNull().default(0),
 }, (table) => [
   check("apps_compute_tenant_check", sql`${table.computeTenantId} IS NULL OR ${table.computeTenantId} ~ '^usr_[0-9a-f]{32}$'`),
+  check("apps_compute_pool_check", sql`${table.computePool} IN ('standard', 'managed')`),
   check("apps_id_check", sql`${table.id} ~ '^app_[0-9a-f]{32}$'`),
   check("apps_slug_check", sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$' AND position('--' IN ${table.slug}) = 0`),
   check("apps_status_check", oneOf(table.status, appStatuses)),

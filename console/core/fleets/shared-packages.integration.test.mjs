@@ -52,6 +52,9 @@ const url = process.env.CANTELOP_TEST_DATABASE_URL;
     expect(pkg.prepared_manifest_key).toBe(manifestKey);
     const apps = await Promise.all(Array.from({ length: 8 }, (_, index) => fleets.install(actor, `customer:${nonce}:${index}`, pkg.id)));
     expect(new Set(apps.map(app => app.app_id)).size).toBe(8);
+    const placements = await pool.query("SELECT compute_pool FROM cantelop_control.apps WHERE id=ANY($1::text[])", [apps.map(app => app.app_id)]);
+    expect(placements.rows.map(row => row.compute_pool)).toEqual(Array(8).fill("managed"));
+    expect((await pool.query("SELECT compute_pool FROM cantelop_control.apps WHERE id=$1", [source.id])).rows[0].compute_pool).toBe("standard");
     const configuration = new ConfigRepository(pool, new ConfigCipher(Buffer.alloc(32, 7)));
     const installer = new FleetInstallationWorker(pool, configuration);
     expect(await installer.runOnce()).toBe(false);
@@ -90,6 +93,16 @@ const url = process.env.CANTELOP_TEST_DATABASE_URL;
     }
     const credentials = await Promise.all(apps.map(app => configuration.integrationCredentialsForUser(owner.id, app.app_id)));
     expect(new Set(credentials.map(value => value.token)).size).toBe(8);
+    // A committed release is still unavailable until activation has reopened
+    // both gates and recorded its final acknowledgement.
+    const activating = await fleets.installation(actor, apps[1].id);
+    await pool.query("UPDATE cantelop_control.releases SET status='active',activated_at=now() WHERE id=$1", [activating.release_id]);
+    await pool.query("UPDATE cantelop_control.apps SET active_release_id=$2 WHERE id=$1", [apps[1].app_id, activating.release_id]);
+    await pool.query("UPDATE cantelop_control.fleet_policies SET enforced_revision=revision WHERE app_id=$1", [apps[1].app_id]);
+    expect((await fleets.installation(actor, apps[1].id)).status).toBe("provisioning");
+    await pool.query(`UPDATE cantelop_control.operations SET status='succeeded',output='{}',updated_at=now()
+      WHERE app_id=$1 AND kind='activate_release' AND input->>'target_release_id'=$2`, [apps[1].app_id, activating.release_id]);
+    expect((await fleets.installation(actor, apps[1].id)).status).toBe("ready");
     await fleets.deleteByKey(actor, apps[0].external_key);
     const deleted = await fleets.install(actor, `deleted:${nonce}`, pkg.id);
     await fleets.deleteByKey(actor, deleted.external_key);

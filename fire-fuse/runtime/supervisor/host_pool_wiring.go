@@ -215,7 +215,7 @@ func (s *Supervisor) prepareHostSlot(
 	if err := checkpointOwnership(checkpoint, owned, "allocating reusable network"); err != nil {
 		return rollback(err)
 	}
-	tapName, err := network.TAPName(hostID)
+	tapName, err := network.TAPNameInNamespace(hostID, s.config.Network.Namespace)
 	if err != nil {
 		return rollback(fmt.Errorf("derive host slot TAP name: %w", err))
 	}

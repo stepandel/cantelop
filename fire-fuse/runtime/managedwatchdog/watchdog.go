@@ -95,7 +95,11 @@ func (w *Watchdog) Step(ctx context.Context) error {
 			break
 		}
 		if machine.State == microvm.StateFailed || !w.healthy(state, now) {
-			failures = append(failures, w.kill(machine.ID))
+			identity := machine.ID
+			if machine.Runtime.HostSlotID != "" {
+				identity = machine.Runtime.HostSlotID
+			}
+			failures = append(failures, w.kill(identity))
 		}
 	}
 	failures = append(failures, rows.Err(), rows.Close())

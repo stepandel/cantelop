@@ -1,0 +1,46 @@
+[Unit]
+Description=fire-fuse Message dispatcher
+Documentation=file:/usr/local/share/doc/fire-fuse/gateway.md
+Requires=fire-fuse-managed.service
+PartOf=fire-fuse-managed.service
+After=network-online.target fire-fuse-managed.service
+Wants=network-online.target
+# Fire Fuse can take longer than the default start-limit window to recover.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=fire-fuse-dispatcher
+Group=fire-fuse-dispatcher
+ExecStart=/usr/local/lib/fire-fuse-managed/fire-fuse-async-dispatcher -control-plane http://127.0.0.1:8180 -control-timeout 45s -control-token-file /etc/fire-fuse-dispatcher/managed-runtime-control.token -observability-token-file /etc/fire-fuse-dispatcher/observability-ingest.token -observability-spool /var/lib/fire-fuse-managed-observability -observability-spool-max-bytes 67108864 -observability-spool-max-age 24h
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=30s
+UMask=0077
+StateDirectory=fire-fuse-managed-observability
+StateDirectoryMode=0700
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fire-fuse-async-dispatcher
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/fire-fuse-managed-observability
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

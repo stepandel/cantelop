@@ -6,14 +6,9 @@ import { formatMemory, formatVCPU } from "@/lib/format";
 import { niceMax } from "@/lib/graph-series";
 import { useClock } from "@/lib/use-clock";
 import { useMeasuredWidth } from "@/lib/use-measured-width";
+import { buildUsageSeries, usageChartGeometry, type UsageChartPoint, type UsageChartRange } from "@/lib/usage-chart";
 import type { UsageSample } from "@/lib/usage-history";
 import type { Sandbox } from "@/lib/telemetry-types";
-
-interface ChartPoint {
-  at: number;
-  observed_at: string;
-  value: number;
-}
 
 const PLOT_HEIGHT = 92;
 const MARGIN = { top: 10, right: 64, bottom: 20, left: 58 };
@@ -33,6 +28,7 @@ function MonitorChart({
   tone,
   current,
   points,
+  range,
   yMax,
   ceiling,
   formatValue,
@@ -41,7 +37,8 @@ function MonitorChart({
   title: string;
   tone: "cpu" | "mem";
   current: string;
-  points: ChartPoint[];
+  points: UsageChartPoint[];
+  range?: UsageChartRange;
   yMax: number;
   // Drawn only when the series' scale has grown to reach it.
   ceiling?: { value: number; label: string };
@@ -50,24 +47,20 @@ function MonitorChart({
 }) {
   const { ref, width } = useMeasuredWidth();
   const [hover, setHover] = useState<number | null>(null);
-  const { formatTime, formatZone } = useClock();
+  const { formatDate, formatTime, formatZone } = useClock();
 
-  const latest = points[points.length - 1];
-  const ready = points.length >= 2 && width > MARGIN.left + MARGIN.right + 40;
+  const latestIndex = points.findLastIndex((point) => point.value !== undefined);
+  const latest = points[latestIndex];
+  const unavailable = points[points.length - 1]?.value === undefined;
+  const ready = range !== undefined && width > MARGIN.left + MARGIN.right + 40;
 
   const geometry = useMemo(() => {
     if (!ready) return null;
-    const innerWidth = width - MARGIN.left - MARGIN.right;
-    const t0 = points[0].at;
-    const span = Math.max(1, points[points.length - 1].at - t0);
-    const x = (at: number) => MARGIN.left + ((at - t0) / span) * innerWidth;
-    const y = (value: number) => MARGIN.top + PLOT_HEIGHT - (Math.min(value, yMax) / yMax) * PLOT_HEIGHT;
-    const coords = points.map((point) => ({ px: x(point.at), py: y(point.value) }));
-    const line = coords.map(({ px, py }, i) => `${i === 0 ? "M" : "L"}${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
-    const baseline = MARGIN.top + PLOT_HEIGHT;
-    const area = `${line} L${coords[coords.length - 1].px.toFixed(1)} ${baseline} L${coords[0].px.toFixed(1)} ${baseline} Z`;
-    return { coords, line, area, baseline };
-  }, [points, ready, width, yMax]);
+    return usageChartGeometry(points, range!, {
+      left: MARGIN.left, top: MARGIN.top,
+      width: width - MARGIN.left - MARGIN.right, height: PLOT_HEIGHT,
+    }, yMax);
+  }, [points, range, ready, width, yMax]);
 
   const moveTo = (clientX: number, rect: DOMRect) => {
     if (!geometry) return;
@@ -98,6 +91,7 @@ function MonitorChart({
 
   const hovered = hover !== null ? points[hover] : null;
   const hoveredCoord = hover !== null ? geometry?.coords[hover] : null;
+  const latestCoord = geometry?.coords[latestIndex];
   const tooltipOnLeft = hoveredCoord !== null && hoveredCoord !== undefined && hoveredCoord.px > width / 2;
   const ticks = [0, 0.5, 1];
 
@@ -105,14 +99,21 @@ function MonitorChart({
     <div className={`monitor-chart tone-${tone}`}>
       <div className="chart-head">
         <h3>{title}</h3>
-        <span className="chart-current">{current}</span>
+        <div className="chart-head-values">
+          <span className="chart-current">{current}</span>
+          {unavailable && latest && (
+            <span className="chart-last-received" title={formatDate(latest.observed_at)}>
+              Last received <time dateTime={latest.observed_at}>{formatTime(latest.observed_at)} {formatZone(latest.observed_at)}</time>
+            </span>
+          )}
+        </div>
       </div>
       <div
         className="chart-plot"
         ref={ref}
         tabIndex={ready ? 0 : -1}
         role="img"
-        aria-label={latest ? `${title}: latest reading ${formatValue(latest.value)} at ${formatTime(latest.observed_at)} ${formatZone(latest.observed_at)}` : `${title}: no samples yet`}
+        aria-label={latest ? `${title}: ${unavailable ? "unavailable; last received" : "latest reading"} ${formatValue(latest.value!)} at ${formatTime(latest.observed_at)} ${formatZone(latest.observed_at)}` : `${title}: no samples yet`}
         onKeyDown={onKeyDown}
         onBlur={() => setHover(null)}
       >
@@ -138,10 +139,10 @@ function MonitorChart({
                 );
               })}
               <text className="tick-label" x={MARGIN.left} y={CHART_HEIGHT - 6} textAnchor="start">
-                {formatTime(points[0].observed_at)}
+                {formatTime(range!.start)}
               </text>
               <text className="tick-label" x={width - MARGIN.right} y={CHART_HEIGHT - 6} textAnchor="end">
-                {formatTime(points[points.length - 1].observed_at)}
+                {formatTime(range!.end)}
               </text>
               {ceiling && (() => {
                 const y = MARGIN.top + PLOT_HEIGHT - (ceiling.value / yMax) * PLOT_HEIGHT;
@@ -154,33 +155,45 @@ function MonitorChart({
                   </g>
                 );
               })()}
-              <path className="series-area" d={geometry!.area} />
-              <path className="series-line" d={geometry!.line} />
+              {geometry!.segments.map((segment, index) => (
+                <g key={index}>
+                  <path className="series-area" d={segment.area} />
+                  <path className="series-line" d={segment.line} />
+                  {segment.coords.length === 1 && <circle className="series-dot" cx={segment.coords[0].px} cy={segment.coords[0].py} r={3} />}
+                </g>
+              ))}
               {hoveredCoord && (
                 <line className="crosshair" x1={hoveredCoord.px} x2={hoveredCoord.px} y1={MARGIN.top} y2={geometry!.baseline} />
               )}
-              <circle
-                className="series-dot"
-                cx={geometry!.coords[points.length - 1].px}
-                cy={geometry!.coords[points.length - 1].py}
-                r={3}
-              />
-              {hoveredCoord && <circle className="series-dot" cx={hoveredCoord.px} cy={hoveredCoord.py} r={3.5} />}
-              <text
-                className="end-label"
-                x={geometry!.coords[points.length - 1].px + 8}
-                y={Math.max(MARGIN.top + 8, geometry!.coords[points.length - 1].py + 3)}
-              >
-                {formatValue(points[points.length - 1].value)}
-              </text>
+              {/* A stale reading gets no end-label; the header names when it arrived.
+                  An isolated latest reading already has its segment's dot. */}
+              {!unavailable && latestCoord && latestCoord.py !== undefined && (
+                <>
+                  {geometry!.segments[geometry!.segments.length - 1].coords.length > 1 && (
+                    <circle className="series-dot" cx={latestCoord.px} cy={latestCoord.py} r={3} />
+                  )}
+                  <text className="end-label" x={latestCoord.px + 8} y={Math.max(MARGIN.top + 8, latestCoord.py + 3)}>
+                    {formatValue(latest.value!)}
+                  </text>
+                </>
+              )}
+              {hoveredCoord && hoveredCoord.py !== undefined && <circle className="series-dot" cx={hoveredCoord.px} cy={hoveredCoord.py} r={3.5} />}
             </svg>
+            {!latest && (
+              <div
+                className="chart-no-readings"
+                style={{ inset: `${MARGIN.top}px ${MARGIN.right}px ${MARGIN.bottom}px ${MARGIN.left}px` }}
+              >
+                {emptyLabel}
+              </div>
+            )}
             {hovered && hoveredCoord && (
               <div
                 className={`chart-tooltip${tooltipOnLeft ? " flip" : ""}`}
                 style={{ left: `${hoveredCoord.px}px`, top: `${MARGIN.top}px` }}
               >
                 <i aria-hidden="true" />
-                <strong>{formatValue(hovered.value)}</strong>
+                <strong>{hovered.value === undefined ? "Unavailable" : formatValue(hovered.value)}</strong>
                 <small>{formatTime(hovered.observed_at)} {formatZone(hovered.observed_at)}</small>
               </div>
             )}
@@ -207,22 +220,11 @@ export function SandboxMonitor({
   onClose: () => void;
 }) {
   // CPU needs two consecutive cgroup readings, so the first sample of a
-  // sandbox has memory only; the charts plot whatever is defined. Both axes
-  // scale to observed consumption, not to the sandbox's shape.
-  const cpuPoints: ChartPoint[] = samples
-    .filter((sample) => sample.cpu_percent !== undefined)
-    .map((sample) => ({
-      at: Date.parse(sample.observed_at),
-      observed_at: sample.observed_at,
-      value: (sample.cpu_percent! / 100) * instance.vcpus,
-    }));
-  const memoryPoints: ChartPoint[] = samples.filter((sample) => sample.memory_bytes !== undefined).map((sample) => ({
-    at: Date.parse(sample.observed_at),
-    observed_at: sample.observed_at,
-    value: sample.memory_bytes!,
-  }));
-  const cpuPeak = Math.max(0, ...cpuPoints.map((point) => point.value));
-  const memoryPeak = Math.max(0, ...memoryPoints.map((point) => point.value));
+  // sandbox has memory only. Keep missing readings so each chart shows gaps
+  // against the same observation window; value axes scale to consumption.
+  const { cpu: cpuPoints, memory: memoryPoints, range } = buildUsageSeries(samples, instance.vcpus);
+  const cpuPeak = Math.max(0, ...cpuPoints.map((point) => point.value ?? 0));
+  const memoryPeak = Math.max(0, ...memoryPoints.map((point) => point.value ?? 0));
   // Hard ceilings: the vcpu count, and the elastic max (boot size when the
   // sandbox has none). Memory scales in mib so axis steps land on round sizes.
   const memoryLimit = (instance.memory_max_mib ?? instance.memory_mib) * MIB;
@@ -257,8 +259,9 @@ export function SandboxMonitor({
           <MonitorChart
             title="CPU"
             tone="cpu"
-            current={latestCPU ? formatVCPU(latestCPU.value) : "No samples"}
+            current={latestCPU?.value === undefined ? "Unavailable" : formatVCPU(latestCPU.value)}
             points={cpuPoints}
+            range={range}
             yMax={cpuScale.max}
             ceiling={cpuScale.ceilingVisible ? { value: instance.vcpus, label: `${instance.vcpus} vcpu limit` } : undefined}
             formatValue={formatVCPU}
@@ -269,10 +272,11 @@ export function SandboxMonitor({
             tone="mem"
             current={latestMemoryValue === undefined ? "Unavailable" : formatMemory(latestMemoryValue)}
             points={memoryPoints}
+            range={range}
             yMax={memoryScale.max * MIB}
             ceiling={memoryScale.ceilingVisible ? { value: memoryLimit, label: `${formatMemory(memoryLimit)} limit` } : undefined}
             formatValue={(value) => (value === 0 ? "0 mib" : formatMemory(value))}
-            emptyLabel={live ? "Waiting for sandbox memory measurements…" : "No memory samples for this sandbox"}
+            emptyLabel={samples.length > 0 ? "No memory readings in this window" : "Waiting for sandbox memory measurements…"}
           />
         </div>
       )}

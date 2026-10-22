@@ -1,4 +1,5 @@
 import type { AppRequestInvocation, RequestEvent, Sandbox, Session, Snapshot, Workspace } from "@/lib/telemetry-types";
+import type { TraceRequest } from "@core/observability/trace-tree";
 
 // Synthetic 24 hours of one App across two Workspaces, sized to the case the
 // graph view exists for: enough records that the tables have stopped being
@@ -303,3 +304,43 @@ export const previewEvents: RequestEvent[] = (() => {
 })();
 
 export const previewInvocations: AppRequestInvocation[] = buildInvocations(random, previewEvents);
+
+// The trace a recent call opens to: the request, the message it delivered,
+// one attempt on a Sandbox, the handler's span and what it logged.
+export function previewCallTraces(now: number, path: string): Record<string, TraceRequest> {
+  const at = (seconds: number) => new Date(now - seconds * 1_000).toISOString();
+  const trace = (n: number, seconds: number, outcome: "completed" | "failed" | "pending", session: string, errorCode?: string): TraceRequest => {
+    const pad = String(n).padStart(32, "0");
+    const finished = outcome === "pending" ? undefined : at(seconds - 24);
+    return {
+      id: `req_${pad}`, method: "POST", path, status_code: 202, duration_us: 58_000,
+      received_at: at(seconds), completed_at: at(seconds - 0.06), logs: [],
+      messages: [{
+        id: `msg_${pad}`, accepted_at: at(seconds - 0.05),
+        session: { id: `00000000-0000-4000-8000-${pad.slice(-12)}`, logical_session_id: session, workspace_id: previewWorkspaces[0].id, first_seen_at: at(seconds + 600), last_seen_at: at(seconds - 20) },
+        attempts: [{
+          id: `att_${pad}`, number: 1, outcome, ...(errorCode ? { error_code: errorCode } : {}),
+          trace_id: pad, span_id: pad.slice(-16).replace(/^0/, "a"),
+          queued_at: at(seconds - 0.05), routed_at: at(seconds - 1.8), ...(finished ? { finished_at: finished } : {}),
+          sandbox: { id: `sbx-${pad}`, allocated_at: at(seconds - 1.8), logs: [] },
+          spans: [{
+            id: pad.slice(-16).replace(/^0/, "b"), name: "session.receive", kind: "internal", status: outcome === "failed" ? "error" : outcome === "completed" ? "ok" : "unset",
+            started_at: at(seconds - 1.7), ...(finished ? { finished_at: finished } : {}), attributes: { "cantelop.command": "dispatch" },
+          }],
+          logs: [
+            { id: `log_${pad}`, severity: "info", body: "Triaging ticket with the support playbook", occurred_at: at(seconds - 1.6), attributes: {} },
+            ...(outcome === "failed" ? [{ id: `log_${pad.slice(0, -1)}9`, severity: "error", body: `Handler failed: ${errorCode}`, occurred_at: at(seconds - 24), attributes: {} }] : []),
+          ],
+        }],
+      }],
+    };
+  };
+  const id = (n: number) => `req_${String(n).padStart(32, "0")}`;
+  return {
+    [id(100)]: trace(100, 12, "pending", "support:ticket-4182"),
+    [id(101)]: trace(101, 95, "failed", "support:ticket-4179", "model_timeout"),
+    [id(105)]: trace(105, 140, "completed", "support:ticket-4177"),
+    [id(106)]: trace(106, 610, "completed", "support:ticket-4171"),
+    [id(103)]: trace(103, 1_900, "failed", "support:ticket-4160", "sandbox_lost"),
+  };
+}

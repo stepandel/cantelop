@@ -1,0 +1,28 @@
+---
+- name: Restart managed runtime
+  ansible.builtin.systemd_service:
+    name: fire-fuse-managed.service
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Restart managed watchdog
+  ansible.builtin.systemd_service:
+    name: fire-fuse-fleet-watchdog.service
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Restart managed dispatcher
+  ansible.builtin.systemd_service:
+    name: fire-fuse-managed-dispatcher.service
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Restart managed gateway
+  ansible.builtin.systemd_service:
+    name: fire-fuse-gateway.service
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode

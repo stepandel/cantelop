@@ -64,6 +64,7 @@ describe("edge contracts", () => {
       EDGE_HEADERS.appId,
       EDGE_HEADERS.workspaceId,
       EDGE_HEADERS.hostname,
+      EDGE_HEADERS.computePool,
     ]);
   });
 });

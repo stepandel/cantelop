@@ -26,6 +26,7 @@ describe("origin broker", () => {
         Authorization: "Bearer end-user-token",
         [EDGE_HEADERS.authorization]: "Bearer attacker-token",
         [EDGE_HEADERS.workspaceId]: "wsp_ffffffffffffffffffffffffffffffff",
+        [EDGE_HEADERS.computePool]: "managed",
       },
       body: "payload",
     });
@@ -40,6 +41,7 @@ describe("origin broker", () => {
     expect(forwarded?.url).toBe("https://edge-origin.cantelop.dev/hooks/run?attempt=2");
     expect(forwarded?.headers.get("Authorization")).toBe("Bearer end-user-token");
     expect(forwarded?.headers.get(EDGE_HEADERS.dispatch)).toBe("1");
+    expect(forwarded?.headers.get(EDGE_HEADERS.computePool)).toBe("standard");
     expect(forwarded?.headers.get(EDGE_HEADERS.authorization)).toBe(`Bearer ${env.EDGE_INGRESS_TOKEN}`);
     expect(forwarded?.headers.get(EDGE_HEADERS.requestId)).toBe(target.request_id);
     expect(forwarded?.headers.get(EDGE_HEADERS.appId)).toBe(target.app_id);
@@ -48,6 +50,15 @@ describe("origin broker", () => {
     expect(forwarded?.headers.get("CF-Access-Client-Id")).toBe("broker.access");
     expect(forwarded?.headers.get("CF-Access-Client-Secret")).toBe("access-secret");
     expect(await forwarded?.text()).toBe("payload");
+  });
+
+  test("managed RPC replaces a forged pool with trusted managed placement", async () => {
+    let forwarded: Request | undefined;
+    await dispatchToOrigin(new Request(`https://${target.hostname}/`, {
+      headers: { [EDGE_HEADERS.computePool]: "standard" },
+    }), target, env, async (request) => { forwarded = request; return new Response(); }, "managed");
+    expect(forwarded?.headers.get(EDGE_HEADERS.computePool)).toBe("managed");
+    expect(forwarded?.headers.get(EDGE_HEADERS.authorization)).toBe(`Bearer ${env.EDGE_INGRESS_TOKEN}`);
   });
 
   test("removes the internal Access cookie while preserving customer cookies", async () => {

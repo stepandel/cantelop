@@ -62,6 +62,7 @@ func TestReservedHeadersAreEdgeScoped(t *testing.T) {
 		"X-Cantelop-Edge-App-ID",
 		"X-Cantelop-Edge-Workspace-ID",
 		"X-Cantelop-Edge-Hostname",
+		"X-Cantelop-Edge-Compute-Pool",
 	}
 	if len(headers) != len(want) {
 		t.Fatalf("ReservedHeaders() = %#v", headers)

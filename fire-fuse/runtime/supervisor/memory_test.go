@@ -63,7 +63,7 @@ func TestMemoryPressurePolicy(t *testing.T) {
 	if !shouldGrowMemory(100, 512) || shouldGrowMemory(300, 512) {
 		t.Fatal("growth threshold does not track guest availability")
 	}
-	if !shouldShrinkMemory(400, 512) || shouldShrinkMemory(200, 512) {
+	if !shouldShrinkMemory(800, 1024) || shouldShrinkMemory(700, 1024) || shouldShrinkMemory(400, 512) {
 		t.Fatal("shrink threshold does not leave hysteresis")
 	}
 }

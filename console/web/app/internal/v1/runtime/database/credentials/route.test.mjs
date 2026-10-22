@@ -2,21 +2,22 @@ import { afterEach, expect, mock, spyOn, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import { NextRequest } from "next/server";
 import { DatabaseAccessError } from "@core/workspace-databases/service";
+import { verifyAssignedSandbox } from "@core/workspace-databases/capability";
 import { DatabaseProviderError } from "@core/workspace-databases/provider";
 
 const identity = { sandboxId: "sbx-0123456789abcdef0123456789abcdef", appId: "app_0123456789abcdef0123456789abcdef", workspaceId: "wsp_0123456789abcdef0123456789abcdef" };
 const key = "01".repeat(32);
 const environment = { ...process.env };
-let calls = [], failure;
+let calls = [], failure, pool = "standard", placementCalls = [];
 const credentials = { url: "libsql://workspace.turso.io", authToken: "private-database-token", expiresAt: "2026-10-20T22:00:00Z" };
-mock.module("@core/workspace-databases/configured", () => ({ workspaceDatabases: () => ({
+mock.module("@core/workspace-databases/configured", () => ({ verifyRuntimeDatabaseSandbox: identity => verifyAssignedSandbox({query:async (_sql,args) => { placementCalls.push(args); return {rows:[{compute_pool:pool}],rowCount:1}; }},identity), workspaceDatabases: () => ({
   applicationCredentials: async (...args) => { calls.push(args); if (failure) throw failure; return credentials; },
 }) }));
 const { POST } = await import("./route");
 let fetchSpy, warnSpy;
 afterEach(() => {
   fetchSpy?.mockRestore(); warnSpy?.mockRestore();
-  process.env = { ...environment }; calls = []; failure = undefined;
+  process.env = { ...environment }; calls = []; failure = undefined; pool = "standard"; placementCalls = [];
 });
 function configure(response = () => Response.json({ ...identity, active: true })) {
   Object.assign(process.env, { CANTELOP_WORKSPACE_DATABASE_CAPABILITY_KEY: key, FIRE_FUSE_OBSERVER_URL: "https://status.example.com", FIRE_FUSE_STATUS_TOKEN: "private-observer-token".repeat(2) });
@@ -31,7 +32,7 @@ function request(token) {
 test("unauthorized capabilities cannot query the observer or database", async () => {
   configure();
   expect((await POST(request("Bearer invalid"))).status).toBe(401);
-  expect(fetchSpy).not.toHaveBeenCalled(); expect(calls).toEqual([]); expect(warnSpy).not.toHaveBeenCalled();
+  expect(fetchSpy).not.toHaveBeenCalled(); expect(placementCalls).toEqual([]); expect(calls).toEqual([]); expect(warnSpy).not.toHaveBeenCalled();
 });
 test("credentials are issued only after a matching current assignment is verified", async () => {
   configure();
@@ -66,4 +67,20 @@ test("database errors report their stage without logging raw errors or credentia
     expect(warnSpy.mock.calls.at(-1)[1]).toMatchObject({ stage: "database_credentials", code, status });
     expect(JSON.stringify(warnSpy.mock.calls)).not.toContain("private-");
   }
+});
+
+test("managed runtime credentials use server placement and still require an exact live assignment", async () => {
+  pool = "managed";
+  configure(url => {
+    expect(new URL(url).pathname).toBe(`/managed/sandboxes/${identity.sandboxId}/database-access`);
+    return Response.json({ ...identity, active: true });
+  });
+  const signed = request();
+  signed.headers.set('X-Cantelop-Edge-Compute-Pool', 'standard');
+  expect((await POST(signed)).status).toBe(200);
+  expect(placementCalls).toEqual([[identity.appId]]);
+  expect(calls).toEqual([[identity.appId, identity.workspaceId]]);
+  fetchSpy.mockImplementation(() => Response.json({ ...identity, workspaceId: 'wsp_other', active: true }));
+  expect((await POST(request())).status).toBe(503);
+  expect(calls).toHaveLength(1);
 });

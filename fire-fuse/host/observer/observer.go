@@ -251,20 +251,9 @@ func (c *ControlClient) snapshot(ctx context.Context, wanted map[string]struct{}
 	// skips the inventories entirely.
 	if wanted == nil || len(wanted) > 0 {
 		reads = append(reads,
-			func(ctx context.Context) error {
-				var apps struct {
-					Items []struct {
-						ID string `json:"id"`
-					} `json:"items"`
-				}
-				if _, err := c.get(ctx, c.baseURL, "/v1/apps", &apps); err != nil {
-					return err
-				}
-				appIDs = make([]string, len(apps.Items))
-				for i := range apps.Items {
-					appIDs[i] = apps.Items[i].ID
-				}
-				return nil
+			func(ctx context.Context) (err error) {
+				appIDs, err = c.appIDs(ctx)
+				return err
 			},
 			func(ctx context.Context) error {
 				var sandboxPage struct {
@@ -293,49 +282,9 @@ func (c *ControlClient) snapshot(ctx context.Context, wanted map[string]struct{}
 		return Snapshot{}, errors.New("invalid host capacity")
 	}
 
-	workspacePages := make([][]Workspace, len(appIDs))
-	if err := forEachBounded(ctx, len(appIDs), controlReadConcurrency, func(ctx context.Context, i int) error {
-		var workspacePage struct {
-			Items []Workspace `json:"items"`
-		}
-		reference := &url.URL{Path: "/v1/workspaces", RawQuery: url.Values{"app_id": {appIDs[i]}}.Encode()}
-		if _, err := c.getReference(ctx, c.baseURL, reference, &workspacePage); err != nil {
-			return err
-		}
-		workspacePages[i] = workspacePage.Items
-		return nil
-	}); err != nil {
+	workspaces, sessions, err := c.workspaceSessions(ctx, appIDs, wanted)
+	if err != nil {
 		return Snapshot{}, err
-	}
-	workspaces := make([]Workspace, 0)
-	for _, page := range workspacePages {
-		for _, workspace := range page {
-			if inWorkspaceSet(wanted, workspace.ID) {
-				workspaces = append(workspaces, workspace)
-			}
-		}
-	}
-
-	sessionPages := make([][]Session, len(workspaces))
-	if err := forEachBounded(ctx, len(workspaces), controlReadConcurrency, func(ctx context.Context, i int) error {
-		var runtimePage struct {
-			Items []Session `json:"items"`
-		}
-		reference := &url.URL{Path: "/v1/sessions", RawQuery: url.Values{"workspace_id": {workspaces[i].ID}}.Encode()}
-		if _, err := c.getReference(ctx, c.baseURL, reference, &runtimePage); err != nil {
-			return err
-		}
-		for j := range runtimePage.Items {
-			runtimePage.Items[j].AppID = workspaces[i].AppID
-		}
-		sessionPages[i] = runtimePage.Items
-		return nil
-	}); err != nil {
-		return Snapshot{}, err
-	}
-	sessions := make([]Session, 0)
-	for _, page := range sessionPages {
-		sessions = append(sessions, page...)
 	}
 
 	usageBySandbox := make(map[string]Usage, len(usagePage.Items))
@@ -362,6 +311,114 @@ func (c *ControlClient) snapshot(ctx context.Context, wanted map[string]struct{}
 		Capacity:   capacity,
 		Workspaces: workspaces, Sessions: sessions, Sandboxes: scopedSandboxes,
 	}, nil
+}
+
+func (c *ControlClient) appIDs(ctx context.Context) ([]string, error) {
+	var apps struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if _, err := c.get(ctx, c.baseURL, "/v1/apps", &apps); err != nil {
+		return nil, err
+	}
+	appIDs := make([]string, len(apps.Items))
+	for i := range apps.Items {
+		appIDs[i] = apps.Items[i].ID
+	}
+	return appIDs, nil
+}
+
+// workspaceSessions lists the wanted Workspaces of the given Apps and their
+// Sessions, since the control plane lists Workspaces per App and Sessions
+// per Workspace.
+func (c *ControlClient) workspaceSessions(ctx context.Context, appIDs []string, wanted map[string]struct{}) ([]Workspace, []Session, error) {
+	workspacePages := make([][]Workspace, len(appIDs))
+	if err := forEachBounded(ctx, len(appIDs), controlReadConcurrency, func(ctx context.Context, i int) error {
+		var workspacePage struct {
+			Items []Workspace `json:"items"`
+		}
+		reference := &url.URL{Path: "/v1/workspaces", RawQuery: url.Values{"app_id": {appIDs[i]}}.Encode()}
+		if _, err := c.getReference(ctx, c.baseURL, reference, &workspacePage); err != nil {
+			return err
+		}
+		workspacePages[i] = workspacePage.Items
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+	workspaces := make([]Workspace, 0)
+	for _, page := range workspacePages {
+		for _, workspace := range page {
+			if inWorkspaceSet(wanted, workspace.ID) {
+				workspaces = append(workspaces, workspace)
+			}
+		}
+	}
+
+	sessionPages := make([][]Session, len(workspaces))
+	if err := forEachBounded(ctx, len(workspaces), controlReadConcurrency, func(ctx context.Context, i int) error {
+		var runtimePage struct {
+			Items []Session `json:"items"`
+		}
+		reference := &url.URL{Path: "/v1/sessions", RawQuery: url.Values{"workspace_id": {workspaces[i].ID}}.Encode()}
+		if _, err := c.getReference(ctx, c.baseURL, reference, &runtimePage); err != nil {
+			return err
+		}
+		for j := range runtimePage.Items {
+			runtimePage.Items[j].AppID = workspaces[i].AppID
+		}
+		sessionPages[i] = runtimePage.Items
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+	sessions := make([]Session, 0)
+	for _, page := range sessionPages {
+		sessions = append(sessions, page...)
+	}
+	return workspaces, sessions, nil
+}
+
+// hasSession reports whether the Session listings contain id. It reads only
+// the App, Workspace, and Session inventories.
+func (c *ControlClient) hasSession(ctx context.Context, id string) (bool, error) {
+	if !sessionIDPattern.MatchString(id) {
+		return false, errors.New("invalid Session ID")
+	}
+	appIDs, err := c.appIDs(ctx)
+	if err != nil {
+		return false, err
+	}
+	_, sessions, err := c.workspaceSessions(ctx, appIDs, nil)
+	if err != nil {
+		return false, err
+	}
+	for _, sessionRecord := range sessions {
+		if sessionRecord.ID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// sandboxExists reads one persisted Sandbox, returning 404 with an error when
+// this pool does not own it.
+func (c *ControlClient) sandboxExists(ctx context.Context, id string) (int, error) {
+	if !sandboxIDPattern.MatchString(id) {
+		return 0, errors.New("invalid Sandbox ID")
+	}
+	var sandbox struct {
+		ID string `json:"id"`
+	}
+	status, err := c.get(ctx, c.baseURL, "/v1/sandboxes/"+id, &sandbox)
+	if err != nil {
+		return status, err
+	}
+	if sandbox.ID != id {
+		return 0, errors.New("invalid Sandbox record")
+	}
+	return status, nil
 }
 
 type sandboxUsagePage struct {
@@ -566,13 +623,19 @@ func (c *ControlClient) requestReference(
 }
 
 func NewHandlerWithSessionMutations(source Source, observerToken, mutationToken string) (http.Handler, error) {
+	return NewHandlerWithManagedDatabaseAccess(source, nil, observerToken, mutationToken)
+}
+
+// Managed verification has its own runtime client. A missing or unavailable
+// managed pool never falls back to another pool's Sandbox inventory.
+func NewHandlerWithManagedDatabaseAccess(source Source, managed DatabaseAccessSource, observerToken, mutationToken string) (http.Handler, error) {
 	if len(mutationToken) < 32 || len(mutationToken) > 512 || strings.TrimSpace(mutationToken) != mutationToken || mutationToken == observerToken {
 		return nil, errors.New("a distinct 32-512 byte Session mutation token is required")
 	}
-	return newHandler(source, observerToken, mutationToken)
+	return newHandler(source, observerToken, mutationToken, managed)
 }
 
-func newHandler(source Source, token, mutationToken string) (http.Handler, error) {
+func newHandler(source Source, token, mutationToken string, managed DatabaseAccessSource) (http.Handler, error) {
 	if source == nil || len(token) < 32 || len(token) > 512 || strings.TrimSpace(token) != token {
 		return nil, errors.New("observer source and a 32-512 byte token are required")
 	}
@@ -601,7 +664,8 @@ func newHandler(source Source, token, mutationToken string) (http.Handler, error
 		}
 		appBuilds := strings.HasPrefix(r.URL.Path, "/apps/") && strings.HasSuffix(r.URL.Path, "/builds")
 		databaseAccess := strings.HasPrefix(r.URL.Path, "/sandboxes/") && strings.HasSuffix(r.URL.Path, "/database-access")
-		if r.Method != http.MethodGet || (r.URL.Path != "/snapshot" && r.URL.Path != "/requests" && r.URL.Path != "/infrastructure" && !appBuilds && !databaseAccess) {
+		managedDatabaseAccess := strings.HasPrefix(r.URL.Path, "/managed/sandboxes/") && strings.HasSuffix(r.URL.Path, "/database-access")
+		if r.Method != http.MethodGet || (r.URL.Path != "/snapshot" && r.URL.Path != "/requests" && r.URL.Path != "/infrastructure" && !appBuilds && !databaseAccess && !managedDatabaseAccess) {
 			http.NotFound(w, r)
 			return
 		}
@@ -609,6 +673,17 @@ func newHandler(source Source, token, mutationToken string) (http.Handler, error
 		if provided == r.Header.Get("Authorization") || sha256.Sum256([]byte(provided)) != expected {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if managedDatabaseAccess {
+			if managed == nil {
+				http.Error(w, "Managed Sandbox verification is unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			forwarded := r.Clone(r.Context())
+			forwarded.URL.Path = strings.TrimPrefix(r.URL.Path, "/managed")
+			forwarded.URL.RawPath = ""
+			serveDatabaseAccess(w, forwarded, managed)
 			return
 		}
 		if r.URL.Path == "/requests" {

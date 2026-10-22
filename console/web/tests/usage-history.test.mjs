@@ -56,4 +56,20 @@ test("missing current guest telemetry does not display an old reading as current
     ],
   }));
   expect(monitor).toContain('class="chart-current">Unavailable');
+  expect(monitor).toContain("Last received");
+  expect(monitor).toContain("12:00:00 UTC");
+  expect(monitor).toContain("Memory: unavailable; last received 3.00 gib");
+});
+
+test("memory recovery clears the last-received warning and displays the fresh reading", () => {
+  const item = sandbox(100 * 1024 ** 2);
+  const monitor = renderToStaticMarkup(createElement(SandboxMonitor, {
+    instance: item, live: true, onClose: () => {}, samples: [
+      { observed_at: "2026-09-30T12:00:00Z", memory_bytes: 3 * 1024 ** 3 },
+      { observed_at: "2026-09-30T12:00:05Z" },
+      { observed_at: "2026-09-30T12:00:10Z", memory_bytes: 100 * 1024 ** 2 },
+    ],
+  }));
+  expect(monitor).toContain('class="chart-current">100 mib');
+  expect(monitor).not.toContain("Last received");
 });

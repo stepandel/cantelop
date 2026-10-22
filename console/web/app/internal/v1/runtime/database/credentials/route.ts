@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { workspaceDatabases } from "@core/workspace-databases/configured";
-import { verifyDatabaseCapability, verifyActiveSandbox, SandboxVerificationError } from "@core/workspace-databases/capability";
+import { workspaceDatabases, verifyRuntimeDatabaseSandbox } from "@core/workspace-databases/configured";
+import { verifyDatabaseCapability, SandboxVerificationError } from "@core/workspace-databases/capability";
 import { DatabaseAccessError } from "@core/workspace-databases/service";
 import { DatabaseProviderError } from "@core/workspace-databases/provider";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   } catch { return NextResponse.json({ error: { code: "unauthorized" } }, { status: 401, headers }); }
   let stage = "sandbox_verification";
   try {
-    await verifyActiveSandbox(identity);
+    await verifyRuntimeDatabaseSandbox(identity);
     stage = "database_credentials";
     return NextResponse.json(await workspaceDatabases().applicationCredentials(identity.appId, identity.workspaceId), { headers });
   } catch (error) {

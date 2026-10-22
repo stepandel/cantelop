@@ -15,19 +15,45 @@ Firecracker's own threads. Host admission does not sum guest vCPUs.
 
 ## Memory
 
-Fire Fuse grows a Sandbox's memory in 256 MiB steps when the guest reports low
-`MemAvailable`, and attempts to remove idle memory after one minute. A Sandbox
-can use at most 4608 MiB of guest memory.
+Fire Fuse grows a Sandbox's memory when the guest reports low `MemAvailable`.
+A Sandbox can use at most 4608 MiB of guest memory.
 
-The memory controller polls the private guest socket on port 19095 every two
-seconds. Growth begins below 128 MiB available or 25% of guest total memory.
-Shrink begins above 50% available. A growth request reserves host capacity
-before it is sent. A shrink releases that reservation only after Firecracker
-reports that the guest has actually unplugged the blocks. A guest that cannot
-unplug memory keeps its reservation. The `guest_memory_mib` field in sandbox
-usage is the last observed guest size; `memory_current_bytes` is the host
-cgroup's current charge. Fire Fuse logs denied growth and failed resize
-requests with the Sandbox ID.
+The memory controller starts immediately after guest assignment and polls the
+private guest socket on port 19095 every second. Firecracker status requests
+and guest probes run concurrently with separate two-second deadlines. Growth begins below
+256 MiB available or one third of guest total memory. Each request adds
+512–1024 MiB, in 256 MiB increments, aiming for at least 512 MiB or half the
+current guest memory available. A smaller increment is allowed when only
+256 MiB of host capacity remains or the Sandbox is approaching its ceiling.
+
+Shrink requires five continuous minutes above 70% available memory. Each
+request removes 256 MiB only if the remaining availability stays above both
+growth thresholds. Three consecutive failed probes, a pending resize, or renewed
+pressure resets the idle timer; a single missed probe does not. If pressure
+returns or the guest probe fails three consecutive times during memory removal,
+the controller cancels the pending shrink by requesting at least the
+still-plugged allocation.
+
+A growth request reserves host capacity before it is sent. A shrink releases
+that reservation only after Firecracker reports that the guest has actually
+unplugged the blocks. Device progress and completed shrinks are reconciled
+even when the guest availability probe is unavailable. A guest that cannot
+unplug memory keeps its reservation. After three consecutive failed guest
+probes, the controller may request up to 512 MiB of emergency headroom, subject
+to the same host budget and guest ceiling. Later outages receive no more until
+a shrink reclaims memory, so intermittent failures cannot ratchet growth. It never
+shrinks or reports inferred guest usage from a failed probe.
+
+The `guest_memory_mib` field in sandbox usage is the last observed guest size;
+`memory_current_bytes` is the host cgroup's current charge. Probe failures are
+logged on the first failure and once per minute while they persist, with a
+recovery record when the probe responds again. Resizes pending for at least
+15 seconds emit a warning with the requested and plugged sizes, repeated at
+most once per minute. Fire Fuse also logs completed resizes, denied growth,
+and failed resize requests with the Sandbox ID. A lost growth reply stops
+further resizing and retains the reservation until that VM exits, since the
+request may already have been applied. A growth request Firecracker rejects
+was not applied, so resizing continues.
 
 To keep admission and concurrent growth independent, the memory controller
 reserves 512 MiB for every configured VM slot, including currently empty

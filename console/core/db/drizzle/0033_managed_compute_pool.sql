@@ -1,0 +1,2 @@
+ALTER TABLE "cantelop_control"."apps" ADD COLUMN "compute_pool" text DEFAULT 'standard' NOT NULL;--> statement-breakpoint
+ALTER TABLE "cantelop_control"."apps" ADD CONSTRAINT "apps_compute_pool_check" CHECK ("cantelop_control"."apps"."compute_pool" IN ('standard', 'managed'));

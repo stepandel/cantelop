@@ -15,22 +15,28 @@ const buildSamples = (
   count: number,
   end: string,
   cpu: (i: number) => number,
-  memory: (i: number) => number,
+  memory: (i: number) => number | undefined,
 ): UsageSample[] => {
   const endMS = Date.parse(end);
   return Array.from({ length: count }, (_, i): UsageSample => ({
     observed_at: new Date(endMS - (count - 1 - i) * 5_000).toISOString(),
     cpu_percent: i === 0 ? undefined : cpu(i),
-    memory_bytes: Math.round(memory(i)),
+    memory_bytes: memory(i) === undefined ? undefined : Math.round(memory(i)!),
   }));
 };
 
-const buildHistory = (): UsageHistory => ({
+type MemoryPreview = "missing" | "recovered" | undefined;
+
+// ?memory=missing leaves the last three minutes blank; recovered adds a gap
+// in the middle of the window to inspect disconnected lines and hover states.
+const buildHistory = (memory: MemoryPreview): UsageHistory => ({
   "sbx_01k1w9qf2m": buildSamples(
     48,
     "2026-08-04T09:41:52Z",
     (i) => 22 + 14 * Math.sin(i / 4) + 9 * Math.sin(i / 1.7) + (i % 11 === 0 ? 26 : 0),
-    (i) => 640 * 1024 * 1024 + i * 1.9 * 1024 * 1024 + 22 * 1024 * 1024 * Math.sin(i / 5),
+    (i) => i >= 12 && (memory === "missing" || (memory === "recovered" && i < 28))
+      ? undefined
+      : 640 * 1024 * 1024 + i * 1.9 * 1024 * 1024 + 22 * 1024 * 1024 * Math.sin(i / 5),
   ),
   "sbx_01k1w8n3tc": buildSamples(
     48,
@@ -41,7 +47,7 @@ const buildHistory = (): UsageHistory => ({
 });
 
 // Development-only styling preview with fixture data. Never served in production.
-const buildSnapshot = (): Snapshot => ({
+const buildSnapshot = (memory: MemoryPreview): Snapshot => ({
   ready: true,
   observed_at: "2026-08-04T09:41:52Z",
   capacity: { warm_slots: { target: 16, ready: 13, claimed: 2, preparing: 1 } },
@@ -97,7 +103,7 @@ const buildSnapshot = (): Snapshot => ({
         observed_at: "2026-08-04T09:41:52Z",
         cpu_usage_us: 18422031,
         memory_current_bytes: 734003200,
-        guest_memory_used_bytes: 314572800,
+        ...(memory === "missing" ? {} : { guest_memory_used_bytes: 314572800 }),
       },
       created_at: "2026-08-04T08:12:03Z",
       updated_at: "2026-08-04T09:40:11Z",
@@ -164,25 +170,26 @@ const buildSnapshot = (): Snapshot => ({
 export default async function Preview({
   searchParams,
 }: {
-  searchParams: Promise<{ section?: string | string[] }>;
+  searchParams: Promise<{ section?: string | string[]; memory?: string | string[] }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
-  const { section: raw } = await searchParams;
+  const { section: raw, memory: rawMemory } = await searchParams;
   const section: AdminSectionId = typeof raw === "string" && isAdminSectionId(raw) ? raw : "home";
+  const memory: MemoryPreview = rawMemory === "missing" || rawMemory === "recovered" ? rawMemory : undefined;
   return (
     <AdminScreen
       viewer={{ login: "operator", email: "operator@example.com", avatarUrl: null }}
-      snapshot={buildSnapshot()}
+      snapshot={buildSnapshot(memory)}
       section={section}
       sectionHrefBase="/preview?section="
     >
     {(section === "home" || section === "sandboxes") && <DashboardView
-      snapshot={buildSnapshot()}
+      snapshot={buildSnapshot(memory)}
       unavailable={false}
       counts={{ users: 128, apps: 342 }}
       polling={false}
       canStopSandboxes
-      initialHistory={buildHistory()}
+      initialHistory={buildHistory(memory)}
       initialSelectedId="sbx_01k1w9qf2m"
       view={section}
     />}

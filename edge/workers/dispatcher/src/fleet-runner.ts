@@ -16,7 +16,7 @@ export interface FleetRunnerEnv extends ObservationIngestEnv {
   FLEET_PACKAGES: DurableObjectNamespace;
   RELEASE_GATES: DurableObjectNamespace;
   FLEET_LOADER: WorkerLoader;
-  BROKER: OriginBrokerService;
+  BROKER: OriginBrokerService & { dispatchManaged(request: Request, target: APIInvocation): Promise<Response> };
 }
 type FleetScope = Omit<FleetExecution, "bindings">;
 
@@ -85,7 +85,9 @@ export class FleetRuntime extends WorkerEntrypoint<FleetRunnerEnv, FleetScope & 
     if (new URL(request.url).hostname !== RUNTIME_HOSTNAME || !await authorized(this.env, scope, scope.invocation.request_id)) {
       return new Response(null, { status: 403 });
     }
-    return handleOutboundRequest(request, { BROKER: this.env.BROKER, CANTELOP_CONTEXT: scope.invocation });
+    return handleOutboundRequest(request, { BROKER: {
+      dispatch: (target, invocation) => this.env.BROKER.dispatchManaged(target, invocation),
+    }, CANTELOP_CONTEXT: scope.invocation });
   }
 }
 

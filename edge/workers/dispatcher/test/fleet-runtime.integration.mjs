@@ -49,7 +49,7 @@ test("shared package uses isolated contexts, fresh capabilities and fenced confi
   }, {
     name: "test-broker", modules: true, compatibilityDate: "2026-08-11",
     script: `import { WorkerEntrypoint } from 'cloudflare:workers';
-      export default class extends WorkerEntrypoint { dispatch(_request, scope) { return Response.json(scope); } }`,
+      export default class extends WorkerEntrypoint { dispatchManaged(_request, scope) { return Response.json(scope); } }`,
   }] }));
   const control = async (app, body) => mf.dispatchFetch(`https://release-gate.cantelop.dev/__cantelop/release-gates/${app}`, {
     method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body),

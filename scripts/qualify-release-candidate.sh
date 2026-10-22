@@ -61,6 +61,7 @@ run_check() {
   return "${status}"
 }
 
+run_check public-source make -C "${repository_directory}" check-public-source
 run_check cantelop-check make -C "${repository_directory}" check
 run_check control-worker-build bun "${repository_directory}/scripts/check-control-worker-build.ts"
 run_check sdk-check pnpm --dir "${sdk_directory}" check
@@ -125,6 +126,7 @@ node -e '
       sdk: { branch: "main", commit: sdkCommit },
     },
     checks: [
+      "public-source",
       "cantelop-check",
       "control-worker-build",
       "message-lifecycle",

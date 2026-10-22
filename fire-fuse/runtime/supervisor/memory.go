@@ -16,10 +16,11 @@ import (
 
 const (
 	memoryStatusPort   = 19095
-	memoryPollInterval = 2 * time.Second
-	memoryShrinkDelay  = time.Minute
+	memoryPollInterval = time.Second
+	memoryShrinkDelay  = 5 * time.Minute
 	memoryStepMiB      = 256
-	memoryProbeTimeout = time.Second
+	memoryProbeTimeout = 2 * time.Second
+	memoryAPITimeout   = 2 * time.Second
 	memoryUsageMaxAge  = 10 * time.Second
 )
 
@@ -81,109 +82,36 @@ func (s *Supervisor) controlMemory(id, guestIP, apiSocket string, done <-chan st
 		return
 	}
 	defer client.CloseIdleConnections()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		select {
+		case <-done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	controller := newMemoryController(s, id, client, func(ctx context.Context) (int, int, error) {
+		return readGuestMemory(ctx, guestIP)
+	})
 	ticker := time.NewTicker(memoryPollInterval)
 	defer ticker.Stop()
-	var desired int
-	var idleSince time.Time
-	var growthDenied bool
-	unconfirmedShrink := -1
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+		if !controller.poll(ctx, time.Now()) {
+			// An ambiguous growth reply or changed machine identity makes further
+			// resizing unsafe. Keep its reservations until the process exits.
+			<-done
+			return
+		}
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), memoryProbeTimeout)
-		status, statusErr := client.ReadMemoryHotplug(ctx)
-		available, total, probeErr := readGuestMemory(ctx, guestIP)
-		cancel()
-		if probeErr == nil {
-			s.recordGuestMemory(id, available, total, time.Now())
-		}
-		if statusErr != nil || probeErr != nil {
-			continue
-		}
-		if status.TotalSizeMiB != microvm.SandboxHotplugMemoryMiB {
-			slog.Error("sandbox hotplug ceiling changed", "sandbox_id", id, "ceiling_mib", status.TotalSizeMiB)
-			<-done
-			return
-		}
-		s.memoryMu.Lock()
-		s.memoryPlugged[id] = status.PluggedSizeMiB
-		s.memoryMu.Unlock()
-		if unconfirmedShrink >= 0 && status.RequestedSizeMiB == unconfirmedShrink {
-			// A shrink whose reply was lost still reached Firecracker.
-			desired = unconfirmedShrink
-		}
-		unconfirmedShrink = -1
-		if status.RequestedSizeMiB != desired {
-			// This controller is the only writer. A mismatch means its capacity
-			// accounting is no longer trustworthy.
-			slog.Error("sandbox memory target changed externally", "sandbox_id", id)
-			<-done
-			return
-		}
-		if status.PluggedSizeMiB != desired {
-			continue // the guest is still working on the previous request
-		}
-		s.setMemoryReservation(id, desired) // release a completed shrink
-		if shouldGrowMemory(available, total) && desired < microvm.SandboxHotplugMemoryMiB {
-			next := desired + memoryStepMiB
-			if !s.reserveMemoryGrowth(id, next) {
-				if !growthDenied {
-					slog.Warn("sandbox memory growth denied by host capacity", "sandbox_id", id, "requested_mib", next)
-					growthDenied = true
-				}
-				continue
-			}
-			growthDenied = false
-			ctx, cancel := context.WithTimeout(context.Background(), memoryProbeTimeout)
-			err := client.RequestMemoryHotplug(ctx, next)
-			cancel()
-			if err != nil {
-				slog.Warn("sandbox memory growth request failed", "sandbox_id", id, "error", err)
-				// The request may have reached Firecracker even when its reply was
-				// lost. Keep the capacity reserved until this VM exits.
-				<-done
-				return
-			}
-			desired = next
-			slog.Info("sandbox memory growth requested", "sandbox_id", id, "hotplug_mib", desired)
-			idleSince = time.Time{}
-			continue
-		}
-		if desired == 0 || !shouldShrinkMemory(available, total) {
-			idleSince = time.Time{}
-			continue
-		}
-		if idleSince.IsZero() {
-			idleSince = time.Now()
-			continue
-		}
-		if time.Since(idleSince) < memoryShrinkDelay {
-			continue
-		}
-		next := desired - memoryStepMiB
-		ctx, cancel = context.WithTimeout(context.Background(), memoryProbeTimeout)
-		err := client.RequestMemoryHotplug(ctx, next)
-		cancel()
-		if err != nil {
-			slog.Warn("sandbox memory shrink request failed", "sandbox_id", id, "error", err)
-			unconfirmedShrink = next
-			continue
-		}
-		desired = next
-		slog.Info("sandbox memory shrink requested", "sandbox_id", id, "hotplug_mib", desired)
-		idleSince = time.Time{}
 	}
-}
-
-func shouldGrowMemory(available, total int) bool {
-	return total > 0 && (available < 128 || available*4 < total)
-}
-
-func shouldShrinkMemory(available, total int) bool {
-	return total > 0 && available*2 > total
 }
 
 // Reserve against all possible boot allocations. This conservatively leaves

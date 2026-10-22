@@ -29,6 +29,22 @@ class PublicSourceTests(unittest.TestCase):
         (root / ".env").write_text("private local credential")
         self.git(root, "add", ".")
 
+    def test_private_pin_keeps_integrity_without_exporting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            self.git(root, "commit", "-m", "private source")
+            commit = self.git(root, "rev-parse", "HEAD")
+            HELPER["pin_private"](commit, "https://github.com/example/private", root)
+            record = HELPER["verify"](root)
+            self.assertEqual(record["visibility"], "private")
+            self.assertEqual(record["commit"], commit)
+            (root / "main.go").write_text("changed")
+            with self.assertRaisesRegex(ValueError, "source changed"):
+                HELPER["verify"](root)
+            with self.assertRaisesRegex(ValueError, "commit source changes"):
+                HELPER["pin_private"](commit, "https://github.com/example/private", root)
+
     def test_export_preserves_source_and_excludes_private_history(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "private"

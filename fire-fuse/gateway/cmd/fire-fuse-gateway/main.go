@@ -39,6 +39,8 @@ func main() {
 	controlTokenFile := flag.String("control-token-file", defaultRuntimeTokenPath, "private runtime control-plane bearer token")
 	productTokenFile := flag.String("product-token-file", defaultProductTokenPath, "private console product-control bearer token")
 	edgeTokenFile := flag.String("edge-token-file", defaultEdgeTokenPath, "private edge broker bearer token")
+	managedControlURL := flag.String("managed-control-plane", "", "isolated managed runtime HTTP origin")
+	managedTokenFile := flag.String("managed-control-token-file", "", "isolated managed runtime bearer token file")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -102,8 +104,44 @@ func main() {
 		logger.Error("could not construct gateway", "error", err)
 		os.Exit(1)
 	}
+	var managedHandler http.Handler
+	if *managedControlURL != "" || *managedTokenFile != "" {
+		if *managedControlURL == "" || *managedTokenFile == "" || *managedControlURL == *controlPlaneURL {
+			logger.Error("managed control origin and separate token file are required")
+			os.Exit(1)
+		}
+		token, tokenErr := controlauth.LoadTokenFile(*managedTokenFile)
+		if tokenErr != nil || token == controlToken {
+			logger.Error("could not load distinct managed runtime token")
+			os.Exit(1)
+		}
+		managedClient, _, clientErr := authenticatedClients(*controlTimeout, token, productToken, edgeToken)
+		if clientErr != nil {
+			logger.Error("could not authenticate managed runtime client")
+			os.Exit(1)
+		}
+		managedControl, controlErr := controlclient.New(*managedControlURL, managedClient)
+		if controlErr != nil {
+			logger.Error("invalid managed control origin")
+			os.Exit(1)
+		}
+		managedSessions, sessionErr := sessionbroker.New(managedControl)
+		if sessionErr != nil {
+			logger.Error("could not construct managed Session broker")
+			os.Exit(1)
+		}
+		managedHandler, err = gateway.NewHandler(gateway.Dependencies{
+			SyncFiles: managedControl, DatabaseCredentials: products, Environment: products,
+			Workspaces: managedControl, WorkspaceCreator: products, SessionBroker: managedSessions,
+			Messages: managedControl, Events: managedControl, EdgeToken: edgeToken,
+		}, logger)
+		if err != nil {
+			logger.Error("could not construct managed gateway")
+			os.Exit(1)
+		}
+	}
 	server := &http.Server{
-		Addr: *listenAddress, Handler: handler,
+		Addr: *listenAddress, Handler: gateway.NewComputePoolHandler(handler, managedHandler, edgeToken),
 		ReadHeaderTimeout: readHeaderTimeout, IdleTimeout: idleTimeout,
 	}
 

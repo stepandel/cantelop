@@ -1,0 +1,86 @@
+[Unit]
+Description=Cantelop isolated managed Fleet runtime
+Documentation=file:/usr/local/share/doc/fire-fuse/operations.md
+Wants=network-online.target
+Requires=wg-quick@wg0.service
+Requires=fire-fuse-managed-ingress.service fire-fuse-fleet-watchdog.service fire-fuse-juicefs-gateway.service
+After=network-online.target wg-quick@wg0.service fire-fuse-managed-ingress.service fire-fuse-fleet-watchdog.service fire-fuse-juicefs-gateway.service
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/fire-fuse/artifact-store.env
+EnvironmentFile=/etc/fire-fuse/juicefs-gateway.env
+EnvironmentFile=/etc/fire-fuse-managed/storage.env
+Environment=CANTELOP_MANAGED_HOST=true
+Environment=CANTELOP_MANAGED_WATCHDOG_HEARTBEAT=/run/fire-fuse-fleet-watchdog/heartbeat
+ExecStart=/usr/local/lib/fire-fuse-managed/fire-fuse -config /etc/fire-fuse-managed/config.json -operator-token-file /etc/fire-fuse-managed/operator.token -gateway-token-file /etc/fire-fuse-managed/gateway.token -dispatcher-token-file /etc/fire-fuse-managed/dispatcher.token -observer-token-file /etc/fire-fuse-managed/observer.token -compute-token-file /etc/fire-fuse-managed/compute.token -listen 127.0.0.1:8180 -provider-ingress-listen 10.77.0.1:8184 -image-directory /var/lib/fire-fuse/images
+Restart=on-failure
+RestartSec=5s
+
+# SIGTERM reaches only fire-fuse so it can checkpoint process and resource
+# cleanup. If it exceeds TimeoutStopSec, systemd kills every remaining process
+# in the unit, including a stuck jailer or Firecracker child.
+KillMode=mixed
+KillSignal=SIGTERM
+SendSIGKILL=yes
+FinalKillSignal=SIGKILL
+TimeoutStopSec=5s
+MemoryMax=10G
+CPUQuota=400%
+
+# systemd creates these root-owned directories before ExecStart. The operator
+# must install config.json and boot images before starting the service.
+ConfigurationDirectory=fire-fuse-managed
+ConfigurationDirectoryMode=0750
+# Never make the common parent a StateDirectory: systemd recursively binds it
+# into the service namespace, duplicating the JuiceFS workspace child mount.
+StateDirectory=fire-fuse-managed/state fire-fuse-managed/runtime
+StateDirectoryMode=0750
+UMask=0077
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fire-fuse-managed
+
+# The jailer requires real root, mount namespaces, chroot/pivot_root, mknod,
+# ownership changes, and KVM/TUN access. Do not enable PrivateUsers,
+# PrivateDevices, RestrictNamespaces, ProtectControlGroups, or an unverified
+# CapabilityBoundingSet without testing real jailer startup and recovery.
+# Jailer must perform its final UID/GID transition and exec Firecracker after
+# constructing the chroot. NoNewPrivileges=yes makes that exec fail with EPERM.
+NoNewPrivileges=no
+PrivateUsers=no
+PrivateDevices=no
+RestrictNamespaces=no
+ProtectControlGroups=no
+Delegate=yes
+
+DevicePolicy=closed
+DeviceAllow=/dev/kvm rwm
+DeviceAllow=/dev/net/tun rwm
+DeviceAllow=/dev/userfaultfd rwm
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+ProtectSystem=strict
+# Keep writable paths disjoint. A writable /var/lib/fire-fuse parent clones
+# its workspace submount, violating the single-mount workspace policy.
+# The optional workspace path permits installations without workspace storage.
+ReadWritePaths=/var/lib/fire-fuse/images -/var/lib/fire-fuse/workspaces -/var/lib/fire-fuse/workspace-admin /var/lib/nfs /sys/fs/cgroup
+ProtectHome=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+KeyringMode=private
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+---
+# A managed-only runtime instance on an existing, qualified compute machine.
+# Separate state, cgroups and network ownership preserve watchdog isolation.
+fire_fuse_managed_artifacts: []
+fire_fuse_managed_metadata_url: redis://10.78.0.2:6379/1
+fire_fuse_managed_credentials:
+  operator: "{{ vault_fire_fuse_managed_operator_token | default('') }}"
+  gateway: "{{ vault_fire_fuse_managed_gateway_token | default('') }}"
+  dispatcher: "{{ vault_fire_fuse_managed_dispatcher_token | default('') }}"
+  observer: "{{ vault_fire_fuse_managed_observer_token | default('') }}"
+  compute: "{{ vault_fire_fuse_managed_compute_token | default('') }}"
+  encryption: "{{ vault_fire_fuse_managed_encryption_key | default('') }}"

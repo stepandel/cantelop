@@ -145,6 +145,12 @@ const url = process.env.CANTELOP_TEST_DATABASE_URL;
       expect(firstPage.after).toBe(a.id);
       const lastPage = await repo.installationsForOwner(user.id, fleet.id, { after: firstPage.after, limit: 1 });
       expect(lastPage).toMatchObject({ after: null, items: [{ id: b.id, status: "provisioning" }] });
+      const searched = await repo.installationsForOwner(user.id, fleet.id, { key: "second:" });
+      expect(searched).toMatchObject({ after: null, items: [{ id: b.id }] });
+      await expect(repo.installationsForOwner(user.id, fleet.id, { key: "50%" })).rejects.toMatchObject({ code: "invalid_installation_key" });
+      const running = await repo.installationsForAppsForOwner(user.id, fleet.id, [b.app_id, source.id]);
+      expect(running.map((i) => i.id)).toEqual([b.id]);
+      expect(await repo.installationsForAppsForOwner(user.id, otherFleet.id, [a.app_id])).toEqual([]);
       const owned = await repo.installationForOwner(user.id, fleet.id, a.id);
       expect(owned).toMatchObject({ policy_revision: 2, policy: { active: true, maxVcpus: 8 } });
       expect((await budget.listForApp(a.app_id)).map((epoch) => epoch.epoch)).toEqual(["compute-period", "period-1"]);
@@ -161,6 +167,7 @@ const url = process.env.CANTELOP_TEST_DATABASE_URL;
         () => repo.principalsForOwner(stranger.id, fleet.id),
         () => repo.packagesForOwner(stranger.id, fleet.id),
         () => repo.installationsForOwner(stranger.id, fleet.id),
+        () => repo.installationsForAppsForOwner(stranger.id, fleet.id, [a.app_id]),
         () => repo.installationForOwner(stranger.id, fleet.id, a.id),
         () => repo.installationForOwner(user.id, otherFleet.id, a.id),
       ]) {

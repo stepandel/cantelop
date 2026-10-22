@@ -232,6 +232,13 @@
       "when": 1792625274507,
       "tag": "0032_shared_fleet_packages",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792630474773,
+      "tag": "0033_managed_compute_pool",
+      "breakpoints": true
     }
   ]
 }

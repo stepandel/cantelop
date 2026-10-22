@@ -225,7 +225,7 @@ func New(cfg config.Config, output io.Writer, resolvers ...EnvironmentResolver) 
 	if err != nil {
 		return nil, err
 	}
-	tapManager, err := network.NewTAPManager(cfg.Network.IPBin)
+	tapManager, err := network.NewTAPManagerInNamespace(cfg.Network.IPBin, cfg.Network.Namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -237,10 +237,10 @@ func New(cfg config.Config, output io.Writer, resolvers ...EnvironmentResolver) 
 	if err != nil {
 		return nil, err
 	}
-	forwardingManager, err := network.NewForwardingManager(
+	forwardingManager, err := network.NewForwardingManagerInNamespace(
 		cfg.Network.IPTablesBin,
 		cfg.Network.IP6TablesBin,
-		egressPolicy,
+		egressPolicy, cfg.Network.Namespace,
 	)
 	if err != nil {
 		return nil, err

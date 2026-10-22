@@ -218,3 +218,37 @@ func TestSupervisorOrphanInventoryReportsReadFailures(t *testing.T) {
 		t.Fatalf("CheckForOrphans() error = %v, want inventory error", err)
 	}
 }
+
+func TestSupervisorOrphanInventoryScopesRuntimeInterfaces(t *testing.T) {
+	for _, namespace := range []string{"", "managed"} {
+		t.Run("namespace="+namespace, func(t *testing.T) {
+			other := "managed"
+			if namespace == "managed" {
+				other = ""
+			}
+			own, _ := network.TAPNameInNamespace("orphan", namespace)
+			foreign, _ := network.TAPNameInNamespace("foreign", other)
+			cfg := testConfig()
+			cfg.Network.Namespace = namespace
+			interfaces := []net.Interface{{Name: foreign}}
+			supervisor := newSupervisor(cfg, dependencies{
+				readJailRoot:   func(string) ([]os.DirEntry, error) { return nil, os.ErrNotExist },
+				listInterfaces: func() ([]net.Interface, error) { return interfaces, nil },
+				readTAPAlias: func(name string) (string, error) {
+					if name == foreign {
+						t.Fatal("inspected foreign runtime ownership")
+					}
+					return network.TAPAliasInNamespace("orphan", namespace)
+				},
+				listFirewall: func(context.Context) ([]network.OwnedFirewallRule, error) { return nil, nil },
+			})
+			if err := supervisor.CheckForOrphans(nil); err != nil {
+				t.Fatal(err)
+			}
+			interfaces = append(interfaces, net.Interface{Name: own})
+			if err := supervisor.CheckForOrphans(nil); !errors.Is(err, ErrOrphanedResources) {
+				t.Fatal("own orphan was ignored", err)
+			}
+		})
+	}
+}

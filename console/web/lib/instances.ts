@@ -67,6 +67,15 @@ export function appBillingSummary(snapshot: Snapshot | null, appId: string): App
   return result;
 }
 
+/** Running Sandboxes per App id. */
+export function runningByApp(sandboxes: Sandbox[]): Map<string, number> {
+  const running = new Map<string, number>();
+  for (const sandbox of sandboxes) {
+    if (sandbox.state === "running") running.set(sandbox.app_id, (running.get(sandbox.app_id) ?? 0) + 1);
+  }
+  return running;
+}
+
 export function sortSandboxes(sandboxes: Sandbox[]) {
   return [...sandboxes].sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0));
 }

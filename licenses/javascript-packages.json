@@ -2,8 +2,8 @@
   "schema_version": 1,
   "scope": "License metadata for every locked third-party JavaScript package, including optional platform packages and development dependencies. This is not a bundled-output clearance.",
   "lockfiles": {
-    "console/bun.lock": "99f47fa0f9f7ed14d94740eb19bf153a82f1aa6c615474e0c22ff43ad05d3ff7",
-    "edge/workers/bun.lock": "d41d59b423563b8cb7bd2006d103ba353b9aea78684bb138e540027bb9c848db",
+    "console/bun.lock": "ecfee85851ef1cdac756344ce55a845c669b97bace705f1ab4bc25d5e9bfe6ec",
+    "edge/workers/bun.lock": "56cf58d6a3606a0f6cc39378402c379cad21670987ee614daabfa07f2ada7b13",
     "examples/hello/package-lock.json": "ef58dff81b6f38ff9fca61450ad5bb3a44560e3232caf4b0f9248081409f5984",
     "tests/benchmarks/session-activation/package-lock.json": "5d2ee8c9876bcaa90afe6af9ac20cb77e9308c8654214ed75e1397a3a810df1b"
   },
@@ -195,7 +195,7 @@
     },
     {
       "name": "@cloudflare/unenv-preset",
-      "version": "2.16.1",
+      "version": "2.16.2",
       "license": "MIT OR Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -203,7 +203,7 @@
     },
     {
       "name": "@cloudflare/workerd-darwin-64",
-      "version": "1.20260804.1",
+      "version": "1.20261019.1",
       "license": "Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -211,7 +211,7 @@
     },
     {
       "name": "@cloudflare/workerd-darwin-arm64",
-      "version": "1.20260804.1",
+      "version": "1.20261019.1",
       "license": "Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -219,7 +219,7 @@
     },
     {
       "name": "@cloudflare/workerd-linux-64",
-      "version": "1.20260804.1",
+      "version": "1.20261019.1",
       "license": "Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -227,7 +227,7 @@
     },
     {
       "name": "@cloudflare/workerd-linux-arm64",
-      "version": "1.20260804.1",
+      "version": "1.20261019.1",
       "license": "Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -235,7 +235,7 @@
     },
     {
       "name": "@cloudflare/workerd-windows-64",
-      "version": "1.20260804.1",
+      "version": "1.20261019.1",
       "license": "Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -308,18 +308,11 @@
     },
     {
       "name": "@esbuild/aix-ppc64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/aix-ppc64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -346,18 +339,11 @@
     },
     {
       "name": "@esbuild/android-arm",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/android-arm",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -384,18 +370,11 @@
     },
     {
       "name": "@esbuild/android-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/android-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -422,18 +401,11 @@
     },
     {
       "name": "@esbuild/android-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/android-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -460,18 +432,11 @@
     },
     {
       "name": "@esbuild/darwin-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/darwin-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -498,18 +463,11 @@
     },
     {
       "name": "@esbuild/darwin-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/darwin-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -536,18 +494,11 @@
     },
     {
       "name": "@esbuild/freebsd-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/freebsd-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -574,18 +525,11 @@
     },
     {
       "name": "@esbuild/freebsd-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/freebsd-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -612,18 +556,11 @@
     },
     {
       "name": "@esbuild/linux-arm",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-arm",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -650,18 +587,11 @@
     },
     {
       "name": "@esbuild/linux-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -688,18 +618,11 @@
     },
     {
       "name": "@esbuild/linux-ia32",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-ia32",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -726,18 +649,11 @@
     },
     {
       "name": "@esbuild/linux-loong64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-loong64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -764,18 +680,11 @@
     },
     {
       "name": "@esbuild/linux-mips64el",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-mips64el",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -802,18 +711,11 @@
     },
     {
       "name": "@esbuild/linux-ppc64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-ppc64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -840,18 +742,11 @@
     },
     {
       "name": "@esbuild/linux-riscv64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-riscv64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -878,18 +773,11 @@
     },
     {
       "name": "@esbuild/linux-s390x",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-s390x",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -916,18 +804,11 @@
     },
     {
       "name": "@esbuild/linux-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/linux-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -944,18 +825,11 @@
     },
     {
       "name": "@esbuild/netbsd-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/netbsd-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -982,18 +856,11 @@
     },
     {
       "name": "@esbuild/netbsd-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/netbsd-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1010,18 +877,11 @@
     },
     {
       "name": "@esbuild/openbsd-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/openbsd-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1048,18 +908,11 @@
     },
     {
       "name": "@esbuild/openbsd-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/openbsd-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1076,18 +929,11 @@
     },
     {
       "name": "@esbuild/openharmony-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/openharmony-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1114,18 +960,11 @@
     },
     {
       "name": "@esbuild/sunos-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/sunos-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1152,18 +991,11 @@
     },
     {
       "name": "@esbuild/win32-arm64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/win32-arm64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1190,18 +1022,11 @@
     },
     {
       "name": "@esbuild/win32-ia32",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/win32-ia32",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1228,18 +1053,11 @@
     },
     {
       "name": "@esbuild/win32-x64",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@esbuild/win32-x64",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -1255,418 +1073,236 @@
     },
     {
       "name": "@img/sharp-darwin-arm64",
-      "version": "0.35.2",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-darwin-arm64",
-      "version": "0.35.3",
-      "license": "Apache-2.0",
-      "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-darwin-x64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-darwin-x64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-freebsd-wasm32",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-freebsd-wasm32",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-darwin-arm64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-darwin-arm64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-darwin-x64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-darwin-x64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linux-arm",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linux-arm",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linux-arm64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linux-arm64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linux-ppc64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linux-ppc64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linux-riscv64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linux-riscv64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linux-s390x",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linux-s390x",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linux-x64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linux-x64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linuxmusl-arm64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linuxmusl-arm64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-libvips-linuxmusl-x64",
-      "version": "1.3.1",
-      "license": "LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-libvips-linuxmusl-x64",
-      "version": "1.3.2",
+      "version": "1.3.4",
       "license": "LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linux-arm",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linux-arm",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linux-arm64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linux-arm64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linux-ppc64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linux-ppc64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linux-riscv64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linux-riscv64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linux-s390x",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linux-s390x",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linux-x64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linux-x64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linuxmusl-arm64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linuxmusl-arm64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-linuxmusl-x64",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-linuxmusl-x64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-wasm32",
-      "version": "0.35.2",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-wasm32",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-webcontainers-wasm32",
-      "version": "0.35.2",
-      "license": "Apache-2.0",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-webcontainers-wasm32",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-win32-arm64",
-      "version": "0.35.2",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-win32-arm64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0 AND LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-win32-ia32",
-      "version": "0.35.2",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-win32-ia32",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0 AND LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
-      "name": "@img/sharp-win32-x64",
-      "version": "0.35.2",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later",
-      "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
       ]
     },
     {
       "name": "@img/sharp-win32-x64",
-      "version": "0.35.3",
+      "version": "0.35.5",
       "license": "Apache-2.0 AND LGPL-3.0-or-later",
       "lockfiles": [
-        "console/bun.lock"
+        "console/bun.lock",
+        "edge/workers/bun.lock"
       ]
     },
     {
@@ -1840,14 +1476,6 @@
       ]
     },
     {
-      "name": "@mdx-js/react",
-      "version": "3.1.1",
-      "license": "MIT",
-      "lockfiles": [
-        "console/bun.lock"
-      ]
-    },
-    {
       "name": "@neon-rs/load",
       "version": "0.0.4",
       "license": "MIT",
@@ -1859,7 +1487,7 @@
     },
     {
       "name": "@next/env",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1867,7 +1495,7 @@
     },
     {
       "name": "@next/mdx",
-      "version": "16.3.1",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1875,7 +1503,7 @@
     },
     {
       "name": "@next/swc-darwin-arm64",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1883,7 +1511,7 @@
     },
     {
       "name": "@next/swc-darwin-x64",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1891,7 +1519,7 @@
     },
     {
       "name": "@next/swc-linux-arm64-gnu",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1899,7 +1527,7 @@
     },
     {
       "name": "@next/swc-linux-arm64-musl",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1907,7 +1535,7 @@
     },
     {
       "name": "@next/swc-linux-x64-gnu",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1915,7 +1543,7 @@
     },
     {
       "name": "@next/swc-linux-x64-musl",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1923,7 +1551,7 @@
     },
     {
       "name": "@next/swc-win32-arm64-msvc",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -1931,7 +1559,7 @@
     },
     {
       "name": "@next/swc-win32-x64-msvc",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -2107,7 +1735,7 @@
     },
     {
       "name": "@swc/helpers",
-      "version": "0.5.15",
+      "version": "0.5.23",
       "license": "Apache-2.0",
       "lockfiles": [
         "console/bun.lock"
@@ -2698,18 +2326,11 @@
     },
     {
       "name": "esbuild",
-      "version": "0.28.1",
-      "license": "MIT",
-      "lockfiles": [
-        "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "esbuild",
       "version": "0.28.2",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock",
+        "edge/workers/bun.lock",
         "examples/hello/package-lock.json",
         "tests/benchmarks/session-activation/package-lock.json"
       ]
@@ -3396,7 +3017,7 @@
     },
     {
       "name": "miniflare",
-      "version": "5.20260804.1-alpha",
+      "version": "5.20261019.2-beta",
       "license": "MIT",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -3412,7 +3033,7 @@
     },
     {
       "name": "nanoid",
-      "version": "3.3.17",
+      "version": "3.3.18",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -3420,7 +3041,7 @@
     },
     {
       "name": "next",
-      "version": "16.3.0",
+      "version": "16.4.1",
       "license": "MIT",
       "lockfiles": [
         "console/bun.lock"
@@ -3817,18 +3438,11 @@
     },
     {
       "name": "sharp",
-      "version": "0.35.2",
+      "version": "0.35.5",
       "license": "Apache-2.0",
       "lockfiles": [
+        "console/bun.lock",
         "edge/workers/bun.lock"
-      ]
-    },
-    {
-      "name": "sharp",
-      "version": "0.35.3",
-      "license": "Apache-2.0",
-      "lockfiles": [
-        "console/bun.lock"
       ]
     },
     {
@@ -3859,7 +3473,7 @@
     },
     {
       "name": "source-map-js",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "license": "BSD-3-Clause",
       "lockfiles": [
         "console/bun.lock"
@@ -4009,7 +3623,7 @@
     },
     {
       "name": "undici",
-      "version": "7.29.0",
+      "version": "7.29.1",
       "license": "MIT",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -4122,7 +3736,7 @@
     },
     {
       "name": "workerd",
-      "version": "1.20260804.1",
+      "version": "1.20261019.1",
       "license": "Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"
@@ -4130,7 +3744,7 @@
     },
     {
       "name": "wrangler",
-      "version": "4.121.0",
+      "version": "4.152.0",
       "license": "MIT OR Apache-2.0",
       "lockfiles": [
         "edge/workers/bun.lock"

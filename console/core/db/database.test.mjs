@@ -29,7 +29,7 @@ test("loads the clean-slate schema and compatibility upgrades", () => {
   const migrations = readMigrationFiles({
     migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
   });
-  expect(migrations).toHaveLength(33);
+  expect(migrations).toHaveLength(34);
   for (const migration of migrations) {
     expect(migration.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(migration.sql.length).toBeGreaterThan(0);

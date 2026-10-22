@@ -626,7 +626,7 @@ func floatPointer(value float64) *float64 { return &value }
 
 // NewHandler builds a read-only observer handler without Session mutations.
 func NewHandler(source Source, token string) (http.Handler, error) {
-	return newHandler(source, token, "")
+	return newHandler(source, token, "", nil)
 }
 
 type appBuildSource struct {
