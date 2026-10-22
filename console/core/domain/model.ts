@@ -15,7 +15,7 @@ export const appStatuses = ["provisioning", "active", "archived"] as const;
 export const operationStatuses = ["queued", "running", "succeeded", "failed"] as const;
 export const operationKinds = [
   "register_app", "register_workspace", "archive_workspace", "purge_workspace", "sync_config",
-  "deploy_api", "materialize_build", "activate_release", "archive_app", "cancel_release",
+  "deploy_api", "materialize_build", "activate_release", "archive_app", "cancel_release", "attach_package",
 ] as const;
 export const releaseStatuses = ["queued", "provisioning", "cancelling", "cancelled", "active", "failed", "superseded"] as const;
 export const releaseComponentKinds = ["api", "session_runtime"] as const;

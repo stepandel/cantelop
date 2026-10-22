@@ -47,7 +47,8 @@ export class ReleaseReconciler {
     const script = release.components.api.output?.script_name;
     const build = release.components.session_runtime.output?.build_id ??
       release.components.session_runtime.output?.provider_build_id;
-    if (script !== release.id || typeof build !== "string" || !buildPattern.test(build)) return true;
+    if ((script !== release.id && !(typeof script === "string" && /^pkg_[0-9a-f]{32}$/.test(script) &&
+        release.components.api.output?.package_id === script)) || typeof build !== "string" || !buildPattern.test(build)) return true;
     const [edge, host, selectedBuild] = await Promise.all([
       this.edge.read(appID), this.runtime.releaseAdmission(owner, appID), this.runtime.activeBuild(owner, appID),
     ]);

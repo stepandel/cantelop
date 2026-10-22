@@ -20,9 +20,11 @@ export interface ProtocolEdgeManifest extends AppDeploymentConfiguration {
   main_module: "worker.mjs";
   cli_build_protocol_version: 6;
   integration_protocol_version: 2;
+  /** The Worker accepts a request-scoped runtime service through ctx.props. */
+  fleet_execution_protocol_version?: 1;
   required_bindings: ["CANTELOP_INTEGRATION_TOKEN"];
-  /** Present when the generated Worker accepts a rotated-out token until its expiry. */
-  optional_bindings?: typeof integrationRotationBindings;
+  /** Declared token rotation and optional Fleet execution bindings. */
+  optional_bindings?: typeof integrationRotationBindings | typeof fleetExecutionBindings;
   default_keep_alive_binding: "CANTELOP_DEFAULT_KEEP_ALIVE_SECONDS";
   webhooks: { path: string; method: "GET" | "POST" }[];
   homepage: boolean;
@@ -47,6 +49,7 @@ export const integrationRotationBindings = [
   "CANTELOP_INTEGRATION_TOKEN_PREVIOUS",
   "CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT",
 ] as const;
+const fleetExecutionBindings = [...integrationRotationBindings, "CANTELOP_FLEET_EXECUTION_VERSION"] as const;
 const slug = /^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const runtimeID = /^[a-z0-9][a-z0-9._:-]{0,127}$/;
 const configurationKeys = [
@@ -147,6 +150,7 @@ export function parseProtocolEdgeManifest(
     "main_module",
     "cli_build_protocol_version",
     "integration_protocol_version",
+    "fleet_execution_protocol_version",
     "required_bindings",
     "optional_bindings",
     "default_keep_alive_binding",
@@ -156,13 +160,14 @@ export function parseProtocolEdgeManifest(
   ]);
   if (
     value.kind !== "cantelop-protocol-edge" ||
+    (value.fleet_execution_protocol_version !== undefined && value.fleet_execution_protocol_version !== 1) ||
     value.main_module !== "worker.mjs" ||
     !Array.isArray(value.required_bindings) ||
     value.required_bindings.length !== 1 ||
     value.required_bindings[0] !== "CANTELOP_INTEGRATION_TOKEN" ||
     (value.optional_bindings !== undefined &&
-      canonical(value.optional_bindings) !==
-        canonical(integrationRotationBindings)) ||
+      canonical(value.optional_bindings) !== canonical(integrationRotationBindings) &&
+      !(value.fleet_execution_protocol_version === 1 && canonical(value.optional_bindings) === canonical(fleetExecutionBindings))) ||
     value.default_keep_alive_binding !==
       "CANTELOP_DEFAULT_KEEP_ALIVE_SECONDS" ||
     typeof value.homepage !== "boolean" ||
@@ -195,10 +200,11 @@ export function parseProtocolEdgeManifest(
     main_module: "worker.mjs",
     cli_build_protocol_version: 6,
     integration_protocol_version: 2,
+    ...(value.fleet_execution_protocol_version === undefined ? {} : { fleet_execution_protocol_version: 1 as const }),
     required_bindings: ["CANTELOP_INTEGRATION_TOKEN"],
     ...(value.optional_bindings === undefined
       ? {}
-      : { optional_bindings: integrationRotationBindings }),
+      : { optional_bindings: canonical(value.optional_bindings) === canonical(fleetExecutionBindings) ? fleetExecutionBindings : integrationRotationBindings }),
     default_keep_alive_binding: "CANTELOP_DEFAULT_KEEP_ALIVE_SECONDS",
     webhooks,
     homepage: value.homepage,

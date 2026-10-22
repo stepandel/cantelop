@@ -2,10 +2,12 @@ import { assertAppId, publishObservations, type ObservationIngestEnv } from "@ca
 
 import { dispatchPublicRequest, type DispatcherEnv } from "./core";
 export { ReleaseGate } from "./release-gate";
+export { FleetPackage } from "./fleet-package";
 
-type Environment = DispatcherEnv & ObservationIngestEnv & { RELEASE_GATE_TOKEN?: string };
+type Environment = DispatcherEnv & ObservationIngestEnv & { RELEASE_GATE_TOKEN?: string; FLEET_PACKAGES?: DurableObjectNamespace };
 
 const controlPath = /^\/__cantelop\/release-gates\/(app_[0-9a-f]{32})$/;
+const packagePath = /^\/__cantelop\/packages\/(pkg_[0-9a-f]{32})$/;
 
 async function releaseGateControl(request: Request, env: Environment, appID: string): Promise<Response> {
   if (!env.RELEASE_GATE_TOKEN) return new Response(null, { status: 503 });
@@ -41,7 +43,7 @@ async function readBoundedCommand(request: Request): Promise<string> {
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > 512) throw new Error("command too large");
+      if (length > 2 << 20) throw new Error("command too large");
       chunks.push(value);
     }
   } finally {
@@ -58,6 +60,17 @@ export default {
   fetch(request: Request, env: Environment, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.hostname === "release-gate.cantelop.dev") {
+      const pkg = packagePath.exec(url.pathname);
+      if (pkg && !url.search) {
+        if (!env.RELEASE_GATE_TOKEN) return Promise.resolve(new Response(null, { status: 503 }));
+        if (request.headers.get("Authorization") !== `Bearer ${env.RELEASE_GATE_TOKEN}`) return Promise.resolve(new Response(null, { status: 401 }));
+        if (request.method !== "PUT") return Promise.resolve(new Response(null, { status: 405 }));
+        if (!env.FLEET_PACKAGES) return Promise.resolve(new Response(null, { status: 503 }));
+        const store = env.FLEET_PACKAGES.get(env.FLEET_PACKAGES.idFromName(pkg[1]));
+        return readBoundedCommand(request).then(body => store.fetch("https://fleet-package.internal/", {
+          method: "PUT", body,
+        })).catch(() => new Response(null, { status: 400 }));
+      }
       const match = controlPath.exec(url.pathname);
       if (match && !url.search) {
         try { assertAppId(match[1]); }

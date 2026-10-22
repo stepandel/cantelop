@@ -24,29 +24,31 @@ const maxAPIModuleBytes = 1 << 20
 // has no routes member. Version 3 always has one: the API's route table, or
 // null when the SDK build could not discover it.
 type APIArtifactManifest struct {
-	SchemaVersion              int                               `json:"schema_version"`
-	Kind                       string                            `json:"kind"`
-	MainModule                 string                            `json:"main_module"`
-	Routes                     json.RawMessage                   `json:"routes,omitempty"`
-	DatabaseSchema             json.RawMessage                   `json:"database_schema,omitempty"`
-	AppName                    string                            `json:"app_name,omitempty"`
-	SessionRuntimeID           string                            `json:"session_runtime_id,omitempty"`
-	CLIBuildProtocolVersion    int                               `json:"cli_build_protocol_version,omitempty"`
-	IntegrationProtocolVersion int                               `json:"integration_protocol_version,omitempty"`
-	RequiredBindings           []string                          `json:"required_bindings,omitempty"`
-	OptionalBindings           []string                          `json:"optional_bindings,omitempty"`
-	DefaultKeepAliveBinding    string                            `json:"default_keep_alive_binding,omitempty"`
-	Webhooks                   []APIRoute                        `json:"webhooks,omitempty"`
-	Homepage                   *bool                             `json:"homepage,omitempty"`
-	Auth                       *bool                             `json:"auth,omitempty"`
-	Environment                map[string]EnvironmentDeclaration `json:"environment,omitempty"`
-	Dockerfile                 string                            `json:"dockerfile,omitempty"`
+	SchemaVersion                 int                               `json:"schema_version"`
+	Kind                          string                            `json:"kind"`
+	MainModule                    string                            `json:"main_module"`
+	Routes                        json.RawMessage                   `json:"routes,omitempty"`
+	DatabaseSchema                json.RawMessage                   `json:"database_schema,omitempty"`
+	AppName                       string                            `json:"app_name,omitempty"`
+	SessionRuntimeID              string                            `json:"session_runtime_id,omitempty"`
+	CLIBuildProtocolVersion       int                               `json:"cli_build_protocol_version,omitempty"`
+	IntegrationProtocolVersion    int                               `json:"integration_protocol_version,omitempty"`
+	FleetExecutionProtocolVersion int                               `json:"fleet_execution_protocol_version,omitempty"`
+	RequiredBindings              []string                          `json:"required_bindings,omitempty"`
+	OptionalBindings              []string                          `json:"optional_bindings,omitempty"`
+	DefaultKeepAliveBinding       string                            `json:"default_keep_alive_binding,omitempty"`
+	Webhooks                      []APIRoute                        `json:"webhooks,omitempty"`
+	Homepage                      *bool                             `json:"homepage,omitempty"`
+	Auth                          *bool                             `json:"auth,omitempty"`
+	Environment                   map[string]EnvironmentDeclaration `json:"environment,omitempty"`
+	Dockerfile                    string                            `json:"dockerfile,omitempty"`
 }
 
-// validOptionalBindings accepts manifests from SDKs that predate rotation and
-// the exact bindings a rotation-aware Edge Worker reads.
-func validOptionalBindings(bindings []string) bool {
-	return bindings == nil || len(bindings) == 2 && bindings[0] == "CANTELOP_INTEGRATION_TOKEN_PREVIOUS" && bindings[1] == "CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT"
+// validOptionalBindings accepts older manifests and the declared Fleet binding
+// only when the Worker advertises the matching Fleet execution contract.
+func validOptionalBindings(bindings []string, fleetVersion int) bool {
+	rotation := []string{"CANTELOP_INTEGRATION_TOKEN_PREVIOUS", "CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT"}
+	return bindings == nil || slices.Equal(bindings, rotation) || fleetVersion == 1 && slices.Equal(bindings, append(rotation, "CANTELOP_FLEET_EXECUTION_VERSION"))
 }
 
 type APIRoute struct {
@@ -67,10 +69,13 @@ var (
 // manifest carries none: a version 2 manifest, or a version 3 null.
 func (manifest APIArtifactManifest) DeclaredRoutes() (routes []APIRoute, discovered bool, err error) {
 	if manifest.Kind == "cantelop-protocol-edge" {
+		if manifest.FleetExecutionProtocolVersion != 0 && manifest.FleetExecutionProtocolVersion != 1 {
+			return nil, false, errors.New("unsupported Fleet execution protocol")
+		}
 		if manifest.Auth != nil && !*manifest.Auth {
 			return nil, false, errors.New("invalid protocol Edge auth declaration")
 		}
-		if manifest.SchemaVersion != 1 || manifest.MainModule != "worker.mjs" || manifest.CLIBuildProtocolVersion != 6 || manifest.IntegrationProtocolVersion != 2 || !ids.ValidRoutingSlug(manifest.AppName) || !ids.LocalSessionKeyPattern.MatchString(manifest.SessionRuntimeID) || manifest.Homepage == nil || len(manifest.Routes) != 0 || len(manifest.DatabaseSchema) != 0 || len(manifest.RequiredBindings) != 1 || manifest.RequiredBindings[0] != "CANTELOP_INTEGRATION_TOKEN" || !validOptionalBindings(manifest.OptionalBindings) || manifest.DefaultKeepAliveBinding != "CANTELOP_DEFAULT_KEEP_ALIVE_SECONDS" {
+		if manifest.SchemaVersion != 1 || manifest.MainModule != "worker.mjs" || manifest.CLIBuildProtocolVersion != 6 || manifest.IntegrationProtocolVersion != 2 || !ids.ValidRoutingSlug(manifest.AppName) || !ids.LocalSessionKeyPattern.MatchString(manifest.SessionRuntimeID) || manifest.Homepage == nil || len(manifest.Routes) != 0 || len(manifest.DatabaseSchema) != 0 || len(manifest.RequiredBindings) != 1 || manifest.RequiredBindings[0] != "CANTELOP_INTEGRATION_TOKEN" || !validOptionalBindings(manifest.OptionalBindings, manifest.FleetExecutionProtocolVersion) || manifest.DefaultKeepAliveBinding != "CANTELOP_DEFAULT_KEEP_ALIVE_SECONDS" {
 			return nil, false, errors.New("invalid protocol Edge manifest")
 		}
 		if _, message := validateProjectEnvironment(manifest.Environment); message != "" {
@@ -100,7 +105,7 @@ func (manifest APIArtifactManifest) DeclaredRoutes() (routes []APIRoute, discove
 		})
 		return routes, true, nil
 	}
-	if manifest.Auth != nil || manifest.AppName != "" || manifest.SessionRuntimeID != "" || manifest.Homepage != nil || manifest.CLIBuildProtocolVersion != 0 || manifest.IntegrationProtocolVersion != 0 || manifest.Environment != nil || manifest.Dockerfile != "" || manifest.RequiredBindings != nil || manifest.OptionalBindings != nil || manifest.Webhooks != nil || manifest.DefaultKeepAliveBinding != "" {
+	if manifest.Auth != nil || manifest.AppName != "" || manifest.SessionRuntimeID != "" || manifest.Homepage != nil || manifest.CLIBuildProtocolVersion != 0 || manifest.IntegrationProtocolVersion != 0 || manifest.FleetExecutionProtocolVersion != 0 || manifest.Environment != nil || manifest.Dockerfile != "" || manifest.RequiredBindings != nil || manifest.OptionalBindings != nil || manifest.Webhooks != nil || manifest.DefaultKeepAliveBinding != "" {
 		return nil, false, errors.New("unexpected protocol configuration")
 	}
 	if manifest.SchemaVersion == 4 {

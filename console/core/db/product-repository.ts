@@ -591,8 +591,10 @@ ON CONFLICT (owner_user_id, idempotency_key) DO NOTHING`, [
 
   async releaseScriptIDs(appID: string): Promise<string[]> {
     assertResourceID("app", appID);
-    const result = await this.database.query<{ id: string }>(`SELECT id FROM cantelop_control.releases
-WHERE app_id = $1 ORDER BY id`, [appID]);
+    const result = await this.database.query<{ id: string }>(`SELECT id FROM cantelop_control.releases r
+WHERE app_id = $1 AND NOT EXISTS (SELECT 1 FROM cantelop_control.release_components c
+  JOIN cantelop_control.operations o ON o.id=c.operation_id
+  WHERE c.release_id=r.id AND c.kind='api' AND o.kind='attach_package') ORDER BY id`, [appID]);
     return result.rows.map((row) => {
       assertResourceID("release", row.id);
       return row.id;

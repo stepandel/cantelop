@@ -63,7 +63,7 @@ test("waits for provider work, then closes both gates before marking archived or
   expect(state.archived).toBe(true);
   expect(calls).toEqual([
     "lock", "check:register_app", "check:register_workspace", "check:archive_workspace",
-    "check:purge_workspace", "check:deploy_api", "check:materialize_build", "check:sync_config",
+    "check:purge_workspace", "check:deploy_api", "check:materialize_build", "check:attach_package", "check:sync_config",
     "generation", "edge-close", "edge-read", "host-close", "host-read", "archive-host",
     "archive-db", "remove-stable", "list-scripts", "remove-release", "succeed",
   ]);

@@ -34,6 +34,7 @@ From this directory:
 bun install --frozen-lockfile
 bun test
 bun run typecheck
+bun run test:fleet-runtime
 WRANGLER_LOG_PATH=/tmp/cantelop-wrangler.log bun run build:broker
 WRANGLER_LOG_PATH=/tmp/cantelop-wrangler.log bun run build:outbound
 WRANGLER_LOG_PATH=/tmp/cantelop-wrangler.log bun run build:dispatcher
@@ -42,6 +43,17 @@ WRANGLER_LOG_PATH=/tmp/cantelop-wrangler.log bun run build:tail
 
 The build commands bundle locally with Wrangler's `--dry-run`; they do not
 modify Cloudflare resources.
+
+Compatible Fleet packages use the dispatcher's `FleetPackage` Durable Objects
+for immutable code and Worker Loader for separate installation isolates. The
+release gate supplies installation bindings and per-invocation runtime
+capabilities through private loopback entrypoints. Package publishing and App
+configuration use the authenticated release-gate control origin. App deletion
+retires its gate and purges its bindings; it cannot remove package code.
+`test:fleet-runtime` runs the actual runner/gate under local workerd through Node
+and checks isolation, configuration rotation, streaming, WebSocket draining and
+retirement. It creates only disposable local runtime state. See
+[Managed Fleets](../../docs/managed-fleets.md) for migration and rollout order.
 
 ## Staging bindings
 

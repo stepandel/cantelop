@@ -4,6 +4,14 @@ Fleets let a service own many isolated Apps without asking its customers to hold
 Cantelop accounts. A Fleet belongs to one Cantelop user. Machine principals are
 scoped to that Fleet; they are not general customer/administrator tokens.
 
+Packages built with `fleet_execution_protocol_version: 1` publish their Edge
+code once and reuse their source release's prepared runtime image. Each
+installation runs in a separate on-demand Edge isolate with its own bindings,
+credentials and fenced runtime access. The compute host verifies and reuses
+installed image bytes. Existing packages without that SDK contract keep their
+legacy deployment path until replaced by a compatible package. See
+[shared Fleet packages](architecture/fleet-code-sharing.md).
+
 ## Control API
 
 All responses are private and non-cacheable. Owner actions use an ordinary
@@ -68,6 +76,36 @@ uses a random physical App slug, independent credentials and an atomic binding
 between App, installation and package. Source environment values and credentials
 are not copied. Ordinary deployment name checks remain unchanged. The explicit
 package path accepts only the stored, approved binding.
+
+For a compatible package, publication snapshots the source release's verified
+prepared-runtime receipt and asynchronously copies its verified Edge bundle
+into immutable package storage. `GET /:fleet/packages/:package` reports
+`execution: preparing` until that copy is acknowledged, then `ready`. Legacy
+packages report `legacy`. An initial installation may wait for preparation;
+an upgrade to a preparing package returns `package_preparing` before draining
+the current runtime. Publication retries once per package, independently of
+installation count.
+
+Installation releases use `attach_package` operations. They attach the prepared
+Build through the existing authorized compute endpoint and select package code
+behind the App's release gate. They never run a per-installation Edge upload or
+Docker conversion. Current configuration is projected to the installation's
+gate; configuration revisions and activation generations fence stale runtime
+capabilities. Streams and WebSockets close on a configuration or release
+transition. Archival removes gate secrets and permanently retires its App
+identity while retaining shared package assets. Package storage is retained
+indefinitely; disabling a package prevents future assignments without deleting
+assets needed by existing installations or rollback.
+
+Roll out migration `0032_shared_fleet_packages`, the updated dispatcher and
+compute service, and the control worker before publishing compatible packages.
+The dispatcher adds a `FleetPackage` Durable Object migration, Worker Loader and
+the existing origin broker service binding; it reuses the release-gate and
+observability credentials. Rebuild source releases with the SDK Fleet transport
+contract, publish a new package version, and move installations through the
+existing release API. Existing package versions remain immutable. Follow the
+[coordinated deployment runbook](deployment.md), including public source
+publication/pinning and SDK release qualification.
 
 Deleting by external key records a permanent tombstone under the same lock as
 creation, including when an ambiguous creation has not returned an App ID. A

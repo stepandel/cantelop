@@ -225,6 +225,13 @@
       "when": 1792617096717,
       "tag": "0031_fleet_app_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792625274507,
+      "tag": "0032_shared_fleet_packages",
+      "breakpoints": true
     }
   ]
 }

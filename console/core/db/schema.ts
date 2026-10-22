@@ -58,6 +58,11 @@ export const fleetPackages = control.table("fleet_packages", {
   runtimeId: text("runtime_id").notNull(),
   apiArtifactId: text("api_artifact_id").notNull().references(() => apiArtifacts.id),
   runtimeArtifactId: text("runtime_artifact_id").notNull().references(() => sessionRuntimeArtifacts.id),
+  preparedManifestKey: text("prepared_manifest_key"),
+  preparedManifestDigest: text("prepared_manifest_digest"),
+  edgeReadyAt: timestampTZ("edge_ready_at"),
+  edgeRetryAt: timestampTZ("edge_retry_at").notNull().defaultNow(),
+  edgeCompatibilityDate: text("edge_compatibility_date").notNull().default("2026-08-11"),
   disabledAt: timestampTZ("disabled_at"),
   createdAt: timestampTZ("created_at").notNull().defaultNow(),
 }, t => [unique("fleet_package_version").on(t.fleetId, t.name, t.version)]);

@@ -159,7 +159,9 @@ export async function dispatchPublicRequest(
   // Responses from the API Worker are immutable; copy to add the identity.
   const responseHeaders = new Headers(response.headers);
   responseHeaders.set(RESPONSE_REQUEST_ID_HEADER, requestID);
-  response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: responseHeaders });
+  response = new Response(response.webSocket ? null : response.body, { status: response.status,
+    statusText: response.statusText, headers: responseHeaders,
+    ...(response.webSocket ? { webSocket: response.webSocket } : {}) });
   const completedAt = Math.max(receivedAt, clock());
   completedRequestSink({
     event_id: `${requestID}:completed`,

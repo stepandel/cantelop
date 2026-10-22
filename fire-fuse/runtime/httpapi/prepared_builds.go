@@ -370,8 +370,34 @@ func (h *preparedBuildIngress) downloadAndInstall(ctx context.Context, source st
 	if err := os.MkdirAll(h.imageDirectory, 0o700); err != nil {
 		return err
 	}
-	// The download always lands in a temporary copy first, even when the
-	// content-addressed rootfs already exists.
+	// BeginOrGetAppBuildUpload already holds a durable pending-upload reference,
+	// which fences collection until the Build is attached. The install mutex
+	// coalesces simultaneous misses for the same host image.
+	if info, err := os.Lstat(image.RootFSImage); err == nil {
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("cached prepared image must be a regular file")
+		}
+		file, err := os.Open(image.RootFSImage)
+		if err != nil {
+			return err
+		}
+		digest := sha256.New()
+		size, hashErr := io.Copy(digest, file)
+		closeErr := file.Close()
+		if hashErr != nil || closeErr != nil {
+			return errors.Join(hashErr, closeErr)
+		}
+		if size == image.RootFSSizeBytes && hex.EncodeToString(digest.Sum(nil)) == image.RootFSSHA256 {
+			return nil
+		}
+		// A corrupt regular cache entry is replaceable; existing readers keep
+		// their open inode. Never follow or remove an unexpected symlink.
+		if err := os.Remove(image.RootFSImage); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	if err := h.checkDiskSpace(image.RootFSSizeBytes); err != nil {
 		return err
 	}

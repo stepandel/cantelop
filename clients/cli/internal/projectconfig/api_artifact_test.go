@@ -73,7 +73,18 @@ func TestLoadAPIArtifactAcceptsIntegrationRotationBindings(t *testing.T) {
 	if !strings.Contains(string(forwarded), `"optional_bindings":["CANTELOP_INTEGRATION_TOKEN_PREVIOUS","CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT"]`) {
 		t.Fatalf("forwarded manifest dropped rotation bindings: %s", forwarded)
 	}
+	fleetBindings := `"optional_bindings":["CANTELOP_INTEGRATION_TOKEN_PREVIOUS","CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT","CANTELOP_FLEET_EXECUTION_VERSION"],`
+	artifact, err = load(`"fleet_execution_protocol_version":1,` + fleetBindings)
+	if err != nil {
+		t.Fatalf("manifest with Fleet bindings: %v", err)
+	}
+	forwarded, _ = json.Marshal(artifact.Manifest)
+	if artifact.Manifest.FleetExecutionProtocolVersion != 1 || len(artifact.Manifest.OptionalBindings) != 3 || !strings.Contains(string(forwarded), `"CANTELOP_FLEET_EXECUTION_VERSION"`) {
+		t.Fatalf("forwarded manifest dropped Fleet contract: %s", forwarded)
+	}
 	for _, invalid := range []string{
+		fleetBindings,
+		`"fleet_execution_protocol_version":2,` + fleetBindings,
 		`"optional_bindings":["CANTELOP_INTEGRATION_TOKEN_PREVIOUS"],`,
 		`"optional_bindings":["CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT","CANTELOP_INTEGRATION_TOKEN_PREVIOUS"],`,
 		`"optional_bindings":["CANTELOP_INTEGRATION_TOKEN_PREVIOUS","CANTELOP_INTEGRATION_TOKEN_PREVIOUS_EXPIRES_AT","OTHER"],`,

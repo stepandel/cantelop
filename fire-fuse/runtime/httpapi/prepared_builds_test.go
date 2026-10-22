@@ -73,8 +73,50 @@ func TestPreparedInstallerVerifiesExactImageBeforeLink(t *testing.T) {
 	}
 	bad := []byte("tampered ext4 fixture")
 	h.client = &http.Client{Transport: preparedTransport{document: bad}}
+	// A verified warm host never needs another download, even if the origin
+	// is unavailable or no longer returns the original bytes.
+	if err := h.downloadAndInstall(context.Background(), "https://r2.example.test/image?sig=x", image); err != nil {
+		t.Fatalf("verified cache was not reused: %v", err)
+	}
+	if err := os.Remove(image.RootFSImage); err != nil {
+		t.Fatal(err)
+	}
 	if err := h.downloadAndInstall(context.Background(), "https://r2.example.test/image?sig=x", image); err == nil {
 		t.Fatal("tampered prepared image was accepted")
+	}
+}
+
+func TestPreparedInstallerRepairsCorruptionAndRejectsSymlinks(t *testing.T) {
+	root := t.TempDir()
+	document := []byte("prepared ext4 fixture")
+	hash := sha256.Sum256(document)
+	digest := hex.EncodeToString(hash[:])
+	image := config.ContainerImage{RootFSImage: filepath.Join(root, "sha256-"+digest+".ext4"), RootFSSHA256: digest, RootFSSizeBytes: int64(len(document))}
+	transport := &countingTransport{preparedTransport: preparedTransport{document: document}}
+	h := preparedBuildIngress{imageDirectory: root, client: &http.Client{Transport: transport}, statFilesystem: plentyOfDisk}
+	if err := os.WriteFile(image.RootFSImage, []byte("corruption"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.downloadAndInstall(context.Background(), "https://r2.example.test/image?sig=x", image); err != nil {
+		t.Fatal(err)
+	}
+	// A second App's attachment uses the same verified inode without requiring
+	// download headroom on an otherwise full disk.
+	h.statFilesystem = func(string) (uint64, uint64, error) { return 0, 1 << 40, nil }
+	if err := h.downloadAndInstall(context.Background(), "https://r2.example.test/image?sig=x", image); err != nil {
+		t.Fatal(err)
+	}
+	if transport.calls != 1 {
+		t.Fatalf("downloaded shared image %d times, want 1", transport.calls)
+	}
+	if err := os.Remove(image.RootFSImage); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "untrusted"), image.RootFSImage); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.downloadAndInstall(context.Background(), "https://r2.example.test/image?sig=x", image); err == nil {
+		t.Fatal("followed a symlink in the image cache")
 	}
 }
 

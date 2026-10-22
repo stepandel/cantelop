@@ -137,9 +137,10 @@ export class FleetRepository {
         `${actor.fleetId}:publish:${version}`,
       ]);
       const source = await tx.query(
-        `SELECT r.api_artifact_id,r.session_runtime_artifact_id,aa.manifest AS api,ra.manifest AS runtime
+        `SELECT r.api_artifact_id,r.session_runtime_artifact_id,aa.manifest AS api,ra.manifest AS runtime,rc.output AS prepared
         FROM cantelop_control.releases r JOIN cantelop_control.api_artifacts aa ON aa.id=r.api_artifact_id
         JOIN cantelop_control.session_runtime_artifacts ra ON ra.id=r.session_runtime_artifact_id
+        LEFT JOIN cantelop_control.release_components rc ON rc.release_id=r.id AND rc.kind='session_runtime' AND rc.status='succeeded'
         WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status IN ('active','superseded')`,
         [releaseId, actor.ownerUserId],
       );
@@ -148,6 +149,13 @@ export class FleetRepository {
       const api = parseProtocolEdgeManifest(row.api),
         runtime = parseSessionRuntimeManifest(row.runtime);
       validateArtifactPair(api, runtime);
+      const shared = api.fleet_execution_protocol_version === 1;
+      const prepared = row.prepared as Record<string, unknown> | null;
+      if (shared && (!prepared || typeof prepared.prepared_manifest_key !== "string" ||
+          !/^prepared-images\/manifests\/[0-9a-f]{64}\.json$/.test(prepared.prepared_manifest_key) ||
+          typeof prepared.prepared_manifest_digest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(prepared.prepared_manifest_digest))) {
+        throw new FleetError("package_runtime_not_prepared", 409);
+      }
       const old = await tx.query(
         `SELECT * FROM cantelop_control.fleet_packages WHERE fleet_id=$1 AND name=$2 AND version=$3`,
         [actor.fleetId, api.app_name, version],
@@ -161,8 +169,8 @@ export class FleetRepository {
         return old.rows[0];
       }
       const result = await tx.query(
-        `INSERT INTO cantelop_control.fleet_packages(id,fleet_id,name,version,runtime_id,api_artifact_id,runtime_artifact_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        `INSERT INTO cantelop_control.fleet_packages(id,fleet_id,name,version,runtime_id,api_artifact_id,runtime_artifact_id,prepared_manifest_key,prepared_manifest_digest)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           resource("pkg"),
           actor.fleetId,
@@ -171,6 +179,8 @@ export class FleetRepository {
           api.session_runtime_id,
           row.api_artifact_id,
           row.session_runtime_artifact_id,
+          shared ? prepared!.prepared_manifest_key : null,
+          shared ? prepared!.prepared_manifest_digest : null,
         ],
       );
       await this.audit(tx, actor, "package.publish", String(result.rows[0]!.id));
@@ -181,7 +191,9 @@ export class FleetRepository {
     requireScope(actor, scope);
     identifier(id, "pkg");
     const result = await this.db.query(
-      `SELECT id,name,version,runtime_id,disabled_at FROM cantelop_control.fleet_packages WHERE id=$1 AND fleet_id=$2`,
+      `SELECT id,name,version,runtime_id,disabled_at,
+      CASE WHEN prepared_manifest_key IS NULL THEN 'legacy' WHEN edge_ready_at IS NULL THEN 'preparing' ELSE 'ready' END AS execution
+      FROM cantelop_control.fleet_packages WHERE id=$1 AND fleet_id=$2`,
       [id, actor.fleetId],
     );
     if (!result.rows[0]) throw new FleetError("not_found", 404);

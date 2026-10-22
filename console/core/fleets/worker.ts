@@ -13,7 +13,10 @@ export class FleetInstallationWorker {
   async runOnce(): Promise<boolean> {
     const claim = await this.db
       .query(`UPDATE cantelop_control.fleet_installations SET lease_until=now()+interval '30 seconds'
-      WHERE id=(SELECT f.id FROM cantelop_control.fleet_installations f WHERE f.desired_state='ready' AND (f.release_id IS NULL OR f.next_package_id IS NOT NULL
+      WHERE id=(SELECT f.id FROM cantelop_control.fleet_installations f WHERE f.desired_state='ready'
+      AND EXISTS(SELECT 1 FROM cantelop_control.fleet_packages p WHERE p.id=coalesce(f.next_package_id,f.package_id)
+        AND (p.prepared_manifest_key IS NULL OR p.edge_ready_at IS NOT NULL))
+      AND (f.release_id IS NULL OR f.next_package_id IS NOT NULL
         OR EXISTS(SELECT 1 FROM cantelop_control.releases r WHERE r.id=f.release_id AND r.status='failed' AND r.updated_at<now()-interval '5 minutes'
           AND (SELECT count(*) FROM cantelop_control.releases x WHERE x.app_id=f.app_id AND x.status='failed'
             AND starts_with(x.idempotency_key,'fleet-install:'||f.id||':'||f.package_id))<5))
@@ -43,7 +46,7 @@ export class FleetInstallationWorker {
         i.release_id = null;
       }
       const source = await this.db.query(
-        `SELECT p.disabled_at,f.owner_user_id,aa.digest AS api_digest,aa.object_key AS api_key,aa.size_bytes AS api_size,aa.manifest AS api_manifest,
+        `SELECT p.disabled_at,p.prepared_manifest_key,p.edge_ready_at,f.owner_user_id,aa.digest AS api_digest,aa.object_key AS api_key,aa.size_bytes AS api_size,aa.manifest AS api_manifest,
         ra.digest AS runtime_digest,ra.object_key AS runtime_key,ra.size_bytes AS runtime_size,ra.manifest AS runtime_manifest,ra.media_type
         FROM cantelop_control.fleet_packages p JOIN cantelop_control.fleets f ON f.id=p.fleet_id
         JOIN cantelop_control.api_artifacts aa ON aa.id=p.api_artifact_id JOIN cantelop_control.session_runtime_artifacts ra ON ra.id=p.runtime_artifact_id
@@ -52,6 +55,7 @@ export class FleetInstallationWorker {
       );
       const p = source.rows[0]!;
       if (p.disabled_at) throw new Error("package_disabled");
+      if (p.prepared_manifest_key && !p.edge_ready_at) throw new Error("package_preparing");
       await this.config.preparePackageDeployment(
         String(p.owner_user_id),
         String(i.app_id),
@@ -76,6 +80,8 @@ export class FleetInstallationWorker {
         // Failed releases retry after a backoff, at most five times per package;
         // an owner's cancellation is final. Each retry needs a new, replayable key.
         `fleet-install:${i.id}:${i.package_id}${i.release_id ? `:${i.release_id}` : ""}`,
+        undefined,
+        p.prepared_manifest_key ? String(i.package_id) : undefined,
       );
       await this.db.query(
         `UPDATE cantelop_control.fleet_installations SET release_id=$3,error_code=NULL,lease_until=NULL,updated_at=now()

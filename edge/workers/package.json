@@ -10,7 +10,8 @@
     "build:broker": "wrangler deploy --dry-run --config origin-broker/wrangler.jsonc --outdir dist/origin-broker",
     "build:outbound": "wrangler deploy --dry-run --config outbound/wrangler.jsonc --outdir dist/outbound",
     "build:tail": "wrangler deploy --dry-run --config tail/wrangler.jsonc --outdir dist/tail",
-    "build:dispatcher": "wrangler deploy --dry-run --config dispatcher/wrangler.jsonc --outdir dist/dispatcher"
+    "build:dispatcher": "wrangler deploy --dry-run --config dispatcher/wrangler.jsonc --outdir dist/dispatcher",
+    "test:fleet-runtime": "CANTELOP_TEST_WORKER_RUNTIME=1 node --test dispatcher/test/fleet-runtime.integration.mjs"
   },
   "dependencies": {
     "@cantelop/edge-contracts": "file:../contracts"

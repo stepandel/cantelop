@@ -34,6 +34,9 @@ import { configuredEdgeGateProvider } from "../../core/release-activation/edge-g
 import { ReleaseReconciler } from "../../core/release-activation/reconcile";
 import { FleetPolicyWorker } from "../../core/fleets/policy-worker";
 import { FleetInstallationWorker } from "../../core/fleets/worker";
+import { FleetPackageWorker } from "../../core/fleets/package-worker";
+import { FleetAttachmentWorker } from "../../core/fleets/attachment-worker";
+import { FleetConfigurationProvider } from "../../core/fleets/configuration-provider";
 
 const workerID = process.env.CANTELOP_OPERATION_WORKER_ID?.trim();
 if (!workerID) throw new Error("CANTELOP_OPERATION_WORKER_ID is required");
@@ -54,6 +57,7 @@ const databases = workspaceDatabases();
 const computeProvider = withWorkspaceDatabases(configuredFireFuseComputeRegistrationProvider(process.env, fetch, tenantForApp), databases);
 const appRoutingProvider = configuredCloudflareAppRoutingProvider();
 const configuration = new ConfigRepository(pool, ConfigCipher.configured());
+const apiConfiguration = new FleetConfigurationProvider(configuredCloudflareConfigurationProvider(), configuredEdgeGateProvider());
 const artifactStore = configuredAPIArtifactStore();
 const worker = new APIDeploymentWorker(
   workerID,
@@ -62,7 +66,7 @@ const worker = new APIDeploymentWorker(
   artifactStore,
   configuredCloudflareAPIProvider(),
   configuration,
-  configuredCloudflareConfigurationProvider(),
+  apiConfiguration,
 );
 const sessionRuntimeWorker = new SessionRuntimeMaterializationWorker(
   workerID,
@@ -113,7 +117,7 @@ const configurationWorker = new ConfigurationProjectionWorker(
   workerID,
   new OperationRepository(pool),
   configuration,
-  configuredCloudflareConfigurationProvider(),
+  apiConfiguration,
   computeProvider,
   new ReleaseRepository(pool),
 );
@@ -124,7 +128,7 @@ const activationWorker = new ReleaseActivationWorker(
   configuredEdgeGateProvider(),
   configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp),
   configuration,
-  configuredCloudflareConfigurationProvider(),
+  apiConfiguration,
   undefined,
   (appID, releaseID, closeAdmission) => workspaceDatabases().migrateRelease(appID, releaseID, closeAdmission),
 );
@@ -173,8 +177,11 @@ try {
     const fleetPolicies = new FleetPolicyWorker(pool,
       process.env.CANTELOP_COMPUTE_INGRESS_URL!, process.env.CANTELOP_COMPUTE_CONTROL_TOKEN!);
     const fleetInstallations = new FleetInstallationWorker(pool, configuration, fleetPolicies);
+    const fleetPackages = new FleetPackageWorker(pool, artifactStore, configuredEdgeGateProvider());
+    const fleetAttachments = new FleetAttachmentWorker(workerID, pool, new OperationRepository(pool), new ReleaseRepository(pool),
+      configuredPreparedArtifactStore(), configuredFireFuseSessionRuntimeProvider(process.env, fetch, tenantForApp));
     await runWorkerLoops([registrationWorker, workspaceRegistrationWorker, workspaceArchiveWorker, workspacePurgeWorker, archiveWorker,
-      configurationWorker, worker, sessionRuntimeWorker, recoveryWorker, activationWorker, fleetInstallations, fleetPolicies], once);
+      configurationWorker, worker, sessionRuntimeWorker, recoveryWorker, activationWorker, fleetPackages, fleetAttachments, fleetInstallations, fleetPolicies], once);
     await releaseAudit;
   }
 } finally {

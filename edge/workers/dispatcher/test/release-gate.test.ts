@@ -6,14 +6,22 @@ const appID = "app_0123456789abcdef0123456789abcdef";
 const script = "rel_0123456789abcdef0123456789abcdef";
 const generation = "act_0123456789abcdef0123456789abcdef";
 
-function harness(invoke: (scriptName: string, request: Request) => Promise<Response>) {
-  let stored: ReleaseGateState | null = null;
+function harness(invoke: (scriptName: string, request: Request) => Promise<Response>, exports: unknown = {}) {
+  const stored = new Map<string, unknown>();
   let ready: Promise<unknown> = Promise.resolve();
   const state = {
     storage: {
-      async get() { return stored; },
-      async put(_key: string, value: ReleaseGateState) { stored = structuredClone(value); },
+      async get(key: string | string[]) {
+        return Array.isArray(key) ? new Map(key.filter(name => stored.has(name)).map(name => [name, stored.get(name)])) : stored.get(key);
+      },
+      async put(key: string | Record<string, unknown>, value?: unknown) {
+        if (typeof key === "string") stored.set(key, structuredClone(value));
+        else for (const [name, entry] of Object.entries(key)) stored.set(name, structuredClone(entry));
+      },
+      async delete(keys: string | string[]) { for (const key of Array.isArray(keys) ? keys : [keys]) stored.delete(key); },
+      async transaction<T>(callback: (storage: unknown) => Promise<T>) { return callback(this); },
     },
+    exports,
     blockConcurrencyWhile(callback: () => Promise<unknown>) { ready = callback(); return ready; },
   };
   const env = { USER_WORKERS: { get(name: string) { return { fetch: (request: Request) => invoke(name, request) }; } } };
@@ -58,6 +66,28 @@ test("release gate starts closed, selects an immutable script, and survives rest
   const restarted = await h.create();
   expect(await (await restarted.fetch(publicRequest())).text()).toBe("active");
   expect(calls).toEqual([script, script]);
+});
+
+test("configuration rotation fences a late Fleet response before it can create a stale stream", async () => {
+  let finish: (response: Response) => void = () => {};
+  let started: () => void = () => {};
+  const running = new Promise<void>(resolve => { started = resolve; });
+  const response = new Promise<Response>(resolve => { finish = resolve; });
+  const gate = await harness(async () => new Response(), { FleetRunner() { return { fetch() { started(); return response; } }; } }).create();
+  await control(gate, "close");
+  const configure = (revision: number, value: string) => gate.fetch(new Request("https://release-gate.internal/", {
+    method: "PUT", body: JSON.stringify({ app_id: appID, action: "configure", revision, bindings: { SECRET: value } }),
+  }));
+  expect((await configure(1, "old")).status).toBe(200);
+  expect((await control(gate, "select", `pkg_${"a".repeat(32)}`)).status).toBe(200);
+  await control(gate, "open");
+  const pending = gate.fetch(publicRequest());
+  await running;
+  expect((await configure(2, "current")).status).toBe(200);
+  finish(new Response("stale private output"));
+  const retired = await pending;
+  expect(retired.status).toBe(503);
+  expect(await retired.text()).not.toContain("stale private output");
 });
 
 test("closing the gate waits for admitted API work and rejects new requests", async () => {

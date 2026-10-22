@@ -120,6 +120,11 @@ test("Edge manifests may declare exactly the integration rotation bindings", () 
   };
   expect(parseAPIArtifactManifest(rotation)).toEqual(rotation);
   expect(sameAPIArtifactManifest(rotation, edge)).toBe(false);
+  const fleet = { ...rotation, fleet_execution_protocol_version: 1,
+    optional_bindings: [...rotation.optional_bindings, "CANTELOP_FLEET_EXECUTION_VERSION"] };
+  expect(parseAPIArtifactManifest(fleet)).toEqual(fleet);
+  expect(() => parseAPIArtifactManifest({ ...rotation, optional_bindings: fleet.optional_bindings })).toThrow();
+  expect(() => parseAPIArtifactManifest({ ...fleet, fleet_execution_protocol_version: 2 })).toThrow();
   for (const optional_bindings of [
     [],
     ["CANTELOP_INTEGRATION_TOKEN_PREVIOUS"],

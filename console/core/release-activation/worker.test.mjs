@@ -70,7 +70,7 @@ function fixture(failAt, targetStatus = "provisioning", options = {}) {
       ...(options.retainsBuild ? { retainsBuild: options.retainsBuild } : {}),
     },
     { async projection() { return options.projection ?? { revision: 1, values: [{ name: "SECRET", kind: "secret", value: "current" }], systemBindings: [{ name: "CANTELOP_INTEGRATION_TOKEN", kind: "secret", value: "token" }] }; } },
-    { async replaceConfiguration(projection) { maybeFail("config"); expect(projection.scriptName).toBe(targetID); } },
+    { async replaceConfiguration(projection) { maybeFail("config"); expect(projection.scriptName).toBe(target.components.api.output.script_name); } },
   );
   return { worker, calls, state: () => ({ dbActive, edge, host, activeBuild, pending }) };
 }
@@ -83,6 +83,18 @@ test("activation changes both provider pointers behind closed gates, then commit
   expect(run.calls.indexOf("edge_close")).toBeLessThan(run.calls.indexOf("build_select"));
   expect(run.calls.indexOf("host_close")).toBeLessThan(run.calls.indexOf("build_select"));
   expect(run.calls.indexOf("commit")).toBeLessThan(run.calls.indexOf("edge_open"));
+});
+
+test("a package activation selects shared code while projecting current App configuration", async () => {
+  const pkg = `pkg_${"d".repeat(32)}`;
+  const run = fixture(undefined, "provisioning", { target: { id: targetID, appID, status: "provisioning", components: {
+    api: { status: "succeeded", output: { script_name: pkg, package_id: pkg } },
+    session_runtime: { status: "succeeded", output: { build_id: buildID } },
+  } } });
+  await run.worker.runOnce();
+  expect(run.state()).toMatchObject({ dbActive: targetID, pending: false,
+    edge: { closed: false, script_name: pkg }, host: { closed: false }, activeBuild: buildID });
+  expect(run.calls).toContain("config");
 });
 
 for (const stage of ["edge_close", "host_close", "edge_read", "host_read", "config", "build_select",

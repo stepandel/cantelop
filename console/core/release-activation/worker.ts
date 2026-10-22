@@ -135,11 +135,12 @@ export class ReleaseActivationWorker {
   }
 }
 
-// Every SDK 1.0 release deploys its generated Edge Worker under its own release
-// ID. A release without one predates SDK 1.0 and can no longer be activated.
+// Standalone releases own a script; shared Fleet releases carry an explicit
+// package receipt. Pre-1.0 releases have neither and cannot be activated.
 function targetScript(release: ProductRelease): string {
   const script = release.components.api.output?.script_name;
-  if (script !== release.id) throw new TerminalActivationError("release_unsupported");
+  if (typeof script !== "string" || (script !== release.id && !(/^pkg_[0-9a-f]{32}$/.test(script) &&
+      release.components.api.output?.package_id === script))) throw new TerminalActivationError("release_unsupported");
   return script;
 }
 

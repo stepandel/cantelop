@@ -206,6 +206,7 @@ WHERE app_id = $1 AND kind = 'activate_release' AND status IN ('queued', 'runnin
     sessionRuntimeArtifact: ReleaseSessionRuntimeArtifact,
     idempotencyKey: string,
     uploadID?: string,
+    packageID?: string,
   ): Promise<ProductRelease> {
     assertResourceID("user", ownerUserID);
     assertResourceID("app", appID);
@@ -249,6 +250,16 @@ WHERE id = $1 AND owner_user_id = $2 AND app_id = $3 AND idempotency_key = $6
       if (replay.rowCount !== 0) throw new Error("release replay returned an invalid row count");
 
       await lockReleasableApp(client, ownerUserID, appID);
+      if (packageID) {
+        const bound = await client.query(`SELECT 1 FROM cantelop_control.fleet_installations i
+JOIN cantelop_control.fleet_packages p ON p.id=i.package_id AND p.fleet_id=i.fleet_id
+WHERE i.app_id=$1 AND i.package_id=$2 AND i.desired_state='ready' AND p.disabled_at IS NULL
+  AND p.edge_ready_at IS NOT NULL AND p.prepared_manifest_key IS NOT NULL
+  AND p.api_artifact_id IN (SELECT id FROM cantelop_control.api_artifacts WHERE object_key=$3 AND digest=$4)
+  AND p.runtime_artifact_id IN (SELECT id FROM cantelop_control.session_runtime_artifacts WHERE object_key=$5 AND digest=$6)`,
+        [appID, packageID, apiArtifact.objectKey, apiArtifact.digest, sessionRuntimeArtifact.objectKey, sessionRuntimeArtifact.digest]);
+        if (bound.rowCount !== 1) throw new ControlError("conflict");
+      }
       const pending = await client.query(`SELECT 1 FROM cantelop_control.releases
 WHERE app_id = $1 AND status IN ('queued', 'provisioning', 'cancelling')`, [appID]);
       if (pending.rowCount !== 0) throw new ControlError("conflict");
@@ -275,12 +286,14 @@ VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8, $8)`, [
         versionResult.rows[0].version, idempotencyKey, at,
       ]);
       await insertComponentOperation(client, {
-        id: apiOperationID, ownerUserID, appID, kind: "deploy_api", releaseID,
+        id: apiOperationID, ownerUserID, appID, kind: packageID ? "attach_package" : "deploy_api", releaseID,
+        packageID, component: "api",
         idempotencyKey: `${releaseID}:api`, artifactID: apiArtifactID,
         objectKey: apiArtifact.objectKey, digest: apiArtifact.digest, at,
       });
       await insertComponentOperation(client, {
-        id: sessionRuntimeOperationID, ownerUserID, appID, kind: "materialize_build", releaseID,
+        id: sessionRuntimeOperationID, ownerUserID, appID, kind: packageID ? "attach_package" : "materialize_build", releaseID,
+        packageID, component: "session_runtime",
         idempotencyKey: `${releaseID}:session-runtime`, artifactID: sessionRuntimeArtifactID,
         objectKey: sessionRuntimeArtifact.objectKey, digest: sessionRuntimeArtifact.digest,
         sizeBytes: sessionRuntimeArtifact.sizeBytes, at,
@@ -354,15 +367,19 @@ WHERE a.status <> 'archived' AND actor.status = 'active'
 
   async activeScript(appID: string): Promise<string> {
     assertResourceID("app", appID);
-    const result = await this.database.query<{ release_id: string | null; output: Record<string, unknown> | null }>(`SELECT a.active_release_id AS release_id, c.output
+    const result = await this.database.query<{ release_id: string | null; output: Record<string, unknown> | null; pending_package_id?: string }>(`SELECT a.active_release_id AS release_id, c.output,
+CASE WHEN p.prepared_manifest_key IS NOT NULL THEN p.id END AS pending_package_id
 FROM cantelop_control.apps a
 LEFT JOIN cantelop_control.release_components c ON c.release_id = a.active_release_id AND c.kind = 'api'
+LEFT JOIN cantelop_control.fleet_installations i ON i.app_id=a.id
+LEFT JOIN cantelop_control.fleet_packages p ON p.id=i.package_id
 WHERE a.id = $1 AND a.status <> 'archived'`, [appID]);
     if (result.rowCount !== 1) throw new ControlError("not_found");
     const row = result.rows[0];
-    if (row.release_id === null) return appID;
+    if (row.release_id === null) return row.pending_package_id ?? appID;
     const scriptName = row.output?.script_name;
     if (scriptName === row.release_id) return scriptName;
+    if (typeof scriptName === "string" && /^pkg_[0-9a-f]{32}$/.test(scriptName) && row.output?.package_id === scriptName) return scriptName;
     // Only pre-1.0 releases ran under the App's stable script name.
     throw new ControlError("release_unsupported");
   }
@@ -734,7 +751,9 @@ interface ComponentOperationInput {
   id: string;
   ownerUserID: string;
   appID: string;
-  kind: "deploy_api" | "materialize_build";
+  kind: "deploy_api" | "materialize_build" | "attach_package";
+  packageID?: string;
+  component?: "api" | "session_runtime";
   releaseID: string;
   idempotencyKey: string;
   artifactID: string;
@@ -751,12 +770,13 @@ async function insertComponentOperation(client: TransactionClient, operation: Co
     object_key: operation.objectKey,
     artifact_digest: operation.digest,
     ...(operation.sizeBytes ? { size_bytes: operation.sizeBytes } : {}),
+    ...(operation.packageID ? { package_id: operation.packageID, component: operation.component } : {}),
   });
   await insertQueuedOperation(client, { ...operation, input }, "create release component operation");
 }
 
 async function insertQueuedOperation(client: TransactionClient, operation: {
-  id: string; ownerUserID: string; appID: string; kind: "deploy_api" | "materialize_build" | "activate_release";
+  id: string; ownerUserID: string; appID: string; kind: "deploy_api" | "materialize_build" | "activate_release" | "attach_package";
   idempotencyKey: string; input: string; at: Date;
 }, description: string): Promise<void> {
   const result = await client.query(`INSERT INTO cantelop_control.operations

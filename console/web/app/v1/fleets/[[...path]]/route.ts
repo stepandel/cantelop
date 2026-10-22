@@ -179,6 +179,7 @@ async function handle(request: NextRequest, context: Context) {
         if (target.package_id === b.packageId && !target.next_package_id)
           return json({ id: target.id, status: target.status });
         if (pkg.disabled_at) throw new FleetError("package_disabled", 409);
+        if (pkg.execution === "preparing") throw new FleetError("package_preparing", 409);
         const result = await repo.db.query(
           `UPDATE cantelop_control.fleet_installations SET next_package_id=$3,error_code=NULL,lease_until=NULL,updated_at=now()
           WHERE id=$1 AND fleet_id=$2 AND package_id=$4 AND (next_package_id IS NULL OR next_package_id=$3) AND desired_state='ready' RETURNING id`,

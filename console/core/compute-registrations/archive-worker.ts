@@ -16,6 +16,7 @@ const blockingOperationKinds = [
   "purge_workspace",
   "deploy_api",
   "materialize_build",
+  "attach_package",
   "sync_config",
 ] as const;
 
@@ -27,7 +28,7 @@ export class ComputeAppArchiveWorker {
     private readonly routing: Pick<AppRoutingProvider, "remove">,
     private readonly products: Pick<ProductRepository, "nextArchiveGeneration" | "releaseScriptIDs" | "completeArchive">,
     private readonly releases: Pick<ReleaseRepository, "withDeploymentLock">,
-    private readonly edge: Pick<EdgeGateProvider, "close" | "read">,
+    private readonly edge: Pick<EdgeGateProvider, "close" | "read"> & Partial<Pick<EdgeGateProvider, "purge">>,
     private readonly runtime: Pick<SessionRuntimeProvider, "setReleaseAdmission" | "releaseAdmission">,
     private readonly api: Pick<APIProvider, "removeRelease">,
     private readonly now: () => Date = () => new Date(),
@@ -72,6 +73,9 @@ export class ComputeAppArchiveWorker {
         // Terminate existing Sandboxes before any Cloudflare cleanup that may
         // need a long retry; release admission only blocks new Sessions.
         await this.provider.archiveApp({ ownerUserID: operation.ownerUserID, appID: operation.appID });
+        // Retain the closed identity tombstone, remove installation secrets and
+        // permanently prevent delayed activation/configuration from reopening it.
+        await this.edge.purge?.(operation.appID, generation);
         await this.products.completeArchive(operation.ownerUserID, operation.appID);
         await this.routing.remove({ appID: operation.appID, appSlug });
         for (const scriptID of await this.products.releaseScriptIDs(operation.appID)) {

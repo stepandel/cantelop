@@ -39,7 +39,7 @@ check-console:
 
 check-edge:
 	cd edge/contracts && bun test
-	cd edge/workers && bun test && bun run typecheck
+	cd edge/workers && bun test && bun run typecheck && bun run test:fleet-runtime
 
 check-python:
 	python3 -m unittest discover -s scripts/tests
