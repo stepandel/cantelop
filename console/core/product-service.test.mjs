@@ -35,6 +35,7 @@ test("projects product records into the public App contract", async () => {
     role: "owner",
     owner: { email: "alice@example.com" },
     admin_count: 2,
+    fleet_id: null,
     created_at: at.toISOString(),
     updated_at: at.toISOString(),
   }] });

@@ -176,6 +176,7 @@ export function ConsoleShell({
   maxApps = APP_QUOTA,
   usedApps,
   workspaces = [],
+  fleets = [],
   appContext,
   activeNav,
   crumbs,
@@ -189,8 +190,11 @@ export function ConsoleShell({
   maxApps?: number | null;
   usedApps?: number | null;
   workspaces?: ShellWorkspace[];
+  // The account's Fleets, for the palette. Their installations are not in
+  // `apps`: they are reached through their Fleet.
+  fleets?: { id: string; name: string }[];
   appContext?: ShellAppContext;
-  activeNav?: "profile";
+  activeNav?: "profile" | "fleets";
   crumbs: Crumb[];
   operator?: boolean;
   children: ReactNode;
@@ -261,13 +265,18 @@ export function ConsoleShell({
         href: `/apps/${workspace.appId}`,
       });
     }
+    for (const fleet of fleets) {
+      items.push({ kind: "nav", label: fleet.name, hint: "Fleet", href: `/fleets/${fleet.id}` });
+    }
     if (!operator) {
+      items.push({ kind: "cmd", label: "Fleets", hint: "Apps your service installs", href: "/fleets" });
+      items.push({ kind: "cmd", label: "Create fleet", hint: "Uses one app slot", href: "/fleets#new-fleet" });
       items.push({ kind: "cmd", label: "Create app", hint: `${usedAppSlots ?? "—"} / ${maxApps ?? "—"} used`, href: "/profile#new-app" });
       items.push({ kind: "cmd", label: "Start from an example", hint: "Prompt for your coding agent", href: "/profile#example" });
       items.push({ kind: "cmd", label: "Home", hint: "Apps & account", href: "/profile" });
     }
     return items;
-  }, [appContext, apps, workspaces, operator, maxApps, usedAppSlots]);
+  }, [appContext, apps, workspaces, fleets, operator, maxApps, usedAppSlots]);
 
   return (
     <div className="shell">
@@ -340,6 +349,9 @@ export function ConsoleShell({
             <>
               <Link className={`side-item${activeNav === "profile" ? " active" : ""}`} href="/profile">
                 <span className="slug">Home</span>
+              </Link>
+              <Link className={`side-item${activeNav === "fleets" ? " active" : ""}`} href="/fleets">
+                <span className="slug">Fleets</span>
               </Link>
               <Link className="side-new" href="/profile#new-app" onClick={fragmentLinkClick}>
                 <i aria-hidden="true">+</i>

@@ -120,6 +120,33 @@ new package through the existing release/activation machinery. Rollback selects
 an older retained package using the same path. Application schema compatibility
 and retention rules still apply.
 
+## Console
+
+Owners manage Fleets at `/fleets` in the console with their ordinary signed-in
+session; no `tenant:write` token is needed. The console:
+
+- lists Fleets with installations against the cap and active principals, and
+  creates a Fleet with a finite cap or an explicit unlimited one;
+- changes a Fleet's cap;
+- creates principals with chosen scopes and a lifetime of 1–366 days, shows the
+  `fsp_` secret once, and revokes principals;
+- lists installations (oldest first, 50 a page) with their lifecycle status,
+  package version, policy summary and whether compute enforces the latest
+  policy revision, and lists packages;
+- shows one installation's policy, revisions and every budget epoch, and links
+  to its App's pages.
+
+Policy and budget are read-only in the console. The owning service sets them
+through its principals, so the console never contends with their revisions or
+source fences. Installations whose App is archived and purged are left out of
+the list. Home shows one card per Fleet instead of a card per installation App,
+and the command palette lists Fleets rather than their installations.
+
+Owner `GET /v1/fleets` items also carry `used_apps` (the count a finite cap
+checks) and `active_principals`. `GET /v1/fleets/:fleet/principals` carries
+`created_at`, and an unknown or foreign Fleet now answers `404` instead of an
+empty list.
+
 ## Dedicated managed compute host
 
 Managed Apps are denied from the transaction that first registers them on a

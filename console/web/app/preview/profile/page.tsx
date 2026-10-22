@@ -10,6 +10,7 @@ const apps: CustomerApp[] = [
     role: "owner",
     owner: { email: "customer@example.com" },
     admin_count: 2,
+    fleet_id: null,
     id: "app_0123456789abcdef0123456789abcdef",
     slug: "base-agent",
     hostname: "base-agent.cantelop.dev",
@@ -20,6 +21,7 @@ const apps: CustomerApp[] = [
     role: "admin",
     owner: { email: "maya@example.com" },
     admin_count: 1,
+    fleet_id: null,
     id: "app_fedcba9876543210fedcba9876543210",
     slug: "image-catalog",
     hostname: "image-catalog.cantelop.dev",
@@ -78,9 +80,18 @@ export default async function ProfilePreviewPage({
   return (
     <ProfileView
       maxApps={5}
-      usedApps={empty ? 0 : apps.filter((app) => app.role === "owner").length}
+      // The fixture's one Fleet takes one slot alongside the owned Apps.
+      usedApps={empty ? 0 : apps.filter((app) => app.role === "owner").length + 1}
       viewer={{ login: "customer", email: "customer@example.com", avatarUrl: "https://avatars.githubusercontent.com/u/9919?s=64&v=4" }}
       initialApps={empty ? [] : apps}
+      fleets={empty ? [] : [{
+        id: "flt_0123456789abcdef0123456789abcdef",
+        name: "customer-agents",
+        max_apps: null,
+        used_apps: 1284,
+        active_principals: 2,
+        created_at: "2026-08-02T10:00:00Z",
+      }]}
       workspaces={empty ? [] : workspaces}
       runtime={Promise.resolve({
         instances: empty ? [] : [

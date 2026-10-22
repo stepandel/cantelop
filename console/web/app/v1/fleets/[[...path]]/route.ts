@@ -20,14 +20,7 @@ async function handle(request: NextRequest, context: Context) {
   try {
     if (path.length === 0 && method === "GET") {
       const owner = await authenticatedUserID(authorization, "tenant:write");
-      return json({
-        items: (
-          await repo.db.query(
-            `SELECT id,name,max_apps,created_at FROM cantelop_control.fleets WHERE owner_user_id=$1 ORDER BY created_at`,
-            [owner],
-          )
-        ).rows,
-      });
+      return json({ items: await repo.listForOwner(owner) });
     }
     if (path.length === 0 && method === "POST") {
       const owner = await authenticatedUserID(authorization, "tenant:write"),
@@ -44,14 +37,7 @@ async function handle(request: NextRequest, context: Context) {
     if (path[1] === "principals") {
       const owner = await authenticatedUserID(authorization, "tenant:write");
       if (path.length === 2 && method === "GET") {
-        return json({
-          items: (
-            await repo.db.query(
-              `SELECT p.id,p.label,p.scopes,p.expires_at,p.revoked_at FROM cantelop_control.fleet_principals p JOIN cantelop_control.fleets f ON f.id=p.fleet_id WHERE f.id=$1 AND f.owner_user_id=$2`,
-              [fleet, owner],
-            )
-          ).rows,
-        });
+        return json({ items: await repo.principalsForOwner(owner, fleet) });
       }
       if (path.length === 2 && method === "POST") {
         const b = await body();

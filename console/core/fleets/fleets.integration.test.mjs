@@ -135,6 +135,39 @@ const url = process.env.CANTELOP_TEST_DATABASE_URL;
           maxStorageBytes: 10 * 1024 ** 3,
         },
       });
+      // The console's owner reads: counts, keyset pages, policy and every
+      // budget epoch, and nothing for another account.
+      const listed = await repo.listForOwner(user.id);
+      expect(listed.find((f) => f.id === fleet.id)).toMatchObject({ used_apps: 2, active_principals: 1 });
+      expect(listed.find((f) => f.id === otherFleet.id)).toMatchObject({ used_apps: 0, max_apps: 20 });
+      const firstPage = await repo.installationsForOwner(user.id, fleet.id, { limit: 1 });
+      expect(firstPage.items.map((i) => i.id)).toEqual([a.id]);
+      expect(firstPage.after).toBe(a.id);
+      const lastPage = await repo.installationsForOwner(user.id, fleet.id, { after: firstPage.after, limit: 1 });
+      expect(lastPage).toMatchObject({ after: null, items: [{ id: b.id, status: "provisioning" }] });
+      const owned = await repo.installationForOwner(user.id, fleet.id, a.id);
+      expect(owned).toMatchObject({ policy_revision: 2, policy: { active: true, maxVcpus: 8 } });
+      expect((await budget.listForApp(a.app_id)).map((epoch) => epoch.epoch)).toEqual(["compute-period", "period-1"]);
+      expect((await repo.principalsForOwner(user.id, fleet.id)).map((p) => p.label)).toEqual(["worker"]);
+      expect((await repo.packagesForOwner(user.id, fleet.id)).map((p) => p.id)).toEqual([pkg.id]);
+      const stranger = await products.resolveIdentity({
+        provider: "github",
+        providerSubject: `${nonce}-stranger`,
+        email: `${nonce}-stranger@example.com`,
+      });
+      expect(await repo.listForOwner(stranger.id)).toEqual([]);
+      for (const read of [
+        () => repo.fleetForOwner(stranger.id, fleet.id),
+        () => repo.principalsForOwner(stranger.id, fleet.id),
+        () => repo.packagesForOwner(stranger.id, fleet.id),
+        () => repo.installationsForOwner(stranger.id, fleet.id),
+        () => repo.installationForOwner(stranger.id, fleet.id, a.id),
+        () => repo.installationForOwner(user.id, otherFleet.id, a.id),
+      ]) {
+        await expect(read()).rejects.toMatchObject({ code: "not_found", status: 404 });
+      }
+      expect((await products.listAppsForUser(user.id)).find((app) => app.id === a.app_id)?.fleetID).toBe(fleet.id);
+      expect((await products.listAppsForUser(user.id)).find((app) => app.id === source.id)?.fleetID).toBeNull();
       const hosts = new Map();
       let outage = false,
         reject = false;

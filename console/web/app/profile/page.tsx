@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { ProfileView, type AccountRuntime, type AppDeployment } from "@/components/profile-view";
 import { getCustomerActiveReleases } from "@/lib/customer-deployments";
+import { cachedCustomerFleets, type CustomerFleet } from "@/lib/customer-fleets";
 import { cachedCustomerWorkspaces, getCustomerApps, getCustomerQuota, getCustomerSnapshot } from "@/lib/customer-telemetry";
 import { getUserSession } from "@/lib/user-session";
 import { viewerOf } from "@/lib/viewer";
@@ -26,10 +27,15 @@ export default async function ProfilePage() {
       return null;
     },
   );
-  const [listing, releasesRead] = await Promise.allSettled([
+  const [listing, releasesRead, fleetsRead] = await Promise.allSettled([
     Promise.all([getCustomerApps(userID), cachedCustomerWorkspaces(userID), getCustomerQuota(userID)]),
     getCustomerActiveReleases(userID),
+    cachedCustomerFleets(userID),
   ]);
+  // Fleets degrade on their own: without them Home shows only its Apps.
+  let fleets: CustomerFleet[] | null = null;
+  if (fleetsRead.status === "fulfilled") fleets = fleetsRead.value;
+  else console.error("profile_fleets_unavailable", fleetsRead.reason);
 
   if (listing.status === "rejected") {
     console.error("profile_listing_unavailable", listing.reason);
@@ -37,6 +43,7 @@ export default async function ProfilePage() {
       <ProfileView
         viewer={viewerOf(session)}
         initialApps={[]}
+        fleets={null}
         maxApps={null}
         usedApps={null}
         workspaces={[]}
@@ -61,6 +68,7 @@ export default async function ProfilePage() {
     <ProfileView
       viewer={viewerOf(session)}
       initialApps={apps}
+      fleets={fleets}
       maxApps={quota.maxApps ?? null}
       usedApps={quota.usedApps}
       workspaces={workspaces}

@@ -28,3 +28,13 @@ test("current live Sandboxes are counted separately from terminated Sandboxes", 
 test("reports idle when only terminated Sandboxes remain", () => {
 	expect(buildShellApps([app], [activeWorkspace], [instance("sbx_previous", "terminated")])[0]?.tone).toBe("idle");
 });
+
+test("leaves Fleet installations and their Workspaces out of the palette", async () => {
+  const { buildShellWorkspaces } = await import("../lib/shell-data.ts");
+  const installation = { id: "app_installed", slug: "j-1", role: "owner", fleet_id: "flt_one" };
+  expect(buildShellApps([app, installation], [], null).map(({ id }) => id)).toEqual([app.id]);
+  expect(buildShellWorkspaces([app, installation], [
+    { id: "wsp_one", app_id: app.id, slug: "prod" },
+    { id: "wsp_installed", app_id: installation.id, slug: "prod" },
+  ]).map(({ id }) => id)).toEqual(["wsp_one"]);
+});

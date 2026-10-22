@@ -1138,11 +1138,11 @@
       "mode": 420
     },
     "console/core/db/product-repository.test.mjs": {
-      "sha256": "5d9239e167e9babc4780d568ec652020aaf602127af6ecdf3e685f00401bfb59",
+      "sha256": "cbadedec3ce6223f74d24cf5e85019d39335ab840038a139724a03294f80a06f",
       "mode": 420
     },
     "console/core/db/product-repository.ts": {
-      "sha256": "7557fccb008abf54f5c6998dc1c3ac93c11b2046a14bb27ae0af900f98ecafe6",
+      "sha256": "80cc58511da19ba1f5d1076306094666ac72788beb6f258ad4d1b747d0ccb16a",
       "mode": 420
     },
     "console/core/db/reconcile-user.integration.test.mjs": {
@@ -1302,7 +1302,7 @@
       "mode": 420
     },
     "console/core/fleets/budget.ts": {
-      "sha256": "c008596a32343f5269d6781d3057c6ecba995773cef33f3b8f24de6e35308a20",
+      "sha256": "444385f3eeb9c36740cd71848f8360aaade18eedd5484f22876696e68b31fbf7",
       "mode": 420
     },
     "console/core/fleets/configuration-provider.test.mjs": {
@@ -1318,11 +1318,11 @@
       "mode": 420
     },
     "console/core/fleets/fleets.integration.test.mjs": {
-      "sha256": "ac8fbd9638ada68af20782d951e4c1adb3d15580684fa2c58e9a9abfa14f39db",
+      "sha256": "69cf454a04604ad1ab51b3c6171a00a7d6f371d2a9f3ae910cde39d5c2d8d635",
       "mode": 420
     },
     "console/core/fleets/model.ts": {
-      "sha256": "af9a1291cd762ddacb71a3ed9f1e8cabdb8f9aeda57db13e3ee4f9dd987a4097",
+      "sha256": "dfdc19c2ff371de14a71bc32e63ed37c48c71ca186438c2db989972aa13e7327",
       "mode": 420
     },
     "console/core/fleets/package-worker.ts": {
@@ -1334,11 +1334,19 @@
       "mode": 420
     },
     "console/core/fleets/repository.ts": {
-      "sha256": "7124b9fadd8b327c348ec8ecc563be87d311bf7d08378d12ef91db40c0cad0a2",
+      "sha256": "7e933e58a7fb08f34ec30b114c4fc05a50811e2982d0a8fc98f65588bb3ab530",
+      "mode": 420
+    },
+    "console/core/fleets/scopes.ts": {
+      "sha256": "66a23ed57bd7637aeb06783b464ff86059b06f126fda30435a60a59077446810",
       "mode": 420
     },
     "console/core/fleets/shared-packages.integration.test.mjs": {
       "sha256": "3a3921ae2ef7da7d139d1ff6279efe4ed88779879bd07f0d6e49d95823da8f6d",
+      "mode": 420
+    },
+    "console/core/fleets/status.test.mjs": {
+      "sha256": "3ee1971d612ef5731ca8756e3644e78fe5c9f7530da6187de27dfb443310e595",
       "mode": 420
     },
     "console/core/fleets/worker.ts": {
@@ -1506,11 +1514,11 @@
       "mode": 420
     },
     "console/core/product-service.test.mjs": {
-      "sha256": "ae818634176e83a64a782b03e579e2cf5862b6c39c9a6cd09f52ef5b343b6cbf",
+      "sha256": "d7608c47bbd2f27d39cdedc7b7102c63c782de714275d7b1dfdb67ef1ef48d5d",
       "mode": 420
     },
     "console/core/product-service.ts": {
-      "sha256": "8b47e0e5a7ba7d345bb854fcc1a35ca7b38252b01f21235d0d889eb809e03406",
+      "sha256": "28d6d1cff67e739d2b5a1552dfa42f90518227aa029fbba85a55ea065c367ca5",
       "mode": 420
     },
     "console/core/release-activation/edge-gate-provider.test.mjs": {
@@ -1873,6 +1881,26 @@
       "sha256": "d8f1c0d4eefc9605743e03d22fac19e5d7d77b7b0731653c624036fe9491e3b7",
       "mode": 420
     },
+    "console/web/app/api/customer/fleets/[id]/principals/[principal_id]/route.ts": {
+      "sha256": "cfb95850389793f0be1a8b14f2e5eb224c0cc989700cd8650305ee1f283ea9cd",
+      "mode": 420
+    },
+    "console/web/app/api/customer/fleets/[id]/principals/route.ts": {
+      "sha256": "b42cc167472e1f3f4505f06b957943c4420cf501d3ddb991689e6469c85d832f",
+      "mode": 420
+    },
+    "console/web/app/api/customer/fleets/[id]/route.ts": {
+      "sha256": "7437b095745cfbc4f05550a1772ac645b8aba16cb769915679a4cd3fdc7c329b",
+      "mode": 420
+    },
+    "console/web/app/api/customer/fleets/route.test.mjs": {
+      "sha256": "387b2833ecb7e431958af5330ba408fb8ad63517abb48e6c8246c3496b7c6c14",
+      "mode": 420
+    },
+    "console/web/app/api/customer/fleets/route.ts": {
+      "sha256": "c911964da3f4d18d022fcbcfd7650b16c5851bbd9f8e9bbe4d4960617eebd025",
+      "mode": 420
+    },
     "console/web/app/api/customer/invitations/accept/route.test.mjs": {
       "sha256": "0757b15cf134c3da9567ff16c02b689555805e80f8b30bd0f73fb56b4ee9c117",
       "mode": 420
@@ -1978,7 +2006,7 @@
       "mode": 420
     },
     "console/web/app/apps/[id]/layout.tsx": {
-      "sha256": "2ca25cd5a23578a93837848e4a8c5320837eaed961f997fa6f70a23d10952869",
+      "sha256": "223843e1a268f1a1ed0ebb8454a0f6fb5b2b5a9d5328ac718f57ac6458cec2b3",
       "mode": 420
     },
     "console/web/app/apps/[id]/loading.tsx": {
@@ -2197,8 +2225,24 @@
       "sha256": "8295fa9942c83324a191babb6de9b0efe3a3e67ce122d6173dbfd870137d10c7",
       "mode": 420
     },
+    "console/web/app/fleets/[id]/installations/[installation]/page.tsx": {
+      "sha256": "6ee3a160f60391104df5aa70c05ea5a5fc40b713d27c76926201c4c8ab6b0cfe",
+      "mode": 420
+    },
+    "console/web/app/fleets/[id]/page.tsx": {
+      "sha256": "1eb3bba59cbed9c46f789ba35c82ca768cbc2315e896f0e0ee2b5a83509a0afa",
+      "mode": 420
+    },
+    "console/web/app/fleets/loading.tsx": {
+      "sha256": "58bc899aa5374edd3ffd58e9edf8c97796533ef19e044837be2af166637b5748",
+      "mode": 420
+    },
+    "console/web/app/fleets/page.tsx": {
+      "sha256": "9a88c1bc395213b6c4f7761c30710dab3f0bf1110159f28b29cb054d4266424b",
+      "mode": 420
+    },
     "console/web/app/globals.css": {
-      "sha256": "3e00fdccf9939aa56df3ff82e3044423ade4a8da104759cee2bd97e9e2057efb",
+      "sha256": "caaf2973657930fdcca00c3f8f363a4c33ac94d83dece63f68ce2093f5177aad",
       "mode": 420
     },
     "console/web/app/guides/(guides)/claude-code/layout.tsx": {
@@ -2250,7 +2294,7 @@
       "mode": 420
     },
     "console/web/app/home.module.css": {
-      "sha256": "0a4e0f923cb0684e805bf83b344281cee133e01ee8db34fcf343dac392519780",
+      "sha256": "b15f5903c19dade7df831a97dd631f0de25aec0108035a1fcbfe4a6c6aaaa71e",
       "mode": 420
     },
     "console/web/app/icon.svg": {
@@ -2318,7 +2362,7 @@
       "mode": 420
     },
     "console/web/app/page.tsx": {
-      "sha256": "c781b34f78eebc005bad4b1cea7bdca1d39be1159389b9ae7b920dd2c3923331",
+      "sha256": "74fe8df1602980c3ca9d701298fe5ded220f6f7c7bf17d6a9392464ccfbd0023",
       "mode": 420
     },
     "console/web/app/preview/app/fixture.ts": {
@@ -2326,7 +2370,11 @@
       "mode": 420
     },
     "console/web/app/preview/app/page.tsx": {
-      "sha256": "084e43b1d4c51fe6de5fd52cb970fbb7136cf41a7c8c6dbb3b19042823994e73",
+      "sha256": "1c54a5f5174adde210404af2ffefda83a603017cb55a6faef1abeecd7024afcc",
+      "mode": 420
+    },
+    "console/web/app/preview/fleets/page.tsx": {
+      "sha256": "4786b10b5b799e74f4ad78c3b053f05aa0c085a703747ed8a38756f33a050217",
       "mode": 420
     },
     "console/web/app/preview/page.tsx": {
@@ -2334,7 +2382,7 @@
       "mode": 420
     },
     "console/web/app/preview/profile/page.tsx": {
-      "sha256": "3235663ba2560625d77ec0a5d0726cb5d9bafff2b4c7b324bd096581c8a41d46",
+      "sha256": "49db781c810072eacdd7b0906902b1e4682eef21052137116dbf47ddaa238f2b",
       "mode": 420
     },
     "console/web/app/privacy/page.tsx": {
@@ -2350,7 +2398,7 @@
       "mode": 420
     },
     "console/web/app/profile/page.tsx": {
-      "sha256": "f490b26b7c01fbdd766d8aae8be34d2ef64bd0dc2432d1ca3113edd5ffff433d",
+      "sha256": "8fea49808b8591357f2ac430d4bd6361f70eedfe64f6fc05e29e3e9479184dad",
       "mode": 420
     },
     "console/web/app/robots.ts": {
@@ -2370,7 +2418,7 @@
       "mode": 420
     },
     "console/web/app/source/page.tsx": {
-      "sha256": "3098f20f28335b6c93e69a75e90e0682a128b3fa3ef63538c86a4b5dc09448f7",
+      "sha256": "10a9a297e10a55d9c3bd18c0b2cf88a9c99659d3a30b995e16751fcf1dc7b358",
       "mode": 420
     },
     "console/web/app/twitter-image.tsx": {
@@ -2482,7 +2530,7 @@
       "mode": 420
     },
     "console/web/app/v1/fleets/[[...path]]/route.ts": {
-      "sha256": "f5f9655116748a1fb16aa79de2cfa0537bdc00b03521e6342625041e6dac44ba",
+      "sha256": "8ebd051e872a3fa24a2fecaf13754ff218941c82ade97ec6f749ecc62f391e42",
       "mode": 420
     },
     "console/web/app/v1/workspaces/route.ts": {
@@ -2546,7 +2594,7 @@
       "mode": 420
     },
     "console/web/components/app-screen.tsx": {
-      "sha256": "47fbf55ec06330e060ab3c97c7205e59b611958e40c9e0b9e5a217b77d80ab46",
+      "sha256": "44295e6dd5b16810e522697127fe4b1c8f69b318946f5f7dcd0934e709aa0c0c",
       "mode": 420
     },
     "console/web/components/beta-tag.tsx": {
@@ -2566,7 +2614,7 @@
       "mode": 420
     },
     "console/web/components/console-shell.tsx": {
-      "sha256": "141e0bfff165709b32d62569bc96e2f393b7c011db61cac950320868daed2c11",
+      "sha256": "435258aac8e6bc0e5c585d3d6cb51a6f87a50aea90e8d140e796877c54ecff16",
       "mode": 420
     },
     "console/web/components/contact-form.tsx": {
@@ -2599,6 +2647,30 @@
     },
     "console/web/components/figure/figure.tsx": {
       "sha256": "229e5b99326c654433828b2c7fcf81a02e14e23d5ae1650598cc34309bc9b549",
+      "mode": 420
+    },
+    "console/web/components/fleet-capacity.tsx": {
+      "sha256": "5166807e7fe5b922b1508659b7fad9b089d7f0dd2c8db01b7a1db970ba14f755",
+      "mode": 420
+    },
+    "console/web/components/fleet-frame.tsx": {
+      "sha256": "79d7ae20cad2f8247543a095e5b49e4e659ea74d973f5df1a955894e5ff22f77",
+      "mode": 420
+    },
+    "console/web/components/fleet-installation-detail.tsx": {
+      "sha256": "f11fd7d6aa2ab26422031e9b0ec1e510db0b855b562ac28bdf0f21a8a899b614",
+      "mode": 420
+    },
+    "console/web/components/fleet-principals-panel.tsx": {
+      "sha256": "0abb2354499957ed20495e1bdf56c0d3480c9aa4ac1cd7d96e14d415baa0c210",
+      "mode": 420
+    },
+    "console/web/components/fleet-tables.tsx": {
+      "sha256": "71942d72be494c11ca0619da625a6f75e58e02bf1fffdb83cbfccd5ebab8573f",
+      "mode": 420
+    },
+    "console/web/components/fleets-index.tsx": {
+      "sha256": "b06dde572aad76fad4dd69ee89fcb8a10c316be555b1c98e804bc49da4d1d352",
       "mode": 420
     },
     "console/web/components/infrastructure-monitoring-panel.tsx": {
@@ -2678,7 +2750,7 @@
       "mode": 420
     },
     "console/web/components/profile-view.tsx": {
-      "sha256": "caf2c2a6d3e4a861f7ed756888cb7af51fba106790175d8f4510e5a03ca75f05",
+      "sha256": "773fc598574deef5e8417fd087d5ccd8b600ac0d238b91c46edecb45ccad80b1",
       "mode": 420
     },
     "console/web/components/provider-marks.tsx": {
@@ -2706,15 +2778,15 @@
       "mode": 420
     },
     "console/web/components/site-footer.tsx": {
-      "sha256": "d51037f9235aa89bcc6c7ae2b2c5e4ed8981b26d4801a9925f3a31176086db08",
+      "sha256": "2d6e274a972f2e490f0fc545a17f8ee920e8c58b9286fa3994bc694ac1d0a223",
       "mode": 420
     },
     "console/web/components/site-topbar.module.css": {
-      "sha256": "0ba2d68f7ad05a5c6266c27a3105f88820aa3578501f007d4685bfc1e06a5f0f",
+      "sha256": "714c0f43efd5cbecf76f5520075b1db74817a0dc211653815bc69a57630f3287",
       "mode": 420
     },
     "console/web/components/site-topbar.tsx": {
-      "sha256": "05d7077e8223405e9ba1293956888dd006576388fab706e0ed7ce015b0c2fe2f",
+      "sha256": "fb7f9bab57e5c06d1d1095d9075b1b9a492f714b93b4074f601d1a013fd1e2c7",
       "mode": 420
     },
     "console/web/components/telemetry-graphs.tsx": {
@@ -2774,7 +2846,7 @@
       "mode": 420
     },
     "console/web/lib/changelog.ts": {
-      "sha256": "8169d504b5efc992349e8db5b85eb594e1be727e4178997c7e348977302fd709",
+      "sha256": "9948a683793ebf7e4687517501632d8535b69ecc090c454f09dabf6772f4d401",
       "mode": 420
     },
     "console/web/lib/cli-auth.ts": {
@@ -2805,6 +2877,10 @@
       "sha256": "f15390cab605018c983f78404ca548e9213224797d920d2576d3962e3d3a3418",
       "mode": 420
     },
+    "console/web/lib/customer-fleets.ts": {
+      "sha256": "3151a3b765286c7e274b7dc8529afe11e6da94f23fad887d5c43fa1e511593d6",
+      "mode": 420
+    },
     "console/web/lib/customer-operations.ts": {
       "sha256": "b1158c533c5225a194aaa7cf31a3ebbf777e3b87a6aeb43b1f4f365d09ffee14",
       "mode": 420
@@ -2826,11 +2902,23 @@
       "mode": 420
     },
     "console/web/lib/docs-markdown.ts": {
-      "sha256": "4363dacba6d212766b01ae045bebe031c109de14252ce01a213c24b9ab3efd84",
+      "sha256": "1113e7012a69997f584b69a076c4a00250c01db9a97896adaf39e7190c851150",
       "mode": 420
     },
     "console/web/lib/fire-fuse.ts": {
       "sha256": "389ea4583f10088f1cec4f5e9dff2ac453e64a7fc11ea9a99bbb05153b92ec78",
+      "mode": 420
+    },
+    "console/web/lib/fleet-http.ts": {
+      "sha256": "ecea6154e6520fa049aa096b786a94ff4b2276bd00b1e18db01f8958dc1d73ef",
+      "mode": 420
+    },
+    "console/web/lib/fleet-input.ts": {
+      "sha256": "79491254710066106c7970df0423d3b09cdf13c08a4f50544b91d7123e46f3e9",
+      "mode": 420
+    },
+    "console/web/lib/fleet-labels.ts": {
+      "sha256": "61ae7c18ed8a0b845d99dbed8a6e7e588c09dd3299a336c98d909e919cc16c77",
       "mode": 420
     },
     "console/web/lib/format.ts": {
@@ -2893,6 +2981,10 @@
       "sha256": "3f3adf6c170f93749e771435c96ff9f28ae08acfc10b417fa209239954856acf",
       "mode": 420
     },
+    "console/web/lib/repositories.ts": {
+      "sha256": "ee5ba7fc0e478a0f6828035b1b875630ea1f43f24055d44ca840f88e3982cdf0",
+      "mode": 420
+    },
     "console/web/lib/request-history.ts": {
       "sha256": "20b91890c45d1d875f0346a10accc70075ae88745c0ebce98aff5fb5cd72fd7b",
       "mode": 420
@@ -2910,7 +3002,7 @@
       "mode": 420
     },
     "console/web/lib/shell-data.ts": {
-      "sha256": "4c9c195560b8da5e739118460928585af7f2fda03ee85f91aefddf6c03ecce7e",
+      "sha256": "dca9be1af8549b2515fc47d6ccdc696ca34f3b5544ef2253815bbfd6db17da00",
       "mode": 420
     },
     "console/web/lib/source-info.ts": {
@@ -2926,7 +3018,7 @@
       "mode": 420
     },
     "console/web/lib/use-cases.ts": {
-      "sha256": "bd5d06e5b1d94cbc28a6db1b672ccf353a008e8c0a7916fea2b7808f1c9617c0",
+      "sha256": "0d8450e1ddddcacc0aee05910a79bc1c58effcf5820df246b02fdab6310a65df",
       "mode": 420
     },
     "console/web/lib/use-clock.ts": {
@@ -3069,6 +3161,14 @@
       "sha256": "1707b978795814deda198078fa24398b84d809c20e1abbab4a46cedb52c865bd",
       "mode": 420
     },
+    "console/web/tests/fleet-input.test.mjs": {
+      "sha256": "ec9dbc0ec04a396576d86e0917740fbce61b48df6a6f179ae704edbb04ffe47f",
+      "mode": 420
+    },
+    "console/web/tests/fleet-labels.test.mjs": {
+      "sha256": "2e22c8ab6f819692a6169779b506ac54300aa5c89fc7e781bdea9ce62d62fe39",
+      "mode": 420
+    },
     "console/web/tests/format.test.mjs": {
       "sha256": "e2eebb7eba2ec9bfb27452930b606788308827686afb5cc26a0746afdc777537",
       "mode": 420
@@ -3154,7 +3254,7 @@
       "mode": 420
     },
     "console/web/tests/shell-data.test.mjs": {
-      "sha256": "3f64fadbcc315c586c23b51ebff36ef1e83cb75646471797c2c3923327ff7f73",
+      "sha256": "c4d2d11c022024bb8654d28752c28d0f58def88227d32b18eb4728ef7d8d29df",
       "mode": 420
     },
     "console/web/tests/source-info.test.mjs": {
@@ -3274,7 +3374,7 @@
       "mode": 420
     },
     "docs/managed-fleets.md": {
-      "sha256": "86947d24035452118c14ad8ed294e2a2daccbe87e5fb30b35d08c19758ab31b3",
+      "sha256": "3127c73f66a439470645571e9bb7c60afdcba55ddacf606ac413a6bff1f89738",
       "mode": 420
     },
     "docs/message-protocol.md": {
@@ -3294,7 +3394,7 @@
       "mode": 420
     },
     "docs/openapi-console.yaml": {
-      "sha256": "14614ea2b67d1f37d0ee7af93f363ef4d8d39282f1b2ed64aa8a462d6e16f22b",
+      "sha256": "971b33c181ddad7186a30cb4e174c326fb0b2db38a8f83a1c98f60910a88e481",
       "mode": 420
     },
     "docs/openapi.yaml": {

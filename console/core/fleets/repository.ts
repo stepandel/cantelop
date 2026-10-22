@@ -297,30 +297,74 @@ export class FleetRepository {
     requireScope(actor, scope);
     identifier(id, "ins");
     const result = await this.db.query<Installation>(
-      `SELECT i.id,i.external_key,i.app_id,i.package_id,i.next_package_id,i.release_id,i.desired_state,i.error_code,
-      p.runtime_id,p.version,a.status AS app_status,NOT EXISTS(SELECT 1 FROM cantelop_control.operations o WHERE o.app_id=i.app_id AND o.kind='purge_workspace' AND o.status<>'succeeded') AS purged,a.active_release_id,r.status AS release_status,fp.revision AS policy_revision,fp.enforced_revision
-      FROM cantelop_control.fleet_installations i JOIN cantelop_control.fleet_packages p ON p.id=i.package_id
-      JOIN cantelop_control.apps a ON a.id=i.app_id LEFT JOIN cantelop_control.releases r ON r.id=i.release_id
-      JOIN cantelop_control.fleet_policies fp ON fp.app_id=i.app_id WHERE i.id=$1 AND i.fleet_id=$2`,
+      `SELECT ${installationColumns} ${installationSource} WHERE i.id=$1 AND i.fleet_id=$2`,
       [id, actor.fleetId],
     );
     const row = result.rows[0];
     if (!row) throw new FleetError("not_found", 404);
-    const status =
-      row.desired_state === "deleted"
-        ? row.app_status === "archived" && row.purged
-          ? "deleted"
-          : "deleting"
-        : row.desired_state === "suspended"
-          ? "suspended"
-          : row.next_package_id
-            ? "upgrading"
-            : row.error_code || row.release_status === "failed" || row.release_status === "cancelled"
-              ? "failed"
-              : row.release_status === "active" && row.active_release_id === row.release_id
-                ? "ready"
-                : "provisioning";
-    return { ...row, status };
+    return { ...row, status: installationStatus(row) };
+  }
+  // Owner reads for the console. Each joins the owning user, so a foreign or
+  // unknown Fleet reads as not_found, as updateCapacity does.
+  async listForOwner(owner: string) {
+    return (await this.db.query(`SELECT ${fleetSummary} FROM cantelop_control.fleets f WHERE f.owner_user_id=$1 ORDER BY f.created_at,f.id`, [owner])).rows;
+  }
+  async fleetForOwner(owner: string, fleet: string) {
+    identifier(fleet, "flt");
+    const row = (
+      await this.db.query(`SELECT ${fleetSummary} FROM cantelop_control.fleets f WHERE f.id=$1 AND f.owner_user_id=$2`, [fleet, owner])
+    ).rows[0];
+    if (!row) throw new FleetError("not_found", 404);
+    return row;
+  }
+  async principalsForOwner(owner: string, fleet: string) {
+    await this.fleetForOwner(owner, fleet);
+    return (
+      await this.db.query(
+        `SELECT id,label,scopes,expires_at,revoked_at,created_at FROM cantelop_control.fleet_principals WHERE fleet_id=$1 ORDER BY created_at DESC,id`,
+        [fleet],
+      )
+    ).rows;
+  }
+  async packagesForOwner(owner: string, fleet: string) {
+    await this.fleetForOwner(owner, fleet);
+    return (
+      await this.db.query(
+        `SELECT id,name,version,runtime_id,disabled_at,created_at FROM cantelop_control.fleet_packages WHERE fleet_id=$1 ORDER BY created_at DESC,id`,
+        [fleet],
+      )
+    ).rows;
+  }
+  /** Oldest first, keyed on the last installation id of the previous page.
+   *  Installations whose App is archived and purged are left out. */
+  async installationsForOwner(owner: string, fleet: string, page: { after?: string; limit?: number } = {}) {
+    await this.fleetForOwner(owner, fleet);
+    const limit = integer(page.limit ?? 50, 1, 200);
+    if (page.after !== undefined) identifier(page.after, "ins");
+    const rows = (
+      await this.db.query<Installation>(
+        `SELECT ${installationColumns},fp.policy,i.created_at,i.updated_at ${installationSource}
+        WHERE i.fleet_id=$1 AND NOT (i.desired_state='deleted' AND a.status='archived' AND ${purgeSettled})
+          AND ($2::text IS NULL OR (i.created_at,i.id)>(SELECT created_at,id FROM cantelop_control.fleet_installations WHERE id=$2 AND fleet_id=$1))
+        ORDER BY i.created_at,i.id LIMIT $3`,
+        [fleet, page.after ?? null, limit + 1],
+      )
+    ).rows;
+    const items = rows.slice(0, limit).map((row) => ({ ...row, status: installationStatus(row) }));
+    return { items, after: rows.length > limit ? items.at(-1)!.id : null };
+  }
+  async installationForOwner(owner: string, fleet: string, id: string) {
+    await this.fleetForOwner(owner, fleet);
+    identifier(id, "ins");
+    const row = (
+      await this.db.query<Installation>(
+        `SELECT ${installationColumns},fp.policy,i.created_at,i.updated_at,np.version AS next_version ${installationSource}
+        LEFT JOIN cantelop_control.fleet_packages np ON np.id=i.next_package_id WHERE i.id=$1 AND i.fleet_id=$2`,
+        [id, fleet],
+      )
+    ).rows[0];
+    if (!row) throw new FleetError("not_found", 404);
+    return { ...row, status: installationStatus(row) };
   }
   async updatePolicy(
     actor: FleetActor,
@@ -365,6 +409,44 @@ export class FleetRepository {
       return result.rows[0];
     });
   }
+}
+const purgeSettled = `NOT EXISTS(SELECT 1 FROM cantelop_control.operations o WHERE o.app_id=i.app_id AND o.kind='purge_workspace' AND o.status<>'succeeded')`;
+const installationColumns = `i.id,i.external_key,i.app_id,i.package_id,i.next_package_id,i.release_id,i.desired_state,i.error_code,
+      p.runtime_id,p.version,a.status AS app_status,${purgeSettled} AS purged,a.active_release_id,r.status AS release_status,fp.revision AS policy_revision,fp.enforced_revision`;
+const installationSource = `FROM cantelop_control.fleet_installations i JOIN cantelop_control.fleet_packages p ON p.id=i.package_id
+      JOIN cantelop_control.apps a ON a.id=i.app_id LEFT JOIN cantelop_control.releases r ON r.id=i.release_id
+      JOIN cantelop_control.fleet_policies fp ON fp.app_id=i.app_id`;
+// used_apps counts what a finite cap counts in install(): live Apps and those
+// still purging.
+const fleetSummary = `f.id,f.name,f.max_apps,f.created_at,
+  (SELECT count(*)::integer FROM cantelop_control.fleet_installations i JOIN cantelop_control.apps a ON a.id=i.app_id
+    WHERE i.fleet_id=f.id AND (a.status<>'archived' OR NOT ${purgeSettled})) AS used_apps,
+  (SELECT count(*)::integer FROM cantelop_control.fleet_principals p WHERE p.fleet_id=f.id AND p.revoked_at IS NULL AND p.expires_at>now()) AS active_principals`;
+
+export type InstallationStatus = "deleted" | "deleting" | "suspended" | "upgrading" | "failed" | "ready" | "provisioning";
+export function installationStatus(row: {
+  desired_state: unknown;
+  app_status?: unknown;
+  purged?: unknown;
+  next_package_id?: unknown;
+  error_code?: unknown;
+  release_status?: unknown;
+  active_release_id?: unknown;
+  release_id?: unknown;
+}): InstallationStatus {
+  return row.desired_state === "deleted"
+    ? row.app_status === "archived" && row.purged
+      ? "deleted"
+      : "deleting"
+    : row.desired_state === "suspended"
+      ? "suspended"
+      : row.next_package_id
+        ? "upgrading"
+        : row.error_code || row.release_status === "failed" || row.release_status === "cancelled"
+          ? "failed"
+          : row.release_status === "active" && row.active_release_id === row.release_id
+            ? "ready"
+            : "provisioning";
 }
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");

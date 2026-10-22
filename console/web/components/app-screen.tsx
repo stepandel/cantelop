@@ -13,7 +13,7 @@ import { billingTimeLabel, billingTimeTitle } from "@/lib/billing-time";
 import type { AppBillingSummary } from "@/lib/instances";
 import { formatAgo } from "@/lib/format";
 import { buildLabel, byNewest, definitionLabel, deployPhases, summarizeReleases, type Release } from "@/lib/release-status";
-import { buildShellApps, buildShellWorkspaces } from "@/lib/shell-data";
+import { appTone, buildShellApps, buildShellWorkspaces } from "@/lib/shell-data";
 import type { Sandbox, Workspace } from "@/lib/telemetry-types";
 import { useClock } from "@/lib/use-clock";
 import type { Viewer } from "@/lib/viewer";
@@ -68,6 +68,7 @@ export function AppScreen({
   runtime: runtimeRead,
   releases: initialReleases,
   viewer,
+  fleet = null,
   polling = true,
   section,
   sectionHrefBase,
@@ -82,6 +83,9 @@ export function AppScreen({
   runtime: Promise<AppRuntime>;
   releases: Release[] | null;
   viewer: Viewer;
+  // The Fleet that installed this App, when the viewer owns it: the trail
+  // runs through it, since installations have no card on Home.
+  fleet?: { id: string; name: string } | null;
   polling?: boolean;
   // The active section. Defaults to the routed segment under /apps/[id];
   // previews, which render elsewhere, pass it explicitly.
@@ -127,7 +131,8 @@ export function AppScreen({
   usePolling(pollReleases, deploying ? DEPLOYING_POLL_MS : RESTING_POLL_MS, { enabled: polling });
 
   const shellApps = buildShellApps(allApps, allWorkspaces, instances);
-  const tone = shellApps.find(({ id }) => id === app.id)?.tone ?? "idle";
+  // Read directly: a Fleet installation is not among the palette's Apps.
+  const tone = appTone(app.id, instances) ?? "idle";
   const appRunning = (instances ?? []).filter(
     (instance) => instance.app_id === app.id && instance.state === "running",
   ).length;
@@ -151,6 +156,7 @@ export function AppScreen({
       appContext={{ id: app.id, slug: app.slug, tone, sections, activeSection, homeHref }}
       crumbs={[
         { label: "Home", href: "/profile" },
+        ...(fleet ? [{ label: "Fleets", href: "/fleets" }, { label: fleet.name, href: `/fleets/${fleet.id}` }] : []),
         ...(activeSection === "home"
           ? [{ label: app.slug }]
           : [

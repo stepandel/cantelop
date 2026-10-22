@@ -1,3 +1,5 @@
+import { SDK_REPO } from "./repositories";
+
 /* The starter use cases, shared by the front door and the console's example
    dialog. Seven jobs, one prompt each. The prompt is written for whatever
    coding agent the reader already uses — paste it, and that agent builds the
@@ -38,7 +40,7 @@ export type UseCase = {
   questions: readonly string[];
 };
 
-export const SDK_REPO = "https://github.com/stepandel/cantelop-sdk";
+export { SDK_REPO };
 
 export const USE_CASES: readonly UseCase[] = [
   {

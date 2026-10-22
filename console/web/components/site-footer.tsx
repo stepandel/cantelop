@@ -1,15 +1,14 @@
 import Link from "next/link";
 
 import { SignInButton } from "@/app/sign-in";
+import { PLATFORM_REPO, SDK_REPO } from "@/lib/repositories";
 import { BrandMark } from "./brand-mark";
 import { GitHubMark } from "./provider-marks";
 import styles from "./site-footer.module.css";
 
-const GITHUB = "https://github.com/stepandel/cantelop-sdk";
-
 /* The front door's footer: what Cantelop is and the beta caveat on the left,
    the site map in three columns on the right, and a closing line with the
-   copyright and the SDK's repository. */
+   copyright and the platform's repository. */
 export function SiteFooter() {
   return (
     <footer className={styles.footer}>
@@ -40,7 +39,10 @@ export function SiteFooter() {
             <div className={styles.column}>
               <h2 className={styles.heading}>Resources</h2>
               <Link className={styles.link} href="/blog">Blog</Link>
-              <a className={styles.link} href={GITHUB} target="_blank" rel="noopener noreferrer">
+              <a className={styles.link} href={PLATFORM_REPO} target="_blank" rel="noopener noreferrer">
+                Cantelop on GitHub
+              </a>
+              <a className={styles.link} href={SDK_REPO} target="_blank" rel="noopener noreferrer">
                 Cantelop SDK on GitHub
               </a>
               <Link className={styles.link} href="/contact">Contact</Link>
@@ -63,11 +65,11 @@ export function SiteFooter() {
           </p>
           <a
             className={styles.repo}
-            href={GITHUB}
+            href={PLATFORM_REPO}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Cantelop SDK on GitHub"
-            title="Cantelop SDK on GitHub"
+            aria-label="Cantelop on GitHub"
+            title="Cantelop on GitHub"
           >
             <GitHubMark />
           </a>

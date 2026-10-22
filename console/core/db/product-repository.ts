@@ -45,6 +45,8 @@ export interface ProductApp {
    *  alongside the row on reads scoped to a user, where the console shows them. */
   ownerEmail?: string;
   adminCount?: number;
+  /** The Fleet that installed the App; null for a standalone App. */
+  fleetID?: string | null;
   slug: string;
   status: "provisioning" | "active" | "archived";
   sessionRuntime: {
@@ -109,6 +111,7 @@ interface AppRow extends Record<string, unknown> {
   updated_at: Date;
   owner_email?: string;
   admin_count?: number;
+  fleet_id?: string | null;
 }
 
 interface WorkspaceRow extends Record<string, unknown> {
@@ -136,12 +139,14 @@ const appSelection = {
 // count is a correlated subquery so the LEFT JOIN that establishes the
 // actor's access stays one row per App. The subquery names its table in
 // the raw form the access predicates use: an aliased table inside a sql
-// template renders as the bare alias.
+// template renders as the bare alias. The Fleet id is read the same way: an
+// App has at most one installation.
 const owners = alias(users, "owner");
 const userAppSelection = {
   ...appSelection,
   owner_email: sql<string>`${owners.email}`.as("owner_email"),
   admin_count: sql<number>`(select count(*)::int from cantelop_control.app_collaborators admins where admins.app_id = ${apps.id} and admins.role = 'admin')`.as("admin_count"),
+  fleet_id: sql<string | null>`(select installs.fleet_id from cantelop_control.fleet_installations installs where installs.app_id = ${apps.id})`.as("fleet_id"),
 };
 
 const accessibleAppSelection = { ...userAppSelection, actor_status: sql<"active" | "suspended">`${users.status}`.as("actor_status") };
@@ -783,6 +788,7 @@ function mapApp(row: AppRow): ProductApp {
     createdAt: row.created_at, updatedAt: row.updated_at,
     ...(row.owner_email !== undefined ? { ownerEmail: row.owner_email } : {}),
     ...(row.admin_count !== undefined ? { adminCount: row.admin_count } : {}),
+    ...(row.fleet_id !== undefined ? { fleetID: row.fleet_id } : {}),
   };
 }
 

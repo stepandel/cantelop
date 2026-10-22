@@ -2063,3 +2063,37 @@ code { font: 400 var(--fs-data) var(--mono); font-variant-numeric: slashed-zero;
 @media (max-width: 640px) {
   .credential-facts > div { grid-template-columns: 1fr; gap: var(--sp-1); }
 }
+
+/* ---- Fleets ----
+   Installation states beyond the release words above, and principal states:
+   a revoked or expired principal is history, not an alarm. */
+.st-upgrading { color: var(--blue); }
+.dot-upgrading { background: var(--blue); }
+.st-suspended { color: var(--amber); }
+.dot-suspended { background: var(--amber); }
+.st-revoked, .st-expired { color: var(--faint); }
+.fleet-table-wrap { overflow-x: auto; }
+.fleets-table { min-width: 36rem; }
+.fleet-installations-table { min-width: 54rem; }
+.fleet-packages-table { min-width: 44rem; }
+.fleet-principals-table { min-width: 44rem; }
+.fleet-budget-table { min-width: 48rem; }
+.fleet-pager { display: flex; gap: var(--sp-4); }
+/* A checkbox rides the form row beside the fields, on their control line. */
+.inline-form label.check { flex-direction: row; align-items: center; gap: var(--sp-1); height: 32px; font: 400 var(--fs-support) var(--sans); letter-spacing: 0; text-transform: none; color: var(--body); }
+.inline-form label.check input { min-width: 0; height: auto; }
+.fleet-scopes { display: flex; flex-wrap: wrap; gap: 0 var(--sp-4); flex-basis: 100%; margin: 0; padding: 0; border: 0; }
+.fleet-scopes legend { padding: 0 0 var(--sp-1); font: 400 var(--fs-label) var(--sans); letter-spacing: 0.09em; text-transform: uppercase; color: var(--grey); }
+.fleet-cap-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.fleet-cap-form label.check { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-support); }
+.fleet-cap-form .control.narrow { min-width: 0; width: 7rem; }
+/* The one-time principal secret: wraps rather than scrolls, so it can be
+   read and selected whole. */
+.fleet-secret p { margin: 0 0 var(--sp-2); }
+.fleet-secret code { display: block; font: 400 var(--fs-support) var(--mono); overflow-wrap: anywhere; user-select: all; color: var(--ink); }
+.fleet-secret-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+/* A Fleet card on Home is a real link, so it lifts like an App card does. */
+.fleet-card { text-decoration: none; }
+.fleet-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-card-hover); text-decoration: none; }
+/* The days left ride the capitalized state word; only the word is capitalized. */
+.fleet-principals-table .state-cell .dim { text-transform: none; }

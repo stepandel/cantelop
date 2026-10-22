@@ -44,6 +44,16 @@ export class FleetBudget {
     if (!row) throw new FleetError("not_found", 404);
     return row;
   }
+  /** Every epoch granted to one App, latest expiry first. */
+  async listForApp(app: string) {
+    return (
+      await this.db.query(
+        `SELECT epoch,included::text,settled::text,reserved::text,(included-settled-reserved)::text AS available,expires_at
+      FROM cantelop_control.fleet_budgets WHERE app_id=$1 ORDER BY expires_at DESC,epoch`,
+        [app],
+      )
+    ).rows;
+  }
   async reserve(app: string, epoch: string, host: string, id: string, credits: number, expiresAt: string) {
     integer(credits, 1, Number.MAX_SAFE_INTEGER);
     if (

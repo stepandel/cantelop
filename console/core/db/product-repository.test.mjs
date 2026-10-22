@@ -208,15 +208,17 @@ test("lists Apps with their owner and admin count", async () => {
     rows: [{
       id: appID, owner_user_id: userID, slug: "agent", status: "active",
       internal_port: 3000, created_at: at, updated_at: at,
-      owner_email: "alice@example.com", admin_count: 0,
+      owner_email: "alice@example.com", admin_count: 0, fleet_id: "flt_0123456789abcdef0123456789abcdef",
     }],
   }));
   const repository = new ProductRepository(pool);
   expect(await repository.listAppsForUser(userID)).toEqual([{
     id: appID, ownerUserID: userID, slug: "agent", status: "active",
     sessionRuntime: { internalPort: 3000 }, createdAt: at, updatedAt: at,
-    ownerEmail: "alice@example.com", adminCount: 0, accessRole: "owner",
+    ownerEmail: "alice@example.com", adminCount: 0, fleetID: "flt_0123456789abcdef0123456789abcdef", accessRole: "owner",
   }]);
+  // An installation App names its Fleet through a correlated subquery.
+  expect(pool.statements[0].sql).toContain('(select installs.fleet_id from cantelop_control.fleet_installations installs where installs.app_id = "cantelop_control"."apps"."id")');
   expect(pool.statements[0].sql).toContain('inner join "cantelop_control"."users" "owner"');
 });
 

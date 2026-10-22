@@ -11,6 +11,7 @@ import {
   cachedCustomerQuota,
   cachedCustomerWorkspaces,
 } from "@/lib/app-shell-data";
+import { cachedCustomerFleet } from "@/lib/customer-fleets";
 import { appBillingSummary } from "@/lib/instances";
 import type { Release } from "@/lib/release-status";
 import { getUserSession } from "@/lib/user-session";
@@ -71,6 +72,11 @@ export default async function AppLayout({
   // release-store outage still leaves the other sections usable.
   const releases: Release[] | null = await releasesRead;
   const quota = await quotaRead;
+  // A Fleet installation's trail runs through its Fleet. Only the Fleet's
+  // owner can read it; anyone else sees the plain App trail.
+  const fleet = app.fleet_id
+    ? await cachedCustomerFleet(session.user.id, app.fleet_id).catch(() => null)
+    : null;
 
   return (
     <AppScreen
@@ -83,6 +89,7 @@ export default async function AppLayout({
       runtime={runtimeRead}
       releases={releases}
       viewer={viewerOf(session)}
+      fleet={fleet && { id: fleet.id, name: fleet.name }}
     >
       {children}
     </AppScreen>

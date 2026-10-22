@@ -1,14 +1,7 @@
 import { randomBytes } from "node:crypto";
+import type { FleetScope } from "./scopes";
 
-export const scopes = [
-  "packages:write",
-  "installations:write",
-  "installations:read",
-  "credentials:read",
-  "policy:write",
-  "usage:read",
-] as const;
-export type FleetScope = (typeof scopes)[number];
+export { scopes, type FleetScope } from "./scopes";
 export interface FleetActor {
   id: string;
   fleetId: string;

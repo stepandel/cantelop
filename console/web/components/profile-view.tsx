@@ -8,6 +8,8 @@ import { ConsoleShell } from "@/components/console-shell";
 import { CopyId } from "@/components/copy-id";
 import { ExampleDialog } from "@/components/example-dialog";
 import type { CustomerApp } from "@/lib/customer-telemetry";
+import type { CustomerFleet } from "@/lib/customer-fleets";
+import { capacityLabel } from "@/lib/fleet-labels";
 import { formatAgo, initialsOf } from "@/lib/format";
 import { fragmentLinkClick } from "@/lib/fragment";
 import { buildShellApps, buildShellWorkspaces } from "@/lib/shell-data";
@@ -49,6 +51,7 @@ export type AccountRuntime = { instances: Sandbox[]; observedAt: string } | null
 export function ProfileView({
   viewer,
   initialApps,
+  fleets,
   maxApps,
   usedApps,
   workspaces,
@@ -58,6 +61,8 @@ export function ProfileView({
 }: {
   viewer: Viewer;
   initialApps: CustomerApp[];
+  /** The account's Fleets; null when they could not be read. */
+  fleets: CustomerFleet[] | null;
   maxApps: number | null;
   usedApps: number | null;
   workspaces: Workspace[];
@@ -167,8 +172,11 @@ export function ProfileView({
 
   // Ownership decides which Apps can be deleted. Quota usage comes from the
   // server because an entire Fleet, including its installations, uses one slot.
-  const ownedApps = apps.filter((app) => app.role === "owner");
-  const sharedApps = apps.filter((app) => app.role !== "owner");
+  // Fleet installations have no card: each Fleet has one, and its page lists them.
+  const listedApps = apps.filter((app) => !app.fleet_id);
+  const ownedApps = listedApps.filter((app) => app.role === "owner");
+  const sharedApps = listedApps.filter((app) => app.role !== "owner");
+  const fleetCards = fleets ?? [];
   const atQuota = maxApps !== null && usedAppSlots !== null && usedAppSlots >= maxApps;
 
   function renderCard(app: CustomerApp) {
@@ -334,8 +342,8 @@ export function ProfileView({
 
       {/* The group label appears only once there is a second group to tell
           apart: an account that owns everything it sees reads as before. */}
-      <section className="app-group" aria-labelledby={sharedApps.length > 0 ? "owned-apps" : undefined}>
-        {sharedApps.length > 0 && <h2 id="owned-apps" className="app-group-label">Your apps</h2>}
+      <section className="app-group" aria-labelledby={sharedApps.length > 0 || fleetCards.length > 0 ? "owned-apps" : undefined}>
+        {(sharedApps.length > 0 || fleetCards.length > 0) && <h2 id="owned-apps" className="app-group-label">Your apps</h2>}
         <div className="app-grid">
           {ownedApps.map(renderCard)}
           {/* The create tile closes the owned group because that is the group
@@ -354,7 +362,7 @@ export function ProfileView({
           {/* The second way in, for an account with nothing in it yet: the
               front door's use-case prompts, which a coding agent turns into a
               project that deploys here. Once there is an app, the tile goes. */}
-          {apps.length === 0 && !unavailable && (
+          {listedApps.length === 0 && fleetCards.length === 0 && !unavailable && (
             <Link className="app-card app-card-new" href="/profile#example" onClick={fragmentLinkClick}>
               <i aria-hidden="true">›</i>
               <span>Start from an example</span>
@@ -362,6 +370,32 @@ export function ProfileView({
           )}
         </div>
       </section>
+
+      {fleetCards.length > 0 && (
+        <section className="app-group" aria-labelledby="fleets">
+          <h2 id="fleets" className="app-group-label">Fleets</h2>
+          <div className="app-grid">
+            {fleetCards.map((fleet) => (
+              <Link key={fleet.id} className="app-card fleet-card" href={`/fleets/${fleet.id}`} title={fleet.id}>
+                <header className="app-card-head">
+                  <h3>{fleet.name}</h3>
+                </header>
+                <dl className="monitor-meta">
+                  <dt>Installations</dt>
+                  <dd>{capacityLabel(fleet.used_apps, fleet.max_apps)}</dd>
+                  <dt className="sep" aria-hidden="true">·</dt>
+                  <dt>Principals</dt>
+                  <dd>{fleet.active_principals}</dd>
+                </dl>
+                <footer className="app-card-foot">
+                  <dl className="monitor-meta people"><dd className="faint">One app slot</dd></dl>
+                </footer>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      {fleets === null && !unavailable && <p className="table-note">Fleets are temporarily unavailable · <Link href="/fleets">Fleets</Link></p>}
 
       {sharedApps.length > 0 && (
         <section className="app-group" aria-labelledby="shared-apps">
@@ -372,7 +406,7 @@ export function ProfileView({
         </section>
       )}
 
-      {apps.length === 0 && !unavailable && panel !== "new-app" && (
+      {listedApps.length === 0 && fleetCards.length === 0 && !unavailable && panel !== "new-app" && (
         <p className="empty-note">
           No apps yet · <Link href="/docs/quick-start">Quick start</Link>
         </p>

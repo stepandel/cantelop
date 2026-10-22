@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteTopbar } from "@/components/site-topbar";
 import bar from "@/components/site-topbar.module.css";
 import { CHANGELOG } from "@/lib/changelog";
+import { PLATFORM_REPO } from "@/lib/repositories";
 import { AgentPerUserDiagram } from "./home-diagram";
 import { ParallelSessionsSnippet } from "./home-snippet";
 import { ClaudePlanExample } from "./blog/(posts)/hosting-claude-code-bring-your-own-subscription/claude-plan-example";
@@ -43,6 +44,12 @@ const STRUCTURED_DATA = {
   applicationCategory: "DeveloperApplication",
   operatingSystem: "Web",
   description: DESCRIPTION,
+  sameAs: [PLATFORM_REPO],
+  subjectOf: {
+    "@type": "SoftwareSourceCode",
+    codeRepository: PLATFORM_REPO,
+    license: "https://www.gnu.org/licenses/agpl-3.0.html",
+  },
 };
 
 /* "Sep 18, 2026", read as a calendar date so no reader's time zone moves it. */
@@ -163,6 +170,10 @@ export default function Home() {
 
       <div className={styles.content}>
         <section className={styles.hero} aria-labelledby="lede">
+          {/* The open-source announcement; retire it once it is old news. */}
+          <a className={styles.announce} href={PLATFORM_REPO} target="_blank" rel="noopener noreferrer">
+            Cantelop is now open source <span aria-hidden="true">→</span>
+          </a>
           <h1 id="lede">Give every user their own agent.</h1>
           <p className={styles.lede}>
             Each user gets an isolated workspace with persistent files and state, running Claude Code,

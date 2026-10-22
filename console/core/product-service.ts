@@ -17,6 +17,8 @@ export interface PublicApp {
   owner?: { email: string };
   /** Admin collaborators the owner has added. */
   admin_count: number;
+  /** The Fleet that installed the App; null for a standalone App. */
+  fleet_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -128,6 +130,7 @@ function publicApp(app: ProductApp): PublicApp {
     role: app.accessRole ?? "owner",
     ...(app.ownerEmail !== undefined ? { owner: { email: app.ownerEmail } } : {}),
     admin_count: app.adminCount ?? 0,
+    fleet_id: app.fleetID ?? null,
     created_at: app.createdAt.toISOString(),
     updated_at: app.updatedAt.toISOString(),
   };

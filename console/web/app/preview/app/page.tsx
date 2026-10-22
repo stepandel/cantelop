@@ -32,6 +32,7 @@ const app: CustomerApp = {
   role: "owner",
   owner: { email: "customer@example.com" },
   admin_count: 2,
+  fleet_id: null,
   id: appID,
   slug: "base-agent",
   hostname: "base-agent.cantelop.dev",

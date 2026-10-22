@@ -789,7 +789,7 @@ components:
   schemas:
     App:
       type: object
-      required: [id, slug, hostname, role, admin_count, created_at, updated_at]
+      required: [id, slug, hostname, role, admin_count, fleet_id, created_at, updated_at]
       properties:
         id: {$ref: "#/components/schemas/CustomerAppID"}
         slug: {$ref: "#/components/schemas/AppSlug"}
@@ -805,6 +805,10 @@ components:
           description: How many admin collaborators the owner has added.
           type: integer
           minimum: 0
+        fleet_id:
+          description: The Fleet that installed the App; null for a standalone App.
+          type: [string, "null"]
+          pattern: "^flt_[a-f0-9]{32}$"
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
     CreateTenantAppRequest:
