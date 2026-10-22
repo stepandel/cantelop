@@ -25,6 +25,21 @@
   padding: calc(var(--sp-12) * 2) 0 calc(var(--sp-8) * 2);
 }
 
+/* A one-line announcement above the headline, quieter than the CTAs. */
+.announce {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font: 400 var(--fs-support)/1.4 var(--sans);
+  text-decoration: none;
+}
+.announce:hover { border-color: var(--ghost); color: var(--ink); text-decoration: none; }
+
 .hero h1 {
   margin: 0;
   font: 500 clamp(2.25rem, 1.2rem + 3.2vw, 3.75rem)/1.08 var(--sans);
@@ -380,7 +395,8 @@
   .hero > :nth-child(2) { animation-delay: 0.06s; }
   .hero > :nth-child(3) { animation-delay: 0.12s; }
   .hero > :nth-child(4) { animation-delay: 0.18s; }
-  .heroVisual { animation-delay: 0.24s; }
+  .hero > :nth-child(5) { animation-delay: 0.24s; }
+  .heroVisual { animation-delay: 0.3s; }
 }
 
 @keyframes homeRise {

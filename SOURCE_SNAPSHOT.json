@@ -2222,7 +2222,7 @@
       "mode": 420
     },
     "console/web/app/home.module.css": {
-      "sha256": "0a4e0f923cb0684e805bf83b344281cee133e01ee8db34fcf343dac392519780",
+      "sha256": "b15f5903c19dade7df831a97dd631f0de25aec0108035a1fcbfe4a6c6aaaa71e",
       "mode": 420
     },
     "console/web/app/icon.svg": {
@@ -2290,7 +2290,7 @@
       "mode": 420
     },
     "console/web/app/page.tsx": {
-      "sha256": "c781b34f78eebc005bad4b1cea7bdca1d39be1159389b9ae7b920dd2c3923331",
+      "sha256": "74fe8df1602980c3ca9d701298fe5ded220f6f7c7bf17d6a9392464ccfbd0023",
       "mode": 420
     },
     "console/web/app/preview/app/fixture.ts": {
@@ -2342,7 +2342,7 @@
       "mode": 420
     },
     "console/web/app/source/page.tsx": {
-      "sha256": "3098f20f28335b6c93e69a75e90e0682a128b3fa3ef63538c86a4b5dc09448f7",
+      "sha256": "10a9a297e10a55d9c3bd18c0b2cf88a9c99659d3a30b995e16751fcf1dc7b358",
       "mode": 420
     },
     "console/web/app/twitter-image.tsx": {
@@ -2678,15 +2678,15 @@
       "mode": 420
     },
     "console/web/components/site-footer.tsx": {
-      "sha256": "d51037f9235aa89bcc6c7ae2b2c5e4ed8981b26d4801a9925f3a31176086db08",
+      "sha256": "2d6e274a972f2e490f0fc545a17f8ee920e8c58b9286fa3994bc694ac1d0a223",
       "mode": 420
     },
     "console/web/components/site-topbar.module.css": {
-      "sha256": "0ba2d68f7ad05a5c6266c27a3105f88820aa3578501f007d4685bfc1e06a5f0f",
+      "sha256": "714c0f43efd5cbecf76f5520075b1db74817a0dc211653815bc69a57630f3287",
       "mode": 420
     },
     "console/web/components/site-topbar.tsx": {
-      "sha256": "05d7077e8223405e9ba1293956888dd006576388fab706e0ed7ce015b0c2fe2f",
+      "sha256": "fb7f9bab57e5c06d1d1095d9075b1b9a492f714b93b4074f601d1a013fd1e2c7",
       "mode": 420
     },
     "console/web/components/telemetry-graphs.tsx": {
@@ -2746,7 +2746,7 @@
       "mode": 420
     },
     "console/web/lib/changelog.ts": {
-      "sha256": "8169d504b5efc992349e8db5b85eb594e1be727e4178997c7e348977302fd709",
+      "sha256": "9948a683793ebf7e4687517501632d8535b69ecc090c454f09dabf6772f4d401",
       "mode": 420
     },
     "console/web/lib/cli-auth.ts": {
@@ -2798,7 +2798,7 @@
       "mode": 420
     },
     "console/web/lib/docs-markdown.ts": {
-      "sha256": "4363dacba6d212766b01ae045bebe031c109de14252ce01a213c24b9ab3efd84",
+      "sha256": "1113e7012a69997f584b69a076c4a00250c01db9a97896adaf39e7190c851150",
       "mode": 420
     },
     "console/web/lib/fire-fuse.ts": {
@@ -2865,6 +2865,10 @@
       "sha256": "3f3adf6c170f93749e771435c96ff9f28ae08acfc10b417fa209239954856acf",
       "mode": 420
     },
+    "console/web/lib/repositories.ts": {
+      "sha256": "ee5ba7fc0e478a0f6828035b1b875630ea1f43f24055d44ca840f88e3982cdf0",
+      "mode": 420
+    },
     "console/web/lib/request-history.ts": {
       "sha256": "20b91890c45d1d875f0346a10accc70075ae88745c0ebce98aff5fb5cd72fd7b",
       "mode": 420
@@ -2898,7 +2902,7 @@
       "mode": 420
     },
     "console/web/lib/use-cases.ts": {
-      "sha256": "bd5d06e5b1d94cbc28a6db1b672ccf353a008e8c0a7916fea2b7808f1c9617c0",
+      "sha256": "0d8450e1ddddcacc0aee05910a79bc1c58effcf5820df246b02fdab6310a65df",
       "mode": 420
     },
     "console/web/lib/use-clock.ts": {
@@ -3187,6 +3191,10 @@
     },
     "docs/cli.md": {
       "sha256": "a52a9da04edb05bccf917258c83764939e22fa4a8d283fb2c1e399dbfd905de5",
+      "mode": 420
+    },
+    "docs/contributor-ci.md": {
+      "sha256": "6e2e43f482666cd6e680069abfb30d7f4cebdafe0cf9f12658d43f910a5aa9ac",
       "mode": 420
     },
     "docs/dashboard.md": {

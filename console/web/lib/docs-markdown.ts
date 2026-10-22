@@ -1,4 +1,5 @@
 import { markdownSources } from "../components/markdown/source";
+import { PLATFORM_REPO } from "./repositories";
 
 export const DOCS_ORIGIN = "https://console.cantelop.dev";
 
@@ -28,6 +29,8 @@ export function llmsIndex() {
     docsMarkdown().map(({ title, url }) => `- [${title}](${url})`).join("\n"),
     "## SDK",
     "- [SDK documentation](https://raw.githubusercontent.com/stepandel/cantelop-sdk/main/README.md): TypeScript APIs, transports, and runtime implementation.\n- [SDK examples](https://raw.githubusercontent.com/stepandel/cantelop-sdk/main/examples/README.md): Provider integrations and clients.",
+    "## Source",
+    `- [Platform source](${PLATFORM_REPO}): The Cantelop platform, open source under AGPL-3.0. Issues and pull requests are welcome; the SDK is MIT licensed.`,
     "## Optional",
     `- [All public docs](${DOCS_ORIGIN}/llms-full.txt): The full documentation in one file.`,
   ].join("\n\n") + "\n";

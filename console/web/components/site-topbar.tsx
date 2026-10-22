@@ -1,14 +1,17 @@
 import Link from "next/link";
 
 import { SignInButton, SignInDialog } from "@/app/sign-in";
+import { PLATFORM_REPO } from "@/lib/repositories";
 import { BetaTag } from "./beta-tag";
 import { BrandMark } from "./brand-mark";
+import { GitHubMark } from "./provider-marks";
 import styles from "./site-topbar.module.css";
 
 /* The front door's bar, shared by the home page, the docs, and the blog:
    brand and the pre-release tag (which explains itself on click) on the
-   left, the section links centered on the page, and the two ways in on the
-   right — Sign in for someone returning, Get started for someone new. Both
+   left, the section links centered on the page, and on the right the
+   platform's source, then the two ways in — Sign in for someone returning,
+   Get started for someone new. Both
    open the provider dialog the bar also carries. 48px, the height the docs
    and guides offset their sticky sidebars by; sticky, so the way in
    is always one click away. */
@@ -27,6 +30,16 @@ export function SiteTopbar() {
         <Link className={styles.link} href="/#changelog">Changelog</Link>
       </nav>
       <div className={styles.actions}>
+        <a
+          className={styles.repo}
+          href={PLATFORM_REPO}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Cantelop on GitHub"
+          title="Cantelop on GitHub"
+        >
+          <GitHubMark />
+        </a>
         <SignInButton className={styles.link}>Sign in</SignInButton>
         <SignInButton className={`${styles.cta} ${styles.pill}`}>Get started</SignInButton>
       </div>

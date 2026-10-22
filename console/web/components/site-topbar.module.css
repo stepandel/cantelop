@@ -50,6 +50,14 @@
 }
 .link:hover { color: var(--ink); text-decoration: none; }
 
+/* The platform's repository, as the GitHub mark alone. */
+.repo {
+  display: inline-flex;
+  align-items: center;
+  color: var(--grey);
+}
+.repo:hover { color: var(--ink); }
+
 .cta {
   display: inline-flex;
   align-items: center;

@@ -15,6 +15,11 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    date: "2026-10-21",
+    title: "Open source",
+    summary: "Read the platform's source, open issues, and send pull requests on GitHub. The platform is AGPL-3.0; the SDK and starters stay MIT.",
+  },
+  {
     date: "2026-10-14",
     title: "Typed Apps",
     summary: "Define an App in code and call its Sessions from a typed backend client, with the same App running locally and in production.",
